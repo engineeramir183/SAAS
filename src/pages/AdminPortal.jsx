@@ -395,21 +395,23 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         const termLabel = gbTerm || classTerms[0] || 'Current';
         const allClassStudents = students.filter(s => s.grade === selectedClass);
         const classStudents = allClassStudents
+            .filter(s => gbGenderTab === 'all' ? true : (gbGenderTab === 'boys' ? s.admissions?.[0]?.gender === 'Male' : s.admissions?.[0]?.gender === 'Female'))
             .slice()
             .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
         const subs = classSubjects;
         const schoolName = schoolData.name || 'ACS School & College';
         const printDate = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'long', year: 'numeric' });
         const sectionName = (SECTIONS || []).find(s => s.classes.includes(selectedClass))?.name || '';
+        const genderLabel = gbGenderTab === 'all' ? 'All Students' : (gbGenderTab === 'boys' ? 'Boys' : 'Girls');
 
         const gradeColors = (pct) => {
-            if (pct >= 90) return { bg: '#d1fae5', text: '#065f46', border: '#34d399' };
-            if (pct >= 80) return { bg: '#dcfce7', text: '#15803d', border: '#86efac' };
-            if (pct >= 70) return { bg: '#dbeafe', text: '#1d4ed8', border: '#93c5fd' };
-            if (pct >= 60) return { bg: '#ede9fe', text: '#6d28d9', border: '#c4b5fd' };
-            if (pct >= 50) return { bg: '#fef9c3', text: '#a16207', border: '#fde047' };
-            if (pct >= 40) return { bg: '#ffedd5', text: '#c2410c', border: '#fdba74' };
-            return { bg: '#fee2e2', text: '#dc2626', border: '#fca5a5' };
+            if (pct >= 90) return { bg: '#d1fae5', text: '#065f46', border: '#1e293b' };
+            if (pct >= 80) return { bg: '#dcfce7', text: '#15803d', border: '#1e293b' };
+            if (pct >= 70) return { bg: '#dbeafe', text: '#1d4ed8', border: '#1e293b' };
+            if (pct >= 60) return { bg: '#ede9fe', text: '#6d28d9', border: '#1e293b' };
+            if (pct >= 50) return { bg: '#fef9c3', text: '#a16207', border: '#1e293b' };
+            if (pct >= 40) return { bg: '#ffedd5', text: '#c2410c', border: '#1e293b' };
+            return { bg: '#fee2e2', text: '#dc2626', border: '#1e293b' };
         };
 
         // Build rows
@@ -423,21 +425,21 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 const total = getSubjectTotal(sub, termLabel);
                 const numOb = ob === 'A' ? 0 : ob;
                 const pct = numOb !== null ? Math.round((numOb / total) * 100) : null;
-                const sc = pct !== null ? gradeColors(pct) : { bg: '#f8fafc', text: '#94a3b8', border: '#e2e8f0' };
+                const sc = pct !== null ? gradeColors(pct) : { bg: '#f8fafc', text: '#1e293b', border: '#1e293b' };
                 const displayOb = ob === 'A' ? 'Absent' : ob;
                 const displayGrade = ob === 'A' ? 'F' : (pct !== null ? calcGrade(pct) : '');
-                return `<td style="text-align:center; padding:6px 4px; border:1px solid #e2e8f0; background:${sc.bg}; color:${sc.text}; font-weight:600; font-size:12px;">${ob !== null ? `${displayOb}<br/><span style='font-size:10px;font-weight:400'>${displayGrade}</span>` : '—'}</td>`;
+                return `<td style="text-align:center; padding:6px 4px; border:2px solid #1e293b; background:${sc.bg}; color:${sc.text}; font-weight:600; font-size:12px;">${ob !== null ? `${displayOb}<br/><span style='font-size:10px;font-weight:400'>${displayGrade}</span>` : '—'}</td>`;
             }).join('');
             return `
                 <tr style="background:${idx % 2 === 0 ? '#fff' : '#f8fafc'}">
-                    <td style="padding:8px 10px; border:1px solid #e2e8f0; font-weight:600; font-size:12px; color:#475569;">${idx + 1}</td>
-                    <td style="padding:8px 10px; border:1px solid #e2e8f0; font-weight:700; font-size:12px; color:#1e293b;">${s.name}</td>
-                    <td style="padding:8px 4px; border:1px solid #e2e8f0; font-size:11px; color:#64748b; text-align:center">${s.id}</td>
+                    <td style="padding:8px 10px; border:2px solid #1e293b; font-weight:600; font-size:12px; color:#1e293b;">${idx + 1}</td>
+                    <td style="padding:8px 10px; border:2px solid #1e293b; font-weight:700; font-size:12px; color:#1e293b;">${s.name}</td>
+                    <td style="padding:8px 4px; border:2px solid #1e293b; font-size:11px; color:#1e293b; text-align:center">${s.id}</td>
                     ${subCells}
-                    <td style="text-align:center; padding:6px 8px; border:1px solid ${gc.border}; background:${gc.bg}; color:${gc.text}; font-weight:800; font-size:13px;">
+                    <td style="text-align:center; padding:6px 8px; border:2px solid #1e293b; background:${gc.bg}; color:${gc.text}; font-weight:800; font-size:13px;">
                         ${overall !== null ? `${overall}%<br/><span style='font-size:11px'>${calcGrade(overall)}</span>` : '—'}
                     </td>
-                    <td style="text-align:center; padding:6px 8px; border:1px solid #e2e8f0; font-weight:700; font-size:12px; color:${overall !== null && overall >= 40 ? '#15803d' : '#dc2626'}">
+                    <td style="text-align:center; padding:6px 8px; border:2px solid #1e293b; font-weight:700; font-size:12px; color:${overall !== null && overall >= 40 ? '#15803d' : '#dc2626'}">
                         ${overall !== null ? (overall >= 40 ? 'PASS' : 'FAIL') : '—'}
                     </td>
                 </tr>`;
@@ -450,7 +452,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         const topStudent = withResults.sort((a, b) => calcOverallPct(getTermResults(b, termLabel)) - calcOverallPct(getTermResults(a, termLabel)))[0];
 
         const subHeaders = subs.map(sub =>
-            `<th style="padding:8px 4px; background:#1e3a5f; color:white; font-size:11px; text-align:center; min-width:80px; border:1px solid #2d4f7c">${sub}<br/><span style='font-weight:400;font-size:10px'>/${getSubjectTotal(sub, termLabel)}</span></th>`
+            `<th style="padding:8px 4px; background:#1e3a5f; color:white; font-size:11px; text-align:center; min-width:80px; border:2px solid #0f172a">${sub}<br/><span style='font-weight:400;font-size:10px'>/${getSubjectTotal(sub, termLabel)}</span></th>`
         ).join('');
 
         const html = `<!DOCTYPE html>
@@ -478,7 +480,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
   .stat-num { font-size: 22px; font-weight: 800; color: #1e3a5f; }
   .stat-lbl { font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; margin-top: 2px; }
   .table-wrap { overflow-x: auto; padding: 0 28px 28px; }
-  table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 12px; border: 2px solid #0f172a; }
   thead tr th { position: sticky; top: 0; }
   .footer { text-align: center; padding: 16px 28px; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; }
   .print-btn { position: fixed; bottom: 24px; right: 24px; background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.4); }
@@ -494,6 +496,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
   <div class="meta-item"><span class="meta-label">Class</span><span class="meta-value">${selectedClass}</span></div>
   ${sectionName ? `<div class="meta-item"><span class="meta-label">Section</span><span class="meta-value">${sectionName}</span></div>` : ''}
   <div class="meta-item"><span class="meta-label">Term</span><span class="meta-value">${termLabel}</span></div>
+  <div class="meta-item"><span class="meta-label">Gender Filter</span><span class="meta-value">${genderLabel}</span></div>
   <div class="meta-item"><span class="meta-label">Total Students</span><span class="meta-value">${classStudents.length}</span></div>
   <div class="meta-item"><span class="meta-label">Appeared</span><span class="meta-value">${withResults.length}</span></div>
   <div class="meta-item"><span class="meta-label">Date</span><span class="meta-value">${printDate}</span></div>
@@ -509,12 +512,12 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 <table>
   <thead>
     <tr>
-      <th style="padding:8px 10px; background:#1e3a5f; color:white; text-align:left; font-size:11px; border:1px solid #2d4f7c">#</th>
-      <th style="padding:8px 10px; background:#1e3a5f; color:white; text-align:left; font-size:11px; min-width:160px; border:1px solid #2d4f7c">Student Name</th>
-      <th style="padding:8px 4px; background:#1e3a5f; color:white; text-align:center; font-size:11px; min-width:90px; border:1px solid #2d4f7c">ID</th>
+      <th style="padding:8px 10px; background:#1e3a5f; color:white; text-align:left; font-size:11px; border:2px solid #0f172a">#</th>
+      <th style="padding:8px 10px; background:#1e3a5f; color:white; text-align:left; font-size:11px; min-width:160px; border:2px solid #0f172a">Student Name</th>
+      <th style="padding:8px 4px; background:#1e3a5f; color:white; text-align:center; font-size:11px; min-width:90px; border:2px solid #0f172a">ID</th>
       ${subHeaders}
-      <th style="padding:8px 8px; background:#0f2744; color:#fbbf24; text-align:center; font-size:11px; min-width:70px; border:1px solid #2d4f7c">Overall</th>
-      <th style="padding:8px 8px; background:#0f2744; color:#fbbf24; text-align:center; font-size:11px; min-width:55px; border:1px solid #2d4f7c">Result</th>
+      <th style="padding:8px 8px; background:#0f2744; color:#fbbf24; text-align:center; font-size:11px; min-width:70px; border:2px solid #0f172a">Overall</th>
+      <th style="padding:8px 8px; background:#0f2744; color:#fbbf24; text-align:center; font-size:11px; min-width:55px; border:2px solid #0f172a">Result</th>
     </tr>
   </thead>
   <tbody>${rows}</tbody>
@@ -524,6 +527,97 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
   ${schoolName} &nbsp;|&nbsp; ${selectedClass} &nbsp;|&nbsp; ${termLabel} &nbsp;|&nbsp; Printed: ${printDate} &nbsp;|&nbsp; Total Students: ${classStudents.length}
 </div>
 <button class="print-btn no-print" onclick="window.print()">🖨️ Print / Save PDF</button>
+</body>
+</html>`;
+
+        const win = window.open('', '_blank');
+        win.document.write(html);
+        win.document.close();
+        setTimeout(() => win.print(), 600);
+    };
+
+    // ── Export Passwords PDF ──
+    const exportPasswordsPDF = (classToExport) => {
+        const classStudents = students
+            .filter(s => s.grade === classToExport)
+            .slice()
+            .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+
+        const schoolName = schoolData.name || 'ACS School & College';
+
+        const pages = classStudents.map((s, idx) => {
+            return `
+            <div class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <h1>${schoolName}</h1>
+                        <p>Student Login Credentials 🔒</p>
+                    </div>
+                    <div class="card-body">
+                        <h2>${s.name}</h2>
+                        <div class="detail-row">
+                            <span class="detail-label">Father's Name</span>
+                            <span class="detail-value">${s.admissions?.[0]?.fatherName || '—'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Class</span>
+                            <span class="detail-value">${s.grade}</span>
+                        </div>
+                        <div class="credentials-box">
+                            <div class="cred-item">
+                                <span class="cred-label">Login ID / Username</span>
+                                <span class="cred-value">${s.id}</span>
+                            </div>
+                            <div class="cred-item">
+                                <span class="cred-label">Password</span>
+                                <span class="cred-value">${s.password || (s.id + '123')}</span>
+                            </div>
+                        </div>
+                        <p style="margin-top: 25px; font-size: 13px; color: #64748b; text-align: center;">
+                            Please keep these credentials secure. You can use them to access the Student Portal to view your attendance, results, and fee status.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            `;
+        }).join('');
+
+        const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Student Credentials - ${classToExport}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #e2e8f0; color: #1e293b; }
+  @page { size: A4 portrait; margin: 0; }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page { page-break-after: always; height: 100vh; display: flex; align-items: center; justify-content: center; }
+  }
+  .page { height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .card { width: 100%; max-width: 600px; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border: 2px solid #e2e8f0; }
+  .card-header { background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); color: white; padding: 40px; text-align: center; }
+  .card-header h1 { font-size: 32px; font-weight: 800; margin-bottom: 10px; }
+  .card-header p { font-size: 16px; opacity: 0.9; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; }
+  .card-body { padding: 40px; }
+  .card-body h2 { font-size: 28px; font-weight: 800; color: #0f172a; margin-bottom: 30px; text-align: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; }
+  .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed #e2e8f0; margin-bottom: 15px; }
+  .detail-label { font-size: 14px; font-weight: 700; color: #64748b; text-transform: uppercase; }
+  .detail-value { font-size: 18px; font-weight: 700; color: #1e293b; }
+  .credentials-box { margin-top: 30px; background: #f8fafc; border: 2px solid #cbd5e1; border-radius: 12px; padding: 25px; }
+  .cred-item { margin-bottom: 20px; }
+  .cred-item:last-child { margin-bottom: 0; }
+  .cred-label { display: block; font-size: 13px; font-weight: 800; color: #3b82f6; text-transform: uppercase; margin-bottom: 8px; }
+  .cred-value { display: block; font-size: 24px; font-weight: 800; color: #0f172a; background: white; padding: 12px 16px; border-radius: 8px; border: 1px solid #e2e8f0; letter-spacing: 1px; }
+  .print-btn { position: fixed; bottom: 24px; right: 24px; background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+  .print-btn:hover { background: #1d4ed8; }
+</style>
+</head>
+<body>
+  ${pages}
+  <button class="print-btn no-print" onclick="window.print()">🖨️ Print Passwords PDF</button>
 </body>
 </html>`;
 
@@ -2645,7 +2739,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         editingStudentId={editingStudentId} setEditingStudentId={setEditingStudentId}
                                         editStudentData={editStudentData} setEditStudentData={setEditStudentData}
                                         classImportFileRef={classImportFileRef} importStudentsExcel={importStudentsExcel}
-                                        exportClassRoster={exportClassRoster}
+                                        exportClassRoster={exportClassRoster} exportPasswordsPDF={exportPasswordsPDF}
                                         setActiveTab={setActiveTab} setAdmissionData={setAdmissionData}
                                         showSaveMessage={showSaveMessage} openConfirm={openConfirm}
                                     />

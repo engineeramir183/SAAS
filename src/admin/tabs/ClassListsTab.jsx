@@ -16,7 +16,7 @@ const ClassListsTab = ({
     editingStudentId, setEditingStudentId,
     editStudentData, setEditStudentData,
     classImportFileRef, importStudentsExcel,
-    exportClassRoster,
+    exportClassRoster, exportPasswordsPDF,
     setActiveTab, setAdmissionData,
     showSaveMessage, openConfirm,
 }) => {
@@ -56,6 +56,9 @@ const ClassListsTab = ({
                             </button>
                             <button onClick={() => { setSelectedClassForList(viewingClass); setTimeout(exportClassRoster, 100); }} className="btn btn-secondary">
                                 <Download size={16} /> Export
+                            </button>
+                            <button onClick={() => { setSelectedClassForList(viewingClass); setTimeout(() => exportPasswordsPDF(viewingClass), 100); }} className="btn" style={{ background: '#2563eb', color: 'white', borderColor: '#2563eb' }}>
+                                📄 Passwords PDF
                             </button>
                             <button onClick={() => { setSelectedClassForList(viewingClass); setAdmissionData(prev => ({ ...prev, applyingFor: viewingClass })); setActiveTab('admissions'); }} className="btn btn-primary">
                                 <PlusCircle size={16} /> Add Student
