@@ -462,32 +462,38 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 <title>Result Report - ${selectedClass} - ${termLabel}</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1e293b; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f1f5f9; color: #1e293b; padding: 20px; text-align: center; display: block; overflow-x: auto; }
   @page { size: A4 landscape; margin: 12mm; }
   @media print {
     .no-print { display: none !important; }
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 0; background: #fff; overflow: visible; display: block; }
+    .report-container { box-shadow: none !important; margin: 0 !important; width: 100% !important; min-width: 100% !important; display: block !important; }
+    .table-wrap { overflow-x: visible !important; width: 100% !important; }
+    table { page-break-inside: auto; }
+    tr { page-break-inside: avoid; page-break-after: auto; }
   }
-  .header { background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); color: white; padding: 20px 28px; border-radius: 8px 8px 0 0; }
-  .header h1 { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
-  .header p { font-size: 12px; opacity: 0.85; }
-  .meta-bar { display: flex; gap: 24px; background: #f1f5f9; padding: 12px 28px; border-bottom: 2px solid #e2e8f0; flex-wrap: wrap; }
+  .report-container { display: inline-block; min-width: 100%; min-width: max-content; background: #fff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin: 0 auto; text-align: left; }
+  .header { background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); color: white; padding: 24px 28px; border-radius: 8px 8px 0 0; text-align: center; }
+  .header h1 { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
+  .header p { font-size: 13px; opacity: 0.9; }
+  .meta-bar { display: flex; justify-content: center; gap: 30px; background: #f8fafc; padding: 16px 28px; border-bottom: 2px solid #e2e8f0; flex-wrap: wrap; text-align: center; }
   .meta-item { display: flex; flex-direction: column; }
   .meta-label { font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.05em; }
   .meta-value { font-size: 14px; font-weight: 700; color: #1e293b; }
-  .stats-bar { display: flex; gap: 16px; padding: 14px 28px; background: #fff; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; }
+  .stats-bar { display: flex; justify-content: center; gap: 16px; padding: 14px 28px; background: #fff; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; }
   .stat-card { flex: 1; min-width: 100px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; text-align: center; }
   .stat-num { font-size: 22px; font-weight: 800; color: #1e3a5f; }
   .stat-lbl { font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; margin-top: 2px; }
-  .table-wrap { overflow-x: auto; padding: 0 28px 28px; }
-  table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 12px; border: 2px solid #0f172a; }
-  thead tr th { position: sticky; top: 0; }
+  .table-wrap { width: 100%; padding: 20px 28px 28px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; border: 2px solid #0f172a; margin: 0; }
+  thead tr th { position: sticky; top: 0; z-index: 10; }
   .footer { text-align: center; padding: 16px 28px; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; }
   .print-btn { position: fixed; bottom: 24px; right: 24px; background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.4); }
   .print-btn:hover { background: #1d4ed8; }
 </style>
 </head>
 <body>
+<div class="report-container">
 <div class="header">
   <h1>📊 ${schoolName}</h1>
   <p>Result Report &nbsp;|&nbsp; ${sectionName ? sectionName + ' — ' : ''}${selectedClass} &nbsp;|&nbsp; ${termLabel} &nbsp;|&nbsp; Generated: ${printDate}</p>
@@ -525,6 +531,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 </div>
 <div class="footer">
   ${schoolName} &nbsp;|&nbsp; ${selectedClass} &nbsp;|&nbsp; ${termLabel} &nbsp;|&nbsp; Printed: ${printDate} &nbsp;|&nbsp; Total Students: ${classStudents.length}
+</div>
 </div>
 <button class="print-btn no-print" onclick="window.print()">🖨️ Print / Save PDF</button>
 </body>
