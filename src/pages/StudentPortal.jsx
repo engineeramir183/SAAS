@@ -163,34 +163,23 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
             <main className="dashboard-main">
 
                 {/* Top Header Row representing the current Active Tab */}
-                <header style={{
-                    background: 'rgba(255, 255, 255, 0.8)',
-                    backdropFilter: 'blur(12px)',
-                    borderBottom: '1px solid #e2e8f0',
-                    padding: '1.5rem 2.5rem',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    position: 'sticky',
-                    top: 0,
-                    zIndex: 5
-                }}>
+                <header className="dashboard-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         <button className="mobile-menu-btn" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
                             <Menu size={24} />
                         </button>
-                        <div>
-                            <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div className="dashboard-title-container">
+                            <h1 className="dashboard-title">
                                 <span style={{ color: '#2563eb' }}>{studentTabs.find(t => t.id === activeTab)?.label}</span>
                             </h1>
-                            <p style={{ color: '#64748b', margin: '0.25rem 0 0', fontSize: '0.95rem' }}>
+                            <p className="dashboard-subtitle">
                                 {studentTabs.find(t => t.id === activeTab)?.desc}
                             </p>
                         </div>
                     </div>
                 </header>
 
-                <div style={{ padding: '2.5rem', width: '100%', maxWidth: '1400px', margin: '0 auto', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <div className="dashboard-content">
 
                     {/* ════════════════ OVERVIEW TAB ════════════════ */}
                     {activeTab === 'overview' && (
@@ -274,11 +263,7 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                             </div>
 
                             {/* Two-column: Subject Performance + Attendance Ring */}
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: '1fr 340px',
-                                gap: '1.5rem'
-                            }}>
+                            <div className="dashboard-grid-2col">
                                 {/* Subject Performance Cards */}
                                 <div style={cardStyle}>
                                     <h2 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '1.25rem', color: '#1e293b' }}>
@@ -543,12 +528,7 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                             <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Detailed breakdown of your attendance this academic year</p>
 
                             {/* Big ring + stat grid side by side */}
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: '1fr 1fr',
-                                gap: '1.5rem',
-                                marginBottom: '2rem'
-                            }}>
+                            <div className="dashboard-grid-2col">
                                 {/* Ring card */}
                                 <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                                     <svg width="200" height="200">
@@ -716,16 +696,12 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                                         return (
                                             <>
                                                 {/* Term average banner */}
-                                                <div style={{
-                                                    ...cardStyle,
+                                                <div className="flex-between term-average-banner" style={{
                                                     background: 'linear-gradient(135deg, #1e293b, #334155)',
                                                     color: 'white',
                                                     marginBottom: '1.5rem',
-                                                    display: 'flex',
-                                                    justifyContent: 'space-between',
-                                                    alignItems: 'center',
-                                                    flexWrap: 'wrap',
-                                                    gap: '1rem'
+                                                    padding: '1.5rem',
+                                                    borderRadius: '16px'
                                                 }}>
                                                     <div>
                                                         <div style={{ fontSize: '0.85rem', opacity: 0.7 }}>
@@ -803,129 +779,132 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                                 </div>
                             )}
                         </div>
-                    )}
+                    )
+                    }
 
                     {/* ════════════════ FEE STATUS TAB ════════════════ */}
-                    {activeTab === 'fees' && (() => {
-                        const feeHistory = liveStudent.feeHistory || [];
-                        const unpaidMonths = feeHistory.filter(h => h.status === 'unpaid');
-                        const paidMonths = feeHistory.filter(h => h.status === 'paid');
+                    {
+                        activeTab === 'fees' && (() => {
+                            const feeHistory = liveStudent.feeHistory || [];
+                            const unpaidMonths = feeHistory.filter(h => h.status === 'unpaid');
+                            const paidMonths = feeHistory.filter(h => h.status === 'paid');
 
-                        return (
-                            <div className="animate-fade-in">
-                                <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.5rem', color: '#1e293b' }}>
-                                    💰 Fee History
-                                </h2>
-                                <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Your month-by-month fee payment records</p>
+                            return (
+                                <div className="animate-fade-in">
+                                    <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.5rem', color: '#1e293b' }}>
+                                        💰 Fee History
+                                    </h2>
+                                    <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Your month-by-month fee payment records</p>
 
-                                {/* Summary banner */}
-                                {unpaidMonths.length > 0 ? (
-                                    <div style={{
-                                        background: 'linear-gradient(135deg, #fef2f2, #fee2e2)',
-                                        border: '1px solid #fca5a5',
-                                        borderRadius: '14px',
-                                        padding: '1.25rem 1.5rem',
-                                        marginBottom: '1.5rem',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '1rem',
-                                        flexWrap: 'wrap'
-                                    }}>
-                                        <XCircle size={32} style={{ color: '#dc2626', flexShrink: 0 }} />
-                                        <div>
-                                            <div style={{ fontWeight: 800, color: '#dc2626', fontSize: '1.1rem' }}>
-                                                ⚠ {unpaidMonths.length} Month{unpaidMonths.length > 1 ? 's' : ''} Overdue
-                                            </div>
-                                            <div style={{ color: '#9f1239', fontSize: '0.9rem', marginTop: '0.2rem' }}>
-                                                Please contact the school office to clear your dues: {unpaidMonths.map(h => h.month).join(', ')}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ) : feeHistory.length > 0 ? (
-                                    <div style={{
-                                        background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
-                                        border: '1px solid #86efac',
-                                        borderRadius: '14px',
-                                        padding: '1.25rem 1.5rem',
-                                        marginBottom: '1.5rem',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '1rem'
-                                    }}>
-                                        <CheckCircle size={32} style={{ color: '#16a34a', flexShrink: 0 }} />
-                                        <div>
-                                            <div style={{ fontWeight: 800, color: '#16a34a', fontSize: '1.1rem' }}>All Fees Cleared!</div>
-                                            <div style={{ color: '#166534', fontSize: '0.9rem', marginTop: '0.2rem' }}>
-                                                All {paidMonths.length} month{paidMonths.length > 1 ? 's' : ''} paid. Thank you!
-                                            </div>
-                                        </div>
-                                    </div>
-                                ) : null}
-
-                                {/* Stats */}
-                                {feeHistory.length > 0 && (
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                                        {[
-                                            { label: 'Total Months', val: feeHistory.length, color: '#2563eb', bg: '#eff6ff' },
-                                            { label: 'Paid', val: paidMonths.length, color: '#16a34a', bg: '#f0fdf4' },
-                                            { label: 'Unpaid / Dues', val: unpaidMonths.length, color: '#dc2626', bg: '#fef2f2' },
-                                        ].map(s => (
-                                            <div key={s.label} style={{ background: s.bg, borderRadius: '10px', padding: '0.85rem', textAlign: 'center', border: `1px solid ${s.color}22` }}>
-                                                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: s.color }}>{s.val}</div>
-                                                <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600, marginTop: '0.1rem' }}>{s.label}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* Month cards */}
-                                {feeHistory.length === 0 ? (
-                                    <div style={{ ...cardStyle, textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-                                        <DollarSign size={48} style={{ margin: '0 auto 1rem', color: '#cbd5e1' }} />
-                                        <p style={{ fontWeight: 600 }}>No fee records yet.</p>
-                                        <p style={{ fontSize: '0.85rem' }}>Your monthly fee history will appear here once the school opens fee months.</p>
-                                    </div>
-                                ) : (
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem' }}>
-                                        {[...feeHistory].reverse().map(h => (
-                                            <div key={h.month} style={{
-                                                ...cardStyle,
-                                                border: `1.5px solid ${h.status === 'paid' ? '#86efac' : '#fca5a5'}`,
-                                                background: h.status === 'paid' ? '#f0fdf4' : '#fef2f2',
-                                                padding: '1.25rem'
-                                            }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                                                    <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.95rem' }}>{h.month}</div>
-                                                    <span style={{
-                                                        padding: '0.2rem 0.6rem',
-                                                        borderRadius: '999px',
-                                                        fontSize: '0.72rem',
-                                                        fontWeight: 800,
-                                                        background: h.status === 'paid' ? '#dcfce7' : '#fee2e2',
-                                                        color: h.status === 'paid' ? '#16a34a' : '#dc2626'
-                                                    }}>
-                                                        {h.status === 'paid' ? '✓ PAID' : '✗ UNPAID'}
-                                                    </span>
+                                    {/* Summary banner */}
+                                    {unpaidMonths.length > 0 ? (
+                                        <div style={{
+                                            background: 'linear-gradient(135deg, #fef2f2, #fee2e2)',
+                                            border: '1px solid #fca5a5',
+                                            borderRadius: '14px',
+                                            padding: '1.25rem 1.5rem',
+                                            marginBottom: '1.5rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '1rem',
+                                            flexWrap: 'wrap'
+                                        }}>
+                                            <XCircle size={32} style={{ color: '#dc2626', flexShrink: 0 }} />
+                                            <div>
+                                                <div style={{ fontWeight: 800, color: '#dc2626', fontSize: '1.1rem' }}>
+                                                    ⚠ {unpaidMonths.length} Month{unpaidMonths.length > 1 ? 's' : ''} Overdue
                                                 </div>
-                                                {h.status === 'paid' && h.paidOn ? (
-                                                    <div style={{ fontSize: '0.8rem', color: '#16a34a', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                                        <CheckCircle size={12} /> Paid on {h.paidOn}
-                                                    </div>
-                                                ) : h.status === 'unpaid' ? (
-                                                    <div style={{ fontSize: '0.8rem', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                                        <XCircle size={12} /> Contact school office
-                                                    </div>
-                                                ) : null}
+                                                <div style={{ color: '#9f1239', fontSize: '0.9rem', marginTop: '0.2rem' }}>
+                                                    Please contact the school office to clear your dues: {unpaidMonths.map(h => h.month).join(', ')}
+                                                </div>
                                             </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })()}
-                </div>
-            </main>
-        </div>
+                                        </div>
+                                    ) : feeHistory.length > 0 ? (
+                                        <div style={{
+                                            background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
+                                            border: '1px solid #86efac',
+                                            borderRadius: '14px',
+                                            padding: '1.25rem 1.5rem',
+                                            marginBottom: '1.5rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '1rem'
+                                        }}>
+                                            <CheckCircle size={32} style={{ color: '#16a34a', flexShrink: 0 }} />
+                                            <div>
+                                                <div style={{ fontWeight: 800, color: '#16a34a', fontSize: '1.1rem' }}>All Fees Cleared!</div>
+                                                <div style={{ color: '#166534', fontSize: '0.9rem', marginTop: '0.2rem' }}>
+                                                    All {paidMonths.length} month{paidMonths.length > 1 ? 's' : ''} paid. Thank you!
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : null}
+
+                                    {/* Stats */}
+                                    {feeHistory.length > 0 && (
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                                            {[
+                                                { label: 'Total Months', val: feeHistory.length, color: '#2563eb', bg: '#eff6ff' },
+                                                { label: 'Paid', val: paidMonths.length, color: '#16a34a', bg: '#f0fdf4' },
+                                                { label: 'Unpaid / Dues', val: unpaidMonths.length, color: '#dc2626', bg: '#fef2f2' },
+                                            ].map(s => (
+                                                <div key={s.label} style={{ background: s.bg, borderRadius: '10px', padding: '0.85rem', textAlign: 'center', border: `1px solid ${s.color}22` }}>
+                                                    <div style={{ fontSize: '1.6rem', fontWeight: 800, color: s.color }}>{s.val}</div>
+                                                    <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600, marginTop: '0.1rem' }}>{s.label}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Month cards */}
+                                    {feeHistory.length === 0 ? (
+                                        <div style={{ ...cardStyle, textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
+                                            <DollarSign size={48} style={{ margin: '0 auto 1rem', color: '#cbd5e1' }} />
+                                            <p style={{ fontWeight: 600 }}>No fee records yet.</p>
+                                            <p style={{ fontSize: '0.85rem' }}>Your monthly fee history will appear here once the school opens fee months.</p>
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem' }}>
+                                            {[...feeHistory].reverse().map(h => (
+                                                <div key={h.month} style={{
+                                                    ...cardStyle,
+                                                    border: `1.5px solid ${h.status === 'paid' ? '#86efac' : '#fca5a5'}`,
+                                                    background: h.status === 'paid' ? '#f0fdf4' : '#fef2f2',
+                                                    padding: '1.25rem'
+                                                }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                                                        <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.95rem' }}>{h.month}</div>
+                                                        <span style={{
+                                                            padding: '0.2rem 0.6rem',
+                                                            borderRadius: '999px',
+                                                            fontSize: '0.72rem',
+                                                            fontWeight: 800,
+                                                            background: h.status === 'paid' ? '#dcfce7' : '#fee2e2',
+                                                            color: h.status === 'paid' ? '#16a34a' : '#dc2626'
+                                                        }}>
+                                                            {h.status === 'paid' ? '✓ PAID' : '✗ UNPAID'}
+                                                        </span>
+                                                    </div>
+                                                    {h.status === 'paid' && h.paidOn ? (
+                                                        <div style={{ fontSize: '0.8rem', color: '#16a34a', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                                            <CheckCircle size={12} /> Paid on {h.paidOn}
+                                                        </div>
+                                                    ) : h.status === 'unpaid' ? (
+                                                        <div style={{ fontSize: '0.8rem', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                                            <XCircle size={12} /> Contact school office
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()
+                    }
+                </div >
+            </main >
+        </div >
     );
 };
 

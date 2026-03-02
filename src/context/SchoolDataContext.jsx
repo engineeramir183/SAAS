@@ -4,7 +4,9 @@ import { CLASSES as LOCAL_CLASSES } from '../data/schoolData';
 
 // SUBJECTS is now a per-class map: { "className": ["Urdu", "Math", ...] }
 const DEFAULT_SUBJECTS = {};
-const DEFAULT_TERMS = ['Term 1', 'Term 2', 'Final Exam'];
+// TERMS is now a per-class map: { "className": ["Term 1", "Term 2", ...] } 
+// or an array for legacy support.
+const DEFAULT_TERMS = {};
 // SUBJECT_TOTALS stored as WEIGHTS key: { subject: totalMarks } e.g. { "Mathematics": 100, "Physics": 85 }
 // If a subject has no entry, falls back to DEFAULT_SUBJECT_TOTAL (100).
 const DEFAULT_WEIGHTS = {};
@@ -108,7 +110,15 @@ export const SchoolDataProvider = ({ children }) => {
                     setSubjects(loaded);
                 }
             }
-            if (metaMap['TERMS']) setTerms(metaMap['TERMS']);
+            if (metaMap['TERMS']) {
+                const loadedTerms = metaMap['TERMS'];
+                if (Array.isArray(loadedTerms)) {
+                    // Legacy: flat array. Provide empty object so the UI can prompt class-specific updates.
+                    setTerms({});
+                } else {
+                    setTerms(loadedTerms);
+                }
+            }
             if (metaMap['SECTIONS']) setSections(metaMap['SECTIONS']); // Load SECTIONS
             if (metaMap['WEIGHTS']) setWeights(metaMap['WEIGHTS']);
 
@@ -182,9 +192,10 @@ export const SchoolDataProvider = ({ children }) => {
         if (!error) setSubjects(newSubjectsMap);
     };
 
-    const updateTerms = async (newTermsList) => {
-        const { error } = await supabase.from('metadata').upsert({ key: 'TERMS', value: newTermsList });
-        if (!error) setTerms(newTermsList);
+    const updateTerms = async (newTermsMap) => {
+        // newTermsMap is { className: [term,...] }
+        const { error } = await supabase.from('metadata').upsert({ key: 'TERMS', value: newTermsMap });
+        if (!error) setTerms(newTermsMap);
     };
 
     const updateSections = async (newSectionsList) => {

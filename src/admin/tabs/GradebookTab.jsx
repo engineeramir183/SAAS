@@ -27,7 +27,7 @@ const GradebookTab = ({
     const allClassStudents = students.filter(s => s.grade === selectedClass);
     const classStudents = filterByGender(allClassStudents, gbGenderTab)
         .slice().sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
-    const termLabel = gbTerm || TERMS[0] || 'Current';
+    const termLabel = gbTerm;
 
     const subjectStats = classSubjects.map(sub => {
         const subTotal = getSubjectTotal(sub);
@@ -63,38 +63,24 @@ const GradebookTab = ({
         <div className="animate-fade-in">
             <input type="file" ref={gbImportFileRef} onChange={importGradebookExcel} accept=".xlsx,.xls" style={{ display: 'none' }} />
 
-            {/* Header Bar */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', marginBottom: '1.25rem' }}>
+            {/* Header / Class Selection */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
-                    <h2 style={{ fontSize: '1.6rem', fontWeight: 800, margin: 0 }}>📊 Gradebook</h2>
-                    <p style={{ color: '#64748b', fontSize: '0.85rem', margin: 0 }}>Spreadsheet-style marks entry — separated by term and gender</p>
+                    <h2 style={{ fontSize: '1.6rem', fontWeight: 800, margin: 0, color: '#1e293b' }}>📝 Manage Exams</h2>
+                    <p style={{ color: '#64748b', fontSize: '0.9rem', margin: 0, marginTop: '0.2rem' }}>Configure subjects, manage terms, and enter marks</p>
                 </div>
-                <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <select className="form-input" style={{ padding: '0.4rem 0.75rem' }} value={selectedClass}
-                        onChange={e => { setSelectedClass(e.target.value); setGbEdits({}); }}>
-                        {sectionClasses.map(c => <option key={c}>{c}</option>)}
-                    </select>
-                    <select className="form-input" style={{ padding: '0.4rem 0.75rem', fontWeight: 700 }} value={gbTerm}
-                        onChange={e => { setGbTerm(e.target.value); setGbEdits({}); }}>
-                        {TERMS.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                    <button onClick={saveGradebook} disabled={gbSaving} className="btn btn-primary" style={{ padding: '0.45rem 1rem' }}>
-                        <Save size={15} /> {gbSaving ? 'Saving…' : 'Save All'}
+
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Select Class</label>
+                        <select className="form-input" style={{ padding: '0.5rem 1rem', minWidth: '180px', fontWeight: 700 }} value={selectedClass}
+                            onChange={e => { setSelectedClass(e.target.value); setGbEdits({}); }}>
+                            {sectionClasses.map(c => <option key={c}>{c}</option>)}
+                        </select>
+                    </div>
+                    <button onClick={() => setShowGbSettings(s => !s)} className={`btn ${showGbSettings ? 'btn-primary' : 'btn-outline'}`} style={{ padding: '0.5rem 1rem', height: 'fit-content' }}>
+                        ⚙️ Setup Subjects & Terms {showGbSettings ? '▲' : '▼'}
                     </button>
-                    <button onClick={downloadGradebookTemplate} className="btn" style={{ background: '#10b981', color: 'white', borderColor: '#10b981', padding: '0.45rem 0.9rem' }}>
-                        <Download size={15} /> Template
-                    </button>
-                    <button onClick={() => gbImportFileRef.current.click()} className="btn" style={{ background: '#3b82f6', color: 'white', borderColor: '#3b82f6', padding: '0.45rem 0.9rem' }}>
-                        <Upload size={15} /> Import
-                    </button>
-                    <button onClick={exportGradebookExcel} className="btn" style={{ background: '#217346', color: 'white', borderColor: '#217346', padding: '0.45rem 0.9rem' }}>
-                        <Download size={15} /> Export All Terms
-                    </button>
-                    <button onClick={archiveTerm} className="btn" style={{ background: '#7c3aed', color: 'white', borderColor: '#7c3aed', padding: '0.45rem 0.9rem' }}>
-                        <Save size={15} /> Archive Term
-                    </button>
-                    <button onClick={() => setShowGbSettings(s => !s)} className="btn" style={{ padding: '0.45rem 0.9rem' }}>⚙️ Settings</button>
-                    <button onClick={exportResultPDF} className="btn" style={{ background: '#dc2626', color: 'white', borderColor: '#dc2626', padding: '0.45rem 0.9rem' }}>📄 PDF Report</button>
                 </div>
             </div>
 
@@ -203,151 +189,259 @@ const GradebookTab = ({
                 </div>
             )}
 
-            {/* Gender Tabs */}
-            <div style={{ display: 'flex', marginBottom: '1.25rem', borderRadius: '12px 12px 0 0', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-                {[
-                    { id: 'boys', label: '👦 Boys', count: boysCount, color: '#0369a1', bg: '#e0f2fe' },
-                    { id: 'girls', label: '👧 Girls', count: girlsCount, color: '#be185d', bg: '#fce7f3' },
-                    { id: 'all', label: '👥 All Students', count: allClassStudents.length, color: '#475569', bg: '#f1f5f9' }
-                ].map(tab => (
-                    <button key={tab.id} onClick={() => setGbGenderTab(tab.id)} style={{
-                        flex: 1, padding: '0.85rem 1rem', fontWeight: gbGenderTab === tab.id ? 800 : 600, fontSize: '0.9rem',
-                        color: gbGenderTab === tab.id ? tab.color : '#94a3b8',
-                        background: gbGenderTab === tab.id ? tab.bg : 'transparent', border: 'none',
-                        borderBottom: gbGenderTab === tab.id ? `3px solid ${tab.color}` : '3px solid transparent',
-                        cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem'
-                    }}>
-                        {tab.label}
-                        <span style={{ background: gbGenderTab === tab.id ? tab.color : '#cbd5e1', color: 'white', borderRadius: '999px', padding: '0.1rem 0.5rem', fontSize: '0.72rem', fontWeight: 700 }}>
-                            {tab.count}
-                        </span>
-                    </button>
-                ))}
-            </div>
-
-            {/* Class Statistics */}
-            <div style={{ marginBottom: '1.25rem' }}>
-                <button onClick={() => setShowGbStats(s => !s)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.75rem' }}>
-                    📈 Class Statistics {showGbStats ? '▲' : '▼'}
-                </button>
-                {showGbStats && (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
-                        <div style={{ background: 'linear-gradient(135deg, #1e3a5f, #2563eb)', color: 'white', borderRadius: '12px', padding: '1rem' }}>
-                            <div style={{ fontSize: '0.75rem', opacity: 0.8, marginBottom: '0.2rem' }}>Class Average</div>
-                            <div style={{ fontSize: '2rem', fontWeight: 800 }}>{overallAvg}%</div>
-                            <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>{classStudents.length} students • {calcGrade(overallAvg)} overall</div>
-                        </div>
-                        <div style={{ background: 'linear-gradient(135deg, #059669, #10b981)', color: 'white', borderRadius: '12px', padding: '1rem' }}>
-                            <div style={{ fontSize: '0.75rem', opacity: 0.8, marginBottom: '0.2rem' }}>Pass Rate</div>
-                            <div style={{ fontSize: '2rem', fontWeight: 800 }}>{classStudents.length ? Math.round((passCount / classStudents.length) * 100) : 0}%</div>
-                            <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>{passCount} / {classStudents.length} passed (≥40%)</div>
-                        </div>
-                        {subjectStats.map(({ sub, avg, high, pass, total }) => {
-                            const gc = gradeColor(avg);
-                            return (
-                                <div key={sub} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1rem' }}>
-                                    <div style={{ fontWeight: 700, fontSize: '0.85rem', marginBottom: '0.4rem', color: '#1e293b' }}>{sub}</div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#64748b' }}>
-                                        <span>Avg: <b style={{ color: gc.text }}>{avg}%</b></span>
-                                        <span>High: <b style={{ color: '#15803d' }}>{high}%</b></span>
-                                        <span>Pass: <b>{pass}/{total}</b></span>
-                                    </div>
-                                    <div style={{ height: '6px', background: '#f1f5f9', borderRadius: '999px', overflow: 'hidden', marginTop: '0.5rem' }}>
-                                        <div style={{ width: `${avg}%`, height: '100%', background: gc.text, borderRadius: '999px', transition: 'width 0.8s ease' }} />
-                                    </div>
-                                </div>
-                            );
-                        })}
+            {/* Term Selection Grid */}
+            {!termLabel && (
+                <div style={{ marginBottom: '2.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '1.5px', margin: 0 }}>
+                            Select Term / Exam Type
+                        </h3>
                     </div>
-                )}
-            </div>
-
-            {/* Gradebook Table */}
-            {classStudents.length === 0 ? (
-                <div className="card" style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-                    <Users size={48} style={{ margin: '0 auto 1rem', color: '#cbd5e1' }} />
-                    <p>No students in {selectedClass} yet.</p>
-                </div>
-            ) : (
-                <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                    {Object.keys(gbEdits).length > 0 && (
-                        <div style={{ padding: '0.6rem 1rem', background: '#fef9c3', borderBottom: '1px solid #fef08a', color: '#854d0e', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            ✏️ You have unsaved changes. Click <b>Save All</b> to apply.
+                    {TERMS.length === 0 ? (
+                        <div className="card" style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
+                            No terms added yet. Open settings above to add a new term.
+                        </div>
+                    ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1rem' }}>
+                            {TERMS.map(term => {
+                                const isSelected = termLabel === term;
+                                return (
+                                    <button
+                                        key={term}
+                                        onClick={() => { setGbTerm(term); setGbEdits({}); }}
+                                        className="hover-scale"
+                                        style={{
+                                            padding: '1.75rem 1rem',
+                                            borderRadius: '16px',
+                                            border: isSelected ? '2px solid #2563eb' : '2px solid transparent',
+                                            background: isSelected ? '#eff6ff' : 'white',
+                                            color: isSelected ? '#1d4ed8' : '#475569',
+                                            fontWeight: isSelected ? 800 : 600,
+                                            fontSize: '1.1rem',
+                                            boxShadow: isSelected ? '0 8px 20px rgba(37,99,235,0.15)' : '0 4px 12px rgba(0,0,0,0.05)',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '0.75rem'
+                                        }}
+                                    >
+                                        <span style={{ fontSize: '1.75rem', transition: 'transform 0.3s' }} className={isSelected ? 'scale-110' : ''}>
+                                            {isSelected ? '📂' : '📁'}
+                                        </span>
+                                        {term}
+                                    </button>
+                                );
+                            })}
                         </div>
                     )}
-                    <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: `${300 + classSubjects.length * 110}px` }}>
-                            <thead>
-                                <tr style={{ background: '#1e293b', color: 'white' }}>
-                                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 700, fontSize: '0.82rem', position: 'sticky', left: 0, background: '#1e293b', zIndex: 2, minWidth: '180px' }}>Student</th>
-                                    {classSubjects.map(sub => (
-                                        <th key={sub} style={{ padding: '0.75rem 0.5rem', textAlign: 'center', fontWeight: 700, fontSize: '0.78rem', minWidth: '100px' }}>
-                                            {sub}<br /><span style={{ opacity: 0.6, fontWeight: 400 }}>/{getSubjectTotal(sub, gbTerm)}</span>
-                                        </th>
-                                    ))}
-                                    <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', fontWeight: 700, fontSize: '0.78rem', minWidth: '80px', background: '#0f172a' }}>Wtd Avg%</th>
-                                    <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', fontWeight: 700, fontSize: '0.78rem', minWidth: '60px', background: '#0f172a' }}>Grade</th>
-                                    <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', fontWeight: 700, fontSize: '0.78rem', minWidth: '160px' }}>Remarks</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {classStudents.map((student, rowIdx) => {
-                                    const subResults = classSubjects.map(sub => {
-                                        const val = getCellValue(student, sub);
-                                        return val !== '' ? { subject: sub, obtained: Number(val), percentage: Math.round((Number(val) / getSubjectTotal(sub)) * 100) } : null;
-                                    }).filter(Boolean);
-                                    const rowAvg = subResults.length ? calcOverallPct(subResults, getSubjectTotal) : null;
-                                    const rowGrade = rowAvg !== null ? calcGrade(rowAvg) : '—';
-                                    const rowGc = rowAvg !== null ? gradeColor(rowAvg) : { bg: '#f8fafc', text: '#94a3b8' };
-                                    const existingRemark = (student.results || [])[0]?.remarks || '';
-                                    return (
-                                        <tr key={student.id} style={{ borderTop: '1px solid #f1f5f9', background: rowIdx % 2 === 0 ? 'white' : '#fafafa' }}>
-                                            <td style={{ padding: '0.6rem 1rem', position: 'sticky', left: 0, background: rowIdx % 2 === 0 ? 'white' : '#fafafa', zIndex: 1, borderRight: '1px solid #e2e8f0' }}>
-                                                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#1e293b' }}>{student.name}</div>
-                                                <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{student.id}</div>
-                                            </td>
-                                            {classSubjects.map(sub => {
-                                                const subTotal = getSubjectTotal(sub);
-                                                const val = getCellValue(student, sub);
-                                                const pct = val !== '' ? Math.round((Number(val) / subTotal) * 100) : null;
-                                                const gc = pct !== null ? gradeColor(pct) : { bg: 'transparent', text: '#94a3b8' };
-                                                const isDirty = gbEdits[student.id]?.[sub] !== undefined;
+                </div>
+            )}
+
+            {/* Active Term Detail Area */}
+            {termLabel && TERMS.includes(termLabel) && (
+                <div className="animate-slide-in" style={{ background: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 10px 30px -5px rgba(0,0,0,0.05)' }}>
+                    {/* Header of Term Area */}
+                    <div style={{ padding: '1.5rem 2rem', borderBottom: '1px solid #e2e8f0', background: 'linear-gradient(to right, #f8fafc, white)', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <button onClick={() => setGbTerm('')} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', borderRadius: '8px', color: '#64748b' }}>
+                                ← Back
+                            </button>
+                            <h3 style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span style={{ background: '#dbeafe', color: '#1d4ed8', padding: '0.2rem 0.6rem', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 700 }}>{selectedClass}</span>
+                                {termLabel} Results
+                            </h3>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <button onClick={saveGradebook} disabled={gbSaving} className="btn btn-primary" style={{ padding: '0.5rem 1.25rem' }}>
+                                <Save size={16} /> {gbSaving ? 'Saving…' : 'Save Details'}
+                            </button>
+                            <button onClick={downloadGradebookTemplate} className="btn" style={{ background: '#10b981', color: 'white', borderColor: '#10b981', padding: '0.5rem 1rem' }}>
+                                <Download size={16} /> Template
+                            </button>
+                            <button onClick={() => gbImportFileRef.current.click()} className="btn" style={{ background: '#3b82f6', color: 'white', borderColor: '#3b82f6', padding: '0.5rem 1rem' }}>
+                                <Upload size={16} /> Import
+                            </button>
+                            <button onClick={exportGradebookExcel} className="btn" style={{ background: '#217346', color: 'white', borderColor: '#217346', padding: '0.5rem 1rem' }}>
+                                <Download size={16} /> Export Term
+                            </button>
+                            <button onClick={exportResultPDF} className="btn" style={{ background: '#dc2626', color: 'white', borderColor: '#dc2626', padding: '0.5rem 1rem' }}>
+                                📄 PDF Reports
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style={{ padding: '2rem' }}>
+                        {/* Gender Tabs */}
+                        <div style={{ display: 'flex', marginBottom: '1.5rem', borderRadius: '12px 12px 0 0', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                            {[
+                                { id: 'boys', label: '👦 Boys', count: boysCount, color: '#0369a1', bg: '#e0f2fe' },
+                                { id: 'girls', label: '👧 Girls', count: girlsCount, color: '#be185d', bg: '#fce7f3' },
+                                { id: 'all', label: '👥 All Students', count: allClassStudents.length, color: '#475569', bg: '#f1f5f9' }
+                            ].map(tab => (
+                                <button key={tab.id} onClick={() => setGbGenderTab(tab.id)} style={{
+                                    flex: 1, padding: '0.85rem 1rem', fontWeight: gbGenderTab === tab.id ? 800 : 600, fontSize: '0.95rem',
+                                    color: gbGenderTab === tab.id ? tab.color : '#94a3b8',
+                                    background: gbGenderTab === tab.id ? tab.bg : 'transparent', border: 'none',
+                                    borderBottom: gbGenderTab === tab.id ? `3px solid ${tab.color}` : '3px solid transparent',
+                                    cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
+                                }}>
+                                    {tab.label}
+                                    <span style={{ background: gbGenderTab === tab.id ? tab.color : '#cbd5e1', color: 'white', borderRadius: '999px', padding: '0.15rem 0.6rem', fontSize: '0.75rem', fontWeight: 700 }}>
+                                        {tab.count}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Class Statistics */}
+                        <div style={{ marginBottom: '1.5rem' }}>
+                            <button onClick={() => setShowGbStats(s => !s)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: '0.95rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', padding: '0.5rem', borderRadius: '8px', transition: 'background 0.2s', ...(showGbStats ? {} : { background: '#f8fafc', border: '1px solid #e2e8f0' }) }}>
+                                📈 Class Statistics {showGbStats ? '▲' : '▼'}
+                            </button>
+                            {showGbStats && (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
+                                    <div style={{ background: 'linear-gradient(135deg, #1e3a5f, #2563eb)', color: 'white', borderRadius: '12px', padding: '1rem' }}>
+                                        <div style={{ fontSize: '0.75rem', opacity: 0.8, marginBottom: '0.2rem' }}>Class Average</div>
+                                        <div style={{ fontSize: '2rem', fontWeight: 800 }}>{overallAvg}%</div>
+                                        <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>{classStudents.length} students • {calcGrade(overallAvg)} overall</div>
+                                    </div>
+                                    <div style={{ background: 'linear-gradient(135deg, #059669, #10b981)', color: 'white', borderRadius: '12px', padding: '1rem' }}>
+                                        <div style={{ fontSize: '0.75rem', opacity: 0.8, marginBottom: '0.2rem' }}>Pass Rate</div>
+                                        <div style={{ fontSize: '2rem', fontWeight: 800 }}>{classStudents.length ? Math.round((passCount / classStudents.length) * 100) : 0}%</div>
+                                        <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>{passCount} / {classStudents.length} passed (≥40%)</div>
+                                    </div>
+                                    {subjectStats.map(({ sub, avg, high, pass, total }) => {
+                                        const gc = gradeColor(avg);
+                                        return (
+                                            <div key={sub} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1rem' }}>
+                                                <div style={{ fontWeight: 700, fontSize: '0.85rem', marginBottom: '0.4rem', color: '#1e293b' }}>{sub}</div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#64748b' }}>
+                                                    <span>Avg: <b style={{ color: gc.text }}>{avg}%</b></span>
+                                                    <span>High: <b style={{ color: '#15803d' }}>{high}%</b></span>
+                                                    <span>Pass: <b>{pass}/{total}</b></span>
+                                                </div>
+                                                <div style={{ height: '6px', background: '#f1f5f9', borderRadius: '999px', overflow: 'hidden', marginTop: '0.5rem' }}>
+                                                    <div style={{ width: `${avg}%`, height: '100%', background: gc.text, borderRadius: '999px', transition: 'width 0.8s ease' }} />
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Gradebook Table */}
+                        {classStudents.length === 0 ? (
+                            <div className="card" style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8', border: '1px dashed #cbd5e1', boxShadow: 'none' }}>
+                                <Users size={56} style={{ margin: '0 auto 1.5rem', color: '#e2e8f0' }} />
+                                <h3 style={{ fontSize: '1.2rem', color: '#475569', marginBottom: '0.5rem' }}>No Students Found</h3>
+                                <p style={{ fontSize: '0.95rem' }}>There are no {gbGenderTab !== 'all' ? gbGenderTab : 'students'} in {selectedClass} yet.</p>
+                            </div>
+                        ) : (
+                            <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                                {Object.keys(gbEdits).length > 0 && (
+                                    <div className="animate-fade-in" style={{ padding: '0.75rem 1.25rem', background: '#fef9c3', borderBottom: '1px solid #fef08a', color: '#854d0e', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#eab308', animation: 'pulse 2s infinite' }} />
+                                        You have unsaved changes. Click <b>Save Details</b> to apply.
+                                    </div>
+                                )}
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: `${300 + classSubjects.length * 110}px` }}>
+                                        <thead>
+                                            <tr style={{ background: '#0f172a', color: 'white' }}>
+                                                <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', position: 'sticky', left: 0, background: '#0f172a', zIndex: 2, minWidth: '180px' }}>Student</th>
+                                                {classSubjects.map(sub => (
+                                                    <th key={sub} style={{ padding: '1rem 0.5rem', textAlign: 'center', fontWeight: 700, fontSize: '0.85rem', minWidth: '110px' }}>
+                                                        {sub}<br /><span style={{ opacity: 0.7, fontWeight: 500, fontSize: '0.75rem' }}>/{getSubjectTotal(sub, gbTerm)}</span>
+                                                    </th>
+                                                ))}
+                                                <th style={{ padding: '1rem 0.5rem', textAlign: 'center', fontWeight: 700, fontSize: '0.85rem', minWidth: '90px', background: '#1e293b' }}>Total Obt.</th>
+                                                <th style={{ padding: '1rem 0.5rem', textAlign: 'center', fontWeight: 700, fontSize: '0.85rem', minWidth: '70px', background: '#1e293b' }}>Grade</th>
+                                                <th style={{ padding: '1rem 0.5rem', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', minWidth: '180px' }}>Remarks</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {classStudents.map((student, rowIdx) => {
+                                                const subResults = classSubjects.map(sub => {
+                                                    const val = getCellValue(student, sub);
+                                                    if (val === '') return null;
+                                                    const isAbsent = typeof val === 'string' && val.trim().toUpperCase() === 'A';
+                                                    const numVal = isAbsent ? 0 : Number(val);
+                                                    return { subject: sub, obtained: numVal, percentage: isAbsent ? 0 : Math.round((numVal / getSubjectTotal(sub)) * 100) };
+                                                }).filter(Boolean);
+                                                const rowAvg = subResults.length ? calcOverallPct(subResults, getSubjectTotal) : null;
+                                                const rowTotalObtained = subResults.reduce((sum, r) => sum + r.obtained, 0);
+                                                const rowMaxMarks = subResults.reduce((sum, r) => sum + getSubjectTotal(r.subject), 0);
+                                                const rowGrade = rowAvg !== null ? calcGrade(rowAvg) : '—';
+                                                const rowGc = rowAvg !== null ? gradeColor(rowAvg) : { bg: '#f8fafc', text: '#94a3b8' };
+                                                const existingRemark = (student.results || [])[0]?.remarks || '';
                                                 return (
-                                                    <td key={sub} style={{ padding: '0.4rem 0.3rem', textAlign: 'center' }}>
-                                                        <div style={{ position: 'relative', display: 'inline-block' }}>
-                                                            <input type="number" min="0" max={subTotal} value={val}
-                                                                onChange={e => handleCellEdit(student.id, sub, e.target.value)}
-                                                                style={{ width: '70px', padding: '0.35rem 0.4rem', textAlign: 'center', borderRadius: '6px', border: isDirty ? '2px solid #3b82f6' : '1px solid #e2e8f0', background: gc.bg, color: gc.text, fontWeight: 700, fontSize: '0.88rem', outline: 'none' }} />
-                                                            {pct !== null && (
-                                                                <div style={{ fontSize: '0.65rem', color: gc.text, fontWeight: 600, marginTop: '1px' }}>{pct}% · {calcGrade(pct)}</div>
-                                                            )}
-                                                        </div>
-                                                    </td>
+                                                    <tr key={student.id} style={{ borderTop: '1px solid #e2e8f0', background: rowIdx % 2 === 0 ? 'white' : '#f8fafc', transition: 'background 0.2s' }}>
+                                                        <td style={{ padding: '0.75rem 1rem', position: 'sticky', left: 0, background: rowIdx % 2 === 0 ? 'white' : '#f8fafc', zIndex: 1, borderRight: '1px solid #e2e8f0' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontWeight: 700, fontSize: '0.8rem' }}>
+                                                                    {student.name.charAt(0)}
+                                                                </div>
+                                                                <div>
+                                                                    <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1e293b' }}>{student.name}</div>
+                                                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{student.id}</div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        {classSubjects.map(sub => {
+                                                            const subTotal = getSubjectTotal(sub);
+                                                            const val = getCellValue(student, sub);
+                                                            const isAbsent = typeof val === 'string' && val.trim().toUpperCase() === 'A';
+                                                            const pct = val !== '' ? (isAbsent ? 0 : Math.round((Number(val) / subTotal) * 100)) : null;
+                                                            const gc = pct !== null ? gradeColor(pct) : { bg: 'transparent', text: '#94a3b8' };
+                                                            const isDirty = gbEdits[student.id]?.[sub] !== undefined;
+                                                            return (
+                                                                <td key={sub} style={{ padding: '0.6rem 0.5rem', textAlign: 'center' }}>
+                                                                    <div style={{ position: 'relative', display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                                        <input type="text" value={val}
+                                                                            placeholder="-"
+                                                                            onChange={e => handleCellEdit(student.id, sub, e.target.value)}
+                                                                            style={{ width: '70px', padding: '0.4rem', textAlign: 'center', borderRadius: '8px', border: isDirty ? '2px solid #3b82f6' : '1px solid #cbd5e1', background: gc.bg, color: gc.text, fontWeight: 700, fontSize: '0.95rem', outline: 'none', transition: 'all 0.2s' }} />
+                                                                        {pct !== null && (
+                                                                            <div style={{ fontSize: '0.7rem', color: gc.text, fontWeight: 700, marginTop: '4px' }}>
+                                                                                {isAbsent ? 'Absent' : `${pct}%`} · {isAbsent ? 'F' : calcGrade(pct)}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                            );
+                                                        })}
+                                                        <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center', background: rowGc.bg }}>
+                                                            <div style={{ fontWeight: 800, fontSize: '1.1rem', color: rowGc.text }}>{rowAvg !== null ? `${rowTotalObtained}` : '—'}</div>
+                                                            {rowAvg !== null && <div style={{ fontSize: '0.7rem', color: rowGc.text, opacity: 0.8 }}>/ {rowMaxMarks}</div>}
+                                                        </td>
+                                                        <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center', background: rowGc.bg }}>
+                                                            <span style={{ display: 'inline-block', background: rowGc.text, color: 'white', borderRadius: '8px', padding: '0.25rem 0.6rem', fontWeight: 800, fontSize: '0.9rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>{rowGrade}</span>
+                                                        </td>
+                                                        <td style={{ padding: '0.6rem 0.75rem' }}>
+                                                            <input type="text" defaultValue={existingRemark} placeholder="Add remarks..."
+                                                                onBlur={e => saveRemarks(student.id, classSubjects[0], e.target.value)}
+                                                                style={{ width: '100%', padding: '0.4rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.85rem', color: '#1e293b', background: '#f8fafc', outline: 'none' }}
+                                                                onFocus={e => e.target.style.border = '1px solid #3b82f6'}
+                                                            />
+                                                        </td>
+                                                    </tr>
                                                 );
                                             })}
-                                            <td style={{ padding: '0.6rem 0.5rem', textAlign: 'center', background: rowGc.bg }}>
-                                                <div style={{ fontWeight: 800, fontSize: '1rem', color: rowGc.text }}>{rowAvg !== null ? `${rowAvg}%` : '—'}</div>
-                                            </td>
-                                            <td style={{ padding: '0.6rem 0.5rem', textAlign: 'center', background: rowGc.bg }}>
-                                                <span style={{ display: 'inline-block', background: rowGc.text, color: 'white', borderRadius: '6px', padding: '0.2rem 0.5rem', fontWeight: 800, fontSize: '0.85rem' }}>{rowGrade}</span>
-                                            </td>
-                                            <td style={{ padding: '0.4rem 0.5rem' }}>
-                                                <input type="text" defaultValue={existingRemark} placeholder="Teacher remarks…"
-                                                    onBlur={e => saveRemarks(student.id, classSubjects[0], e.target.value)}
-                                                    style={{ width: '100%', padding: '0.3rem 0.5rem', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.78rem', color: '#475569' }} />
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid #f1f5f9', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>Grade Scale:</span>
-                        {[['A+', '≥90', '#dcfce7', '#15803d'], ['A', '≥80', '#dcfce7', '#15803d'], ['B+', '≥70', '#dbeafe', '#1d4ed8'], ['B', '≥60', '#dbeafe', '#1d4ed8'], ['C', '≥50', '#fef9c3', '#a16207'], ['D', '≥40', '#ffedd5', '#c2410c'], ['F', '<40', '#fee2e2', '#dc2626']].map(([g, r, bg, col]) => (
-                            <span key={g} style={{ background: bg, color: col, borderRadius: '4px', padding: '0.15rem 0.5rem', fontSize: '0.72rem', fontWeight: 700 }}>{g} {r}%</span>
-                        ))}
-                        <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#94a3b8' }}>Blue border = unsaved edit</span>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div style={{ padding: '1rem', borderTop: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '0.85rem', color: '#475569', fontWeight: 800 }}>Grading Scale:</span>
+                                    {[['A+', '≥90', '#dcfce7', '#15803d'], ['A', '≥80', '#dcfce7', '#15803d'], ['B+', '≥70', '#dbeafe', '#1d4ed8'], ['B', '≥60', '#dbeafe', '#1d4ed8'], ['C', '≥50', '#fef9c3', '#a16207'], ['D', '≥40', '#ffedd5', '#c2410c'], ['F', '<40', '#fee2e2', '#dc2626']].map(([g, r, bg, col]) => (
+                                        <span key={g} style={{ background: bg, color: col, border: `1px solid ${col}33`, borderRadius: '6px', padding: '0.2rem 0.6rem', fontSize: '0.8rem', fontWeight: 700 }}>{g} {r}%</span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

@@ -66,7 +66,32 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, isAdmin, isDeveloper 
                 </div>
 
                 {/* Right Side Actions */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+                    {/* Desktop Navigation Links */}
+                    <div className="hidden md:flex" style={{ gap: '1.5rem', alignItems: 'center' }}>
+                        {navItems.map((item) => (
+                            <button
+                                key={item.id}
+                                onClick={() => setCurrentPage(item.id)}
+                                style={{
+                                    color: currentPage === item.id ? '#fbbf24' : 'rgba(255,255,255,0.85)',
+                                    fontWeight: currentPage === item.id ? 700 : 500,
+                                    fontSize: '0.95rem',
+                                    transition: 'color 0.2s',
+                                    padding: '0.5rem 0'
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (currentPage !== item.id) e.target.style.color = '#fff';
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (currentPage !== item.id) e.target.style.color = 'rgba(255,255,255,0.85)';
+                                }}
+                            >
+                                {item.label}
+                            </button>
+                        ))}
+                    </div>
+
                     {/* Desktop Login Button */}
                     <div className="hidden md:flex">
                         <button
@@ -86,8 +111,9 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, isAdmin, isDeveloper 
                         </button>
                     </div>
 
-                    {/* Menu Button (Always Visible) */}
+                    {/* Mobile Menu Button */}
                     <button
+                        className="md:hidden"
                         onClick={() => setIsOpen(!isOpen)}
                         style={{ color: 'white', display: 'flex', alignItems: 'center' }}
                     >
@@ -96,9 +122,9 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, isAdmin, isDeveloper 
                 </div>
             </div>
 
-            {/* Navigation Menu Dropdown (All Screens) */}
+            {/* Mobile Navigation Menu Dropdown */}
             {isOpen && (
-                <div className="animate-fade-in" style={{
+                <div className="animate-fade-in md:hidden" style={{
                     position: 'absolute',
                     top: '80px',
                     left: 0,

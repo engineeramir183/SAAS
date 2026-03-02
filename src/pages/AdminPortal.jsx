@@ -33,6 +33,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     // Per-class subjects: SUBJECTS is now { className: [subject,...] }
     const classSubjects = (SUBJECTS && !Array.isArray(SUBJECTS) ? (SUBJECTS[selectedClass] || []) : []);
     const updateClassSubjects = (newList) => updateSubjects({ ...SUBJECTS, [selectedClass]: newList });
+    const classTerms = (TERMS && !Array.isArray(TERMS) ? (TERMS[selectedClass] || []) : []);
+    const updateClassTerms = (newList) => updateTerms({ ...TERMS, [selectedClass]: newList });
     const [reportSearch, setReportSearch] = useState('');
 
     // ── Gradebook State ──
@@ -65,7 +67,11 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     }, [SECTIONS, selectedSectionId]);
 
     // ── Gradebook State ──
-    const [gbTerm, setGbTerm] = useState(TERMS[0] || '');
+    const [gbTerm, setGbTerm] = useState('');
+    useEffect(() => {
+        // Reset term selection when class changes to show folder view
+        setGbTerm('');
+    }, [selectedClass]);
     const [gbGenderTab, setGbGenderTab] = useState('boys'); // 'boys', 'girls', 'all'
     const [gbEdits, setGbEdits] = useState({});       // { studentId: { subject: obtained } }
     const [gbSaving, setGbSaving] = useState(false);
@@ -75,7 +81,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     const [showGbSettings, setShowGbSettings] = useState(false);
 
     const getSubjectTotal = (sub, term) => {
-        const t = term || gbTerm || TERMS[0] || 'Current';
+        const t = term || gbTerm || classTerms[0] || 'Current';
         if (WEIGHTS) {
             if (WEIGHTS[t] && typeof WEIGHTS[t] === 'object' && WEIGHTS[t][sub] !== undefined && WEIGHTS[t][sub] !== '') return Number(WEIGHTS[t][sub]);
             if (typeof WEIGHTS[sub] === 'number') return Number(WEIGHTS[sub]);
@@ -91,8 +97,11 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         let totalObtained = 0, totalMax = 0;
         results.forEach(r => {
             const subTotal = getSubjectTotal(r.subject, r.term);
-            const obtained = r.obtained !== undefined ? r.obtained : Math.round((r.percentage / 100) * subTotal);
-            totalObtained += obtained;
+            let obtained = r.obtained;
+            if (obtained === undefined) obtained = Math.round((r.percentage / 100) * subTotal);
+            const numObtained = obtained === 'A' ? 0 : Number(obtained);
+
+            totalObtained += numObtained;
             totalMax += subTotal;
         });
         return totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;
@@ -129,7 +138,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     const getCellValue = (student, subject) => {
         if (gbEdits[student.id] && gbEdits[student.id][subject] !== undefined)
             return gbEdits[student.id][subject];
-        const termLabel = gbTerm || TERMS[0] || 'Current';
+        const termLabel = gbTerm || classTerms[0] || 'Current';
         const termResults = getTermResults(student, termLabel);
         const r = termResults.find(r => r.subject === subject);
         return r ? (r.obtained !== undefined ? r.obtained : '') : '';
@@ -143,28 +152,42 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     };
 
     const handleCellEdit = (studentId, subject, value) => {
+        let finalValue = value;
+        if (typeof value === 'string' && value.trim().toUpperCase() === 'A') {
+            finalValue = 'A';
+        } else if (value !== '') {
+            finalValue = Number(value);
+            const subTotal = getSubjectTotal(subject, gbTerm || TERMS[0] || 'Current');
+            if (finalValue > subTotal) return; // Deny entry above total marks
+        } else {
+            finalValue = '';
+        }
+
         setGbEdits(prev => ({
             ...prev,
-            [studentId]: { ...(prev[studentId] || {}), [subject]: value === '' ? '' : Number(value) }
+            [studentId]: { ...(prev[studentId] || {}), [subject]: finalValue }
         }));
     };
 
     const saveGradebook = async () => {
         if (Object.keys(gbEdits).length === 0) { showSaveMessage('No changes to save.'); return; }
         setGbSaving(true);
-        const termLabel = gbTerm || TERMS[0] || 'Current';
+        const termLabel = gbTerm || classTerms[0] || 'Current';
         const classStudents = students.filter(s => s.grade === selectedClass);
         const updatedStudents = classStudents.map(s => {
             if (!gbEdits[s.id]) return s;
             // Build new results for this term only
             const newTermResults = classSubjects.map(subject => {
                 const subTotal = getSubjectTotal(subject, termLabel);
-                const obtained = gbEdits[s.id]?.[subject] !== undefined
-                    ? Number(gbEdits[s.id][subject])
-                    : (getTermResults(s, termLabel).find(r => r.subject === subject)?.obtained ?? 0);
-                const pct = Math.round((obtained / subTotal) * 100);
+                let obtained = gbEdits[s.id]?.[subject];
+                if (obtained === undefined) {
+                    obtained = getTermResults(s, termLabel).find(r => r.subject === subject)?.obtained ?? 0;
+                }
+                const numObtained = obtained === 'A' ? 0 : Number(obtained);
+                const pct = Math.round((numObtained / subTotal) * 100);
+                const grade = obtained === 'A' ? 'F' : calcGrade(pct);
                 const existing = getTermResults(s, termLabel).find(r => r.subject === subject);
-                return { subject, total: subTotal, obtained, percentage: pct, grade: calcGrade(pct), remarks: existing?.remarks || '', term: termLabel };
+                return { subject, total: subTotal, obtained, percentage: pct, grade, remarks: existing?.remarks || '', term: termLabel };
             });
             // Merge: keep results from OTHER terms, replace results for THIS term
             const otherTermResults = (s.results || []).filter(r => r.term !== termLabel);
@@ -178,7 +201,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     };
 
     const saveRemarks = async (studentId, subject, remarks) => {
-        const termLabel = gbTerm || TERMS[0] || 'Current';
+        const termLabel = gbTerm || classTerms[0] || 'Current';
         const updatedStudents = students.map(s => {
             if (s.id !== studentId) return s;
             const newResults = (s.results || []).map(r =>
@@ -190,7 +213,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     };
 
     const archiveTerm = async () => {
-        const termLabel = gbTerm || TERMS[0];
+        const termLabel = gbTerm || classTerms[0];
         if (!window.confirm(`Archive "${termLabel}" marks for ${selectedClass}? This will move this term's results to history.`)) return;
         const classStudents = students.filter(s => s.grade === selectedClass);
         const updatedStudents = classStudents.map(s => {
@@ -259,7 +282,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         });
 
         // Per-term sheets for currently active terms (not archived)
-        TERMS.forEach(termName => {
+        classTerms.forEach(termName => {
             if (archivedTermNames.includes(termName)) return; // already exported via archived
             const termResults = {};
             classStudents.forEach(s => {
@@ -274,7 +297,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         });
 
         // Summary sheet: student | Term1 Avg | Term2 Avg | ... | Overall
-        const allTermNames = [...archivedTermNames, ...TERMS.filter(t => !archivedTermNames.includes(t))];
+        const allTermNames = [...archivedTermNames, ...classTerms.filter(t => !archivedTermNames.includes(t))];
         const summaryRows = classStudents.map(s => {
             const row = { 'Student ID': s.id, 'Student Name': s.name, 'Gender': s.admissions?.[0]?.gender || '' };
             allTermNames.forEach(termName => {
@@ -308,17 +331,43 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             const wb = XLSX.read(evt.target.result, { type: 'binary' });
             const ws = wb.Sheets[wb.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(ws);
+            const termLabel = gbTerm || classTerms[0] || 'Current';
+
+            let hasError = false;
+            let errorMessage = '';
             const newEdits = {};
-            rows.forEach(row => {
+
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
                 const studentId = row['Student ID'];
-                if (!studentId) return;
+                if (!studentId) continue;
                 newEdits[studentId] = {};
-                classSubjects.forEach(sub => {
-                    if (row[sub] !== undefined) newEdits[studentId][sub] = Number(row[sub]);
-                });
-            });
+                for (let sub of classSubjects) {
+                    let val = row[sub];
+                    if (val !== undefined && val !== '') {
+                        if (typeof val === 'string' && val.trim().toUpperCase() === 'A') {
+                            newEdits[studentId][sub] = 'A';
+                        } else {
+                            const numVal = Number(val);
+                            const subTotal = getSubjectTotal(sub, termLabel);
+                            if (numVal > subTotal) {
+                                hasError = true;
+                                errorMessage = `Excel sheet rejected. Student ${studentId} has obtained ${numVal} marks for ${sub}, which is greater than the total marks (${subTotal}).`;
+                                break;
+                            }
+                            newEdits[studentId][sub] = numVal;
+                        }
+                    }
+                }
+                if (hasError) break;
+            }
+
+            if (hasError) {
+                openConfirm('Validation Error', errorMessage, null, true);
+                return;
+            }
+
             setGbEdits(newEdits);
-            const termLabel = gbTerm || TERMS[0] || 'Current';
             showSaveMessage(`Imported marks for ${Object.keys(newEdits).length} students into ${termLabel}. Click Save All to apply.`);
         };
         reader.readAsBinaryString(file);
@@ -328,7 +377,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     const downloadGradebookTemplate = () => {
         const allClassStudents = students.filter(s => s.grade === selectedClass);
         const classStudents = filterByGender(allClassStudents, gbGenderTab);
-        const termLabel = gbTerm || TERMS[0] || 'Current';
+        const termLabel = gbTerm || classTerms[0] || 'Current';
         const genderLabel = gbGenderTab === 'all' ? 'All' : (gbGenderTab === 'boys' ? 'Boys' : 'Girls');
         const rows = classStudents.map(s => {
             const row = { 'Student ID': s.id, 'Student Name': s.name, 'Gender': s.admissions?.[0]?.gender || '' };
@@ -343,7 +392,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
     // ── PDF Result Report ──
     const exportResultPDF = () => {
-        const termLabel = gbTerm || TERMS[0] || 'Current';
+        const termLabel = gbTerm || classTerms[0] || 'Current';
         const allClassStudents = students.filter(s => s.grade === selectedClass);
         const classStudents = allClassStudents
             .slice()
@@ -372,9 +421,12 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 const r = res.find(r => r.subject === sub);
                 const ob = r ? r.obtained : null;
                 const total = getSubjectTotal(sub, termLabel);
-                const pct = ob !== null ? Math.round((ob / total) * 100) : null;
+                const numOb = ob === 'A' ? 0 : ob;
+                const pct = numOb !== null ? Math.round((numOb / total) * 100) : null;
                 const sc = pct !== null ? gradeColors(pct) : { bg: '#f8fafc', text: '#94a3b8', border: '#e2e8f0' };
-                return `<td style="text-align:center; padding:6px 4px; border:1px solid #e2e8f0; background:${sc.bg}; color:${sc.text}; font-weight:600; font-size:12px;">${ob !== null ? `${ob}<br/><span style='font-size:10px;font-weight:400'>${calcGrade(pct)}</span>` : '—'}</td>`;
+                const displayOb = ob === 'A' ? 'Absent' : ob;
+                const displayGrade = ob === 'A' ? 'F' : (pct !== null ? calcGrade(pct) : '');
+                return `<td style="text-align:center; padding:6px 4px; border:1px solid #e2e8f0; background:${sc.bg}; color:${sc.text}; font-weight:600; font-size:12px;">${ob !== null ? `${displayOb}<br/><span style='font-size:10px;font-weight:400'>${displayGrade}</span>` : '—'}</td>`;
             }).join('');
             return `
                 <tr style="background:${idx % 2 === 0 ? '#fff' : '#f8fafc'}">
@@ -2362,18 +2414,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             <main className="dashboard-main">
 
                 {/* Top Header Row representing the current Active Tab */}
-                <header style={{
-                    background: 'rgba(255, 255, 255, 0.8)',
-                    backdropFilter: 'blur(12px)',
-                    borderBottom: '1px solid #e2e8f0',
-                    padding: '1.5rem 2.5rem',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    position: 'sticky',
-                    top: 0,
-                    zIndex: 5
-                }}>
+                <header className="dashboard-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         <button className="mobile-menu-btn" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
                             <Menu size={24} />
@@ -2390,28 +2431,20 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                     </div>
                 </header>
 
-                <div style={{ padding: '2.5rem', width: '100%', maxWidth: '1400px', margin: '0 auto', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <div className="dashboard-content">
                     {/* ── Dashboard Grid Menu ── */}
                     {activeTab === 'dashboard' && (
                         <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
                             {/* Welcome Banner */}
-                            <div style={{
-                                background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
-                                borderRadius: '24px',
-                                padding: '3rem 2.5rem',
-                                color: 'white',
-                                boxShadow: '0 20px 25px -5px rgba(59, 130, 246, 0.25), 0 10px 10px -5px rgba(59, 130, 246, 0.1)',
-                                position: 'relative',
-                                overflow: 'hidden'
-                            }}>
-                                <div style={{ position: 'relative', zIndex: 2, maxWidth: '600px' }}>
-                                    <h2 style={{ fontSize: '2.5rem', fontWeight: 800, margin: '0 0 0.5rem', lineHeight: 1.1 }}>Good Morning, Admin!</h2>
-                                    <p style={{ fontSize: '1.1rem', opacity: 0.9, margin: 0 }}>Here is what's happening at your school today. Select a module below to manage operations.</p>
+                            <div className="dashboard-banner">
+                                <div className="dashboard-banner-content">
+                                    <h2>Good Morning, Admin!</h2>
+                                    <p>Here is what's happening at your school today. Select a module below to manage operations.</p>
                                 </div>
                                 {/* Decorative Circles */}
-                                <div style={{ position: 'absolute', right: '-5%', top: '-20%', width: '300px', height: '300px', background: 'radial-gradient(circle, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 70%)', borderRadius: '50%', zIndex: 1 }}></div>
-                                <div style={{ position: 'absolute', right: '15%', bottom: '-40%', width: '250px', height: '250px', background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%)', borderRadius: '50%', zIndex: 1 }}></div>
+                                <div className="banner-circle banner-circle-top"></div>
+                                <div className="banner-circle banner-circle-bottom"></div>
                             </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
@@ -2496,14 +2529,14 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                 {activeTab === 'marks' && (
                                     <GradebookTab
                                         students={students} selectedClass={selectedClass} setSelectedClass={setSelectedClass} sectionClasses={sectionClasses}
-                                        TERMS={TERMS} SUBJECTS={SUBJECTS} WEIGHTS={WEIGHTS}
+                                        TERMS={classTerms} SUBJECTS={classSubjects} WEIGHTS={WEIGHTS}
                                         gbTerm={gbTerm} setGbTerm={setGbTerm} gbGenderTab={gbGenderTab} setGbGenderTab={setGbGenderTab}
                                         gbEdits={gbEdits} setGbEdits={setGbEdits} gbSaving={gbSaving}
                                         showGbStats={showGbStats} setShowGbStats={setShowGbStats}
                                         showGbSettings={showGbSettings} setShowGbSettings={setShowGbSettings}
                                         newSubjectInput={newSubjectInput} setNewSubjectInput={setNewSubjectInput}
                                         newTermInput={newTermInput} setNewTermInput={setNewTermInput}
-                                        updateClassSubjects={updateClassSubjects} updateTerms={updateTerms} updateWeights={updateWeights}
+                                        updateClassSubjects={updateClassSubjects} updateTerms={updateClassTerms} updateWeights={updateWeights}
                                         saveGradebook={saveGradebook} downloadGradebookTemplate={downloadGradebookTemplate}
                                         exportGradebookExcel={exportGradebookExcel} archiveTerm={archiveTerm}
                                         exportResultPDF={exportResultPDF} importGradebookExcel={importGradebookExcel}
