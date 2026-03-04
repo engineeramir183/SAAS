@@ -2406,7 +2406,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                         students={students}
                         setStudents={setStudents}
                         showSaveMessage={showSaveMessage}
-                        onClose={() => { setEditingStudentId(null); setEditStudentData(null); }}
+                        editingStudentId={editingStudentId}
+                        setEditingStudentId={setEditingStudentId}
                     />
                 </Suspense>
             )}
