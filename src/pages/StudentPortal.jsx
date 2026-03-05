@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-    User, Calendar, Award, BarChart3, BookOpen,
+    User, Users, Calendar, Award, BarChart3, BookOpen,
     LogOut, TrendingUp, DollarSign, CheckCircle, XCircle,
     ArrowUp, ArrowDown, Minus, BookMarked, Menu, X
 } from 'lucide-react';
@@ -86,7 +86,8 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
         { id: 'results', label: 'Term Results', icon: Award, desc: 'View your detailed grades and performance.' },
         { id: 'attendance', label: 'Attendance Record', icon: Calendar, desc: 'Track your presence and absences.' },
         { id: 'history', label: 'Previous Results', icon: BookMarked, desc: 'Review your historical academic performance.' },
-        { id: 'fees', label: 'Fee Status', icon: DollarSign, desc: 'Check your current fee payments.' }
+        { id: 'fees', label: 'Fee Status', icon: DollarSign, desc: 'Check your current fee payments.' },
+        { id: 'profile', label: 'My Profile', icon: User, desc: 'View your complete personal details.' }
     ];
 
     return (
@@ -114,7 +115,7 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                         {liveStudent.name.charAt(0)}
                     </div>
                     <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontWeight: 800, fontSize: '1.25rem', color: '#f8fafc' }}>{liveStudent.name.split(' ')[0]}</div>
+                        <div style={{ fontWeight: 800, fontSize: '1.1rem', color: '#f8fafc', textAlign: 'center' }}>{liveStudent.name}</div>
                         <div style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 600 }}>{liveStudent.grade} • ID: {liveStudent.id}</div>
                     </div>
                 </div>
@@ -899,6 +900,98 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                                             ))}
                                         </div>
                                     )}
+                                </div>
+                            );
+                        })()
+                    }
+
+                    {/* ════════════════ PROFILE TAB ════════════════ */}
+                    {
+                        activeTab === 'profile' && (() => {
+                            const adm = liveStudent.admissions?.[0] || {};
+                            const DataRow = ({ label, value }) => (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
+                                    <span style={{ fontSize: '0.95rem', fontWeight: 600, color: '#1e293b' }}>{value || '—'}</span>
+                                </div>
+                            );
+
+                            return (
+                                <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                                    {/* Header Banner */}
+                                    <div style={{ ...cardStyle, background: 'linear-gradient(135deg, #1e3a5f, #2563eb)', color: 'white', display: 'flex', alignItems: 'center', gap: '2rem', padding: '2rem' }}>
+                                        <div style={{ width: '100px', height: '100px', borderRadius: '50%', background: '#f8fafc', border: '4px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                                            {(liveStudent.photo || liveStudent.image) ? (
+                                                <img src={liveStudent.photo || liveStudent.image} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            ) : (
+                                                <span style={{ fontSize: '3rem', fontWeight: 800, color: '#3b82f6' }}>{liveStudent.name.charAt(0)}</span>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <h2 style={{ fontSize: '2rem', fontWeight: 800, margin: 0 }}>{liveStudent.name}</h2>
+                                            <div style={{ fontSize: '1rem', opacity: 0.9, marginTop: '0.2rem' }}>Class: {liveStudent.grade} | ID: {liveStudent.id}</div>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                                        {/* Personal Details */}
+                                        <div style={cardStyle}>
+                                            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#2563eb', marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
+                                                <User size={18} /> Personal Details
+                                            </h3>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                                                <DataRow label="Gender" value={adm.gender} />
+                                                <DataRow label="Date of Birth" value={adm.dob} />
+                                                <DataRow label="B-Form Number" value={adm.bForm} />
+                                                <DataRow label="Nationality" value={adm.nationality} />
+                                                <DataRow label="Religion" value={adm.religion} />
+                                                <DataRow label="Admitted On" value={adm.admissionDate || '—'} />
+                                            </div>
+                                        </div>
+
+                                        {/* Father / Guardian Info */}
+                                        <div style={cardStyle}>
+                                            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#2563eb', marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
+                                                <Users size={18} /> Parent Information
+                                            </h3>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                                                <div style={{ gridColumn: 'span 2' }}>
+                                                    <DataRow label="Father's Name" value={adm.fatherName} />
+                                                </div>
+                                                <DataRow label="Father's CNIC" value={adm.fatherCnic} />
+                                                <DataRow label="Contact Number" value={adm.contact} />
+                                                <DataRow label="WhatsApp" value={adm.whatsapp} />
+                                                <div style={{ gridColumn: 'span 2' }}>
+                                                    <DataRow label="Home Address" value={adm.address} />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Health & Medical */}
+                                        <div style={cardStyle}>
+                                            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#2563eb', marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
+                                                <Award size={18} /> Health & Medical
+                                            </h3>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.25rem' }}>
+                                                <div>
+                                                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Allergies</div>
+                                                    {adm.allergies === 'Yes' ? (
+                                                        <div style={{ color: '#dc2626', fontWeight: 600 }}>Yes: {adm.allergiesDetails || 'Details not provided'}</div>
+                                                    ) : <div style={{ color: '#16a34a', fontWeight: 600 }}>None</div>}
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Chronic Medical Conditions</div>
+                                                    {adm.chronicCondition === 'Yes' ? (
+                                                        <div style={{ color: '#dc2626', fontWeight: 600 }}>Yes: {adm.chronicConditionDetails || 'Details not provided'}</div>
+                                                    ) : <div style={{ color: '#16a34a', fontWeight: 600 }}>None</div>}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem', marginTop: '1rem' }}>
+                                        To update any of these details, please contact the school administration office.
+                                    </div>
                                 </div>
                             );
                         })()
