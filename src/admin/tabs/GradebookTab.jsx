@@ -348,19 +348,19 @@ const GradebookTab = ({
                                         You have unsaved changes. Click <b>Save Details</b> to apply.
                                     </div>
                                 )}
-                                <div style={{ overflowX: 'auto' }}>
+                                <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '65vh', borderBottom: '1px solid #e2e8f0' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: `${300 + classSubjects.length * 110}px` }}>
                                         <thead>
                                             <tr style={{ background: '#0f172a', color: 'white' }}>
-                                                <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', position: 'sticky', left: 0, background: '#0f172a', zIndex: 2, minWidth: '180px' }}>Student</th>
+                                                <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', position: 'sticky', left: 0, top: 0, background: '#0f172a', zIndex: 20, minWidth: '180px' }}>Student</th>
                                                 {classSubjects.map(sub => (
-                                                    <th key={sub} style={{ padding: '1rem 0.5rem', textAlign: 'center', fontWeight: 700, fontSize: '0.85rem', minWidth: '110px' }}>
+                                                    <th key={sub} style={{ padding: '1rem 0.5rem', textAlign: 'center', fontWeight: 700, fontSize: '0.85rem', minWidth: '110px', position: 'sticky', top: 0, background: '#0f172a', zIndex: 10 }}>
                                                         {sub}<br /><span style={{ opacity: 0.7, fontWeight: 500, fontSize: '0.75rem' }}>/{getSubjectTotal(sub, gbTerm)}</span>
                                                     </th>
                                                 ))}
-                                                <th style={{ padding: '1rem 0.5rem', textAlign: 'center', fontWeight: 700, fontSize: '0.85rem', minWidth: '90px', background: '#1e293b' }}>Total Obt.</th>
-                                                <th style={{ padding: '1rem 0.5rem', textAlign: 'center', fontWeight: 700, fontSize: '0.85rem', minWidth: '70px', background: '#1e293b' }}>Grade</th>
-                                                <th style={{ padding: '1rem 0.5rem', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', minWidth: '180px' }}>Remarks</th>
+                                                <th style={{ padding: '1rem 0.5rem', textAlign: 'center', fontWeight: 700, fontSize: '0.85rem', minWidth: '90px', background: '#1e293b', position: 'sticky', top: 0, zIndex: 10 }}>Total Obt.</th>
+                                                <th style={{ padding: '1rem 0.5rem', textAlign: 'center', fontWeight: 700, fontSize: '0.85rem', minWidth: '70px', background: '#1e293b', position: 'sticky', top: 0, zIndex: 10 }}>Grade</th>
+                                                <th style={{ padding: '1rem 0.5rem', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', minWidth: '180px', background: '#0f172a', position: 'sticky', top: 0, zIndex: 10 }}>Remarks</th>
                                             </tr>
                                         </thead>
                                         <tbody>
