@@ -561,6 +561,7 @@ select {
 /* ==================== DASHBOARD LAYOUT ==================== */
 .dashboard-container {
   display: flex;
+  flex: 1;
   min-height: calc(100vh - 80px);
   background: #f8fafc;
   position: relative;

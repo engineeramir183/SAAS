@@ -49,34 +49,32 @@ export const SchoolDataProvider = ({ children }) => {
         try {
             setLoading(true);
 
-            // 1. Get School Info
-            const { data: info } = await supabase.from('school_info').select('*').single();
+            // Fire ALL queries in parallel instead of sequentially
+            const [
+                { data: info },
+                { data: faculty },
+                { data: facilities },
+                { data: testimonials },
+                { data: metaRows },
+                { data: announcements },
+                { data: students },
+                { data: blogs },
+                { data: admins }
+            ] = await Promise.all([
+                supabase.from('school_info').select('*').single(),
+                supabase.from('faculty').select('*').order('id'),
+                supabase.from('facilities').select('*').order('id'),
+                supabase.from('testimonials').select('*'),
+                supabase.from('metadata').select('*'),
+                supabase.from('announcements').select('*').order('id', { ascending: false }),
+                supabase.from('students').select('*'),
+                supabase.from('blogs').select('*').order('created_at', { ascending: false }),
+                supabase.from('admins').select('*').eq('role', 'admin').limit(1)
+            ]);
 
-            // 2. Get Faculty
-            const { data: faculty } = await supabase.from('faculty').select('*').order('id');
-
-            // 3. Get Facilities
-            const { data: facilities } = await supabase.from('facilities').select('*').order('id');
-
-            // 4. Get Testimonials
-            const { data: testimonials } = await supabase.from('testimonials').select('*');
-
-            // 5. Get Metadata
-            const { data: metaRows } = await supabase.from('metadata').select('*');
             const metaMap = {};
             (metaRows || []).forEach(r => { metaMap[r.key] = r.value; });
 
-            // 6. Get Announcements
-            const { data: announcements } = await supabase.from('announcements').select('*').order('id', { ascending: false });
-
-            // 7. Get Students
-            const { data: students } = await supabase.from('students').select('*');
-
-            // 8. Get Blogs
-            const { data: blogs } = await supabase.from('blogs').select('*').order('created_at', { ascending: false });
-
-            // 9. Get Admin credentials
-            const { data: admins } = await supabase.from('admins').select('*').eq('role', 'admin').limit(1);
             if (admins && admins.length > 0) {
                 setAdminCredentials({ username: admins[0].username, password: admins[0].password });
             }
@@ -103,10 +101,8 @@ export const SchoolDataProvider = ({ children }) => {
             const currentClasses = metaMap['CLASSES'] || LOCAL_CLASSES;
 
             if (metaMap['SUBJECTS']) {
-                // Support both old flat-array format and new per-class object format
                 const loaded = metaMap['SUBJECTS'];
                 if (Array.isArray(loaded)) {
-                    // Legacy: was a global list, duplicate it across all current classes
                     const legacyMap = {};
                     currentClasses.forEach(c => legacyMap[c] = loaded);
                     setSubjects(legacyMap);
@@ -117,7 +113,6 @@ export const SchoolDataProvider = ({ children }) => {
             if (metaMap['TERMS']) {
                 const loadedTerms = metaMap['TERMS'];
                 if (Array.isArray(loadedTerms)) {
-                    // Legacy: flat array, duplicate across all classes
                     const legacyMap = {};
                     currentClasses.forEach(c => legacyMap[c] = loadedTerms);
                     setTerms(legacyMap);
@@ -125,7 +120,7 @@ export const SchoolDataProvider = ({ children }) => {
                     setTerms(loadedTerms);
                 }
             }
-            if (metaMap['SECTIONS']) setSections(metaMap['SECTIONS']); // Load SECTIONS
+            if (metaMap['SECTIONS']) setSections(metaMap['SECTIONS']);
             if (metaMap['WEIGHTS']) setWeights(metaMap['WEIGHTS']);
 
         } catch (error) {

@@ -73,6 +73,8 @@ function App() {
         }
     };
 
+    const isDashboard = currentPage === 'portal' || currentPage === 'admin' || currentPage === 'developer';
+
     return (
         <SchoolDataProvider>
             <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -83,10 +85,10 @@ function App() {
                     isAdmin={isAdmin}
                     isDeveloper={isDeveloper}
                 />
-                <main style={{ flex: 1 }}>
+                <main style={{ flex: 1, display: isDashboard ? 'flex' : 'block', flexDirection: 'column' }}>
                     {renderPage()}
                 </main>
-                <Footer />
+                {!isDashboard && <Footer />}
                 <WhatsAppButton />
             </div>
         </SchoolDataProvider>

@@ -313,29 +313,33 @@ const AttendanceTab = ({
     const excelBtnStyle = { padding: '0.5rem 1rem', fontSize: '0.85rem', borderRadius: 'var(--radius-md)', fontWeight: 'var(--font-weight-semibold)', border: '2px solid', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', transition: 'all var(--transition-base)' };
 
     const markAll = async (status) => {
-        for (const s of classStudents) {
-            const oldAtt = s.attendance || {};
-            const records = [...(oldAtt.records || [])];
+        const updates = classStudents.map(s => {
+            const records = [...(s.attendance?.records || [])];
             const idx = records.findIndex(r => r.date === filterDate);
             if (idx >= 0) records[idx] = { date: filterDate, status };
             else records.push({ date: filterDate, status });
             const present = records.filter(r => r.status === 'present').length;
             const absent = records.length - present;
-            await supabase.from('students').update({ attendance: { records, total: records.length, present, absent, percentage: parseFloat(((present / records.length) * 100).toFixed(1)) } }).eq('id', s.id);
-        }
+            return supabase.from('students').update({
+                attendance: { records, total: records.length, present, absent, percentage: parseFloat(((present / records.length) * 100).toFixed(1)) }
+            }).eq('id', s.id);
+        });
+        await Promise.all(updates);
         fetchData();
         showSaveMessage(`All ${classStudents.length} students marked ${status === 'present' ? 'Present' : 'Absent'} for ${filterDate}!`);
     };
 
     const unmarkAll = async () => {
-        for (const s of classStudents) {
-            const oldAtt = s.attendance || {};
-            const records = [...(oldAtt.records || [])].filter(r => r.date !== filterDate);
+        const updates = classStudents.map(s => {
+            const records = [...(s.attendance?.records || [])].filter(r => r.date !== filterDate);
             const present = records.filter(r => r.status === 'present').length;
             const absent = records.length - present;
             const percentage = records.length > 0 ? parseFloat(((present / records.length) * 100).toFixed(1)) : 0;
-            await supabase.from('students').update({ attendance: { records, total: records.length, present, absent, percentage } }).eq('id', s.id);
-        }
+            return supabase.from('students').update({
+                attendance: { records, total: records.length, present, absent, percentage }
+            }).eq('id', s.id);
+        });
+        await Promise.all(updates);
         fetchData();
         showSaveMessage(`All ${classStudents.length} students unmarked for ${filterDate}!`);
     };
