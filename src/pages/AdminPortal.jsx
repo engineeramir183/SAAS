@@ -2447,7 +2447,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                     </button>
                 </div>
 
-                <nav style={{ padding: '1.25rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <nav style={{ padding: '1.25rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', overflowY: 'auto' }}>
                     <button onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }} className="btn hover-scale" style={{
                         justifyContent: 'flex-start',
                         padding: '0.85rem 1.25rem',
@@ -2502,7 +2502,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                     })}
                 </nav>
 
-                <div style={{ marginTop: 'auto', padding: '1.5rem', borderTop: '1px solid #334155' }}>
+                <div style={{ padding: '1.5rem', borderTop: '1px solid #334155' }}>
                     <button onClick={() => { setNewAdminUser(adminCredentials.username || ''); setShowChangePwd(true); }} className="btn hover-scale" style={{ width: '100%', justifyContent: 'center', marginBottom: '0.75rem', background: 'rgba(255,255,255,0.05)', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px' }}>
                         <Lock size={16} /> Admin Config
                     </button>

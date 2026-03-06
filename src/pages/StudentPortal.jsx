@@ -120,7 +120,7 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                     </div>
                 </div>
 
-                <nav style={{ padding: '1.25rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <nav style={{ padding: '1.25rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', overflowY: 'auto' }}>
                     <div style={{ margin: '0.5rem 0 0.5rem 1.25rem', fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Menu</div>
 
                     {studentTabs.map((tab, idx) => {
@@ -154,7 +154,7 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                     })}
                 </nav>
 
-                <div style={{ marginTop: 'auto', padding: '1.5rem', borderTop: '1px solid #334155' }}>
+                <div style={{ padding: '1.5rem', borderTop: '1px solid #334155' }}>
                     <button onClick={handleLogout} className="btn hover-scale" style={{ width: '100%', justifyContent: 'center', background: 'rgba(239, 68, 68, 0.1)', color: '#fca5a5', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '10px' }}>
                         <LogOut size={16} /> Logout
                     </button>

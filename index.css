@@ -583,6 +583,28 @@ select {
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Sleek dark scrollbar for sidebar */
+.dashboard-sidebar::-webkit-scrollbar,
+.dashboard-sidebar nav::-webkit-scrollbar {
+  width: 5px;
+}
+
+.dashboard-sidebar::-webkit-scrollbar-track,
+.dashboard-sidebar nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dashboard-sidebar::-webkit-scrollbar-thumb,
+.dashboard-sidebar nav::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 999px;
+}
+
+.dashboard-sidebar::-webkit-scrollbar-thumb:hover,
+.dashboard-sidebar nav::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
 .dashboard-main {
   flex: 1;
   display: flex;
