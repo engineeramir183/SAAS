@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowRight, Users, Globe, Award, TrendingUp, BookOpen, Heart, ChevronDown, Star, Sparkles, GraduationCap, Trophy, Megaphone } from 'lucide-react';
+import { ArrowRight, Users, Globe, Award, TrendingUp, BookOpen, Heart, ChevronDown, Star, Sparkles, GraduationCap, Trophy, Megaphone, LogIn } from 'lucide-react';
 import { useSchoolData } from '../context/SchoolDataContext';
 
 // ── Scroll reveal hook ──
@@ -312,23 +312,29 @@ const Home = ({ setCurrentPage }) => {
                         transition: 'all 1s cubic-bezier(0.16, 1, 0.3, 1) 0.6s'
                     }}>
                         <button
-                            onClick={() => setCurrentPage('contact')}
+                            onClick={() => setCurrentPage('login')}
                             className="btn btn-lg"
                             style={{
-                                background: 'white',
-                                color: 'var(--color-primary)',
+                                background: 'linear-gradient(90deg, #3b82f6, #2563eb)',
+                                color: 'white',
                                 fontWeight: 'var(--font-weight-bold)',
+                                borderRadius: '50px',
+                                paddingLeft: '2rem',
+                                paddingRight: '2rem',
                                 boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
                                 transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
                                 position: 'relative',
-                                overflow: 'hidden'
+                                overflow: 'hidden',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                border: 'none'
                             }}
-                            onMouseEnter={(e) => { e.target.style.transform = 'translateY(-4px) scale(1.04)'; e.target.style.boxShadow = '0 16px 50px rgba(0,0,0,0.35)'; }}
-                            onMouseLeave={(e) => { e.target.style.transform = 'none'; e.target.style.boxShadow = '0 8px 30px rgba(0,0,0,0.25)'; }}
+                            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px) scale(1.04)'; e.currentTarget.style.boxShadow = '0 16px 50px rgba(0,0,0,0.35)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(0,0,0,0.25)'; }}
                         >
-                            <Sparkles size={18} />
-                            Inquire Now
-                            <ArrowRight size={20} />
+                            <LogIn size={20} className="stroke-2" />
+                            Login
                         </button>
                         <button
                             onClick={() => setCurrentPage('about')}
