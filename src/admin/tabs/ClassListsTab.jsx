@@ -25,9 +25,16 @@ const ClassListsTab = ({
     const [editingSerialStudentId, setEditingSerialStudentId] = useState(null);
     const [editingSerialValue, setEditingSerialValue] = useState('');
     const [showSerialConfig, setShowSerialConfig] = useState(false);
-    const [serialStartInput, setSerialStartInput] = useState('');
+    const [serialStartBoysInput, setSerialStartBoysInput] = useState('');
+    const [serialStartGirlsInput, setSerialStartGirlsInput] = useState('');
 
-    const classStartSerial = viewingClass ? (CLASS_SERIAL_STARTS?.[viewingClass] ?? '') : '';
+    const classStartSerialObj = viewingClass ? (CLASS_SERIAL_STARTS?.[viewingClass] ?? {}) : {};
+    const classStartSerialBoys = typeof classStartSerialObj === 'object' && classStartSerialObj !== null ? (classStartSerialObj.boys || '') : (typeof classStartSerialObj === 'string' ? classStartSerialObj : '');
+    const classStartSerialGirls = typeof classStartSerialObj === 'object' && classStartSerialObj !== null ? (classStartSerialObj.girls || '') : '';
+    const classStartSerialStr = [
+        classStartSerialBoys ? `👦 ${classStartSerialBoys}` : '',
+        classStartSerialGirls ? `👧 ${classStartSerialGirls}` : ''
+    ].filter(Boolean).join(' • ');
 
     const saveStudentSerial = async (studentId, newSerial) => {
         // Global uniqueness check — no two students anywhere can share a serial
@@ -48,42 +55,53 @@ const ClassListsTab = ({
 
     const handleSaveSerialStart = async () => {
         if (!viewingClass) return;
-        const trimmed = serialStartInput.trim();
+        const bInput = serialStartBoysInput.trim();
+        const gInput = serialStartGirlsInput.trim();
         
-        if (trimmed) {
-            let startNum = parseInt(trimmed, 10);
-            if (isNaN(startNum)) {
-                alert("Please enter a valid numeric starting serial.");
-                return;
-            }
+        let newStudents = [...students];
+        const classStudentsMale = students.filter(s => s.grade === viewingClass && s.admissions?.[0]?.gender === 'Male').sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+        const classStudentsFemale = students.filter(s => s.grade === viewingClass && s.admissions?.[0]?.gender === 'Female').sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+        const allNewSerials = [];
+        
+        const applySerials = (studentsList, startVal) => {
+            if (!startVal) return null;
+            let startNum = parseInt(startVal, 10);
+            if (isNaN(startNum)) return 'invalid';
+            const mapped = studentsList.map((s, i) => ({ id: s.id, serial: String(startNum + i) }));
+            allNewSerials.push(...mapped.map(m => m.serial));
+            return mapped;
+        };
 
-            const classStudents = students
-                .filter(s => s.grade === viewingClass)
-                .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+        const malesApplied = applySerials(classStudentsMale, bInput);
+        const femalesApplied = applySerials(classStudentsFemale, gInput);
 
-            const newSerials = classStudents.map((_, i) => String(startNum + i));
-            const conflict = students.find(s => s.grade !== viewingClass && newSerials.includes(String(s.serialNumber)));
-            
+        if (malesApplied === 'invalid' || femalesApplied === 'invalid') {
+            alert("Please enter a valid numeric starting serial or leave empty.");
+            return;
+        }
+
+        if (allNewSerials.length > 0) {
+            const conflict = students.find(s => s.grade !== viewingClass && allNewSerials.includes(String(s.serialNumber)));
             if (conflict) {
-                alert(`Cannot set ${trimmed} as the starting serial. Auto-incrementing would assign ${conflict.serialNumber} which is already in use by "${conflict.name}" (${conflict.grade}).\n\nPlease choose a different starting number.`);
+                alert(`Cannot set starting serials. Auto-incrementing would assign ${conflict.serialNumber} which is already in use by "${conflict.name}" (${conflict.grade}).`);
                 return;
             }
 
-            const classStudentIds = classStudents.map(s => s.id);
-            const newStudents = students.map(s => {
-                const idx = classStudentIds.indexOf(s.id);
-                if (idx !== -1) {
-                    return { ...s, serialNumber: String(startNum + idx) };
-                }
+            const malesObj = malesApplied ? Object.fromEntries(malesApplied.map(m => [m.id, m.serial])) : {};
+            const femalesObj = femalesApplied ? Object.fromEntries(femalesApplied.map(f => [f.id, f.serial])) : {};
+
+            newStudents = newStudents.map(s => {
+                if (malesObj[s.id] !== undefined) return { ...s, serialNumber: malesObj[s.id] };
+                if (femalesObj[s.id] !== undefined) return { ...s, serialNumber: femalesObj[s.id] };
                 return s;
             });
             await setStudents(newStudents);
         }
 
-        const newMap = { ...(CLASS_SERIAL_STARTS || {}), [viewingClass]: trimmed === '' ? null : trimmed };
+        const newMap = { ...(CLASS_SERIAL_STARTS || {}), [viewingClass]: { boys: bInput || null, girls: gInput || null } };
         await updateClassSerialStarts(newMap);
         setShowSerialConfig(false);
-        showSaveMessage(`Starting serial for "${viewingClass}" set to ${trimmed || 'none'} and auto-assigned to students`);
+        showSaveMessage(`Starting serials for "${viewingClass}" updated and auto-assigned to students`);
     };
 
     return (
@@ -103,11 +121,11 @@ const ClassListsTab = ({
                                         <span>{SECTIONS.find(s => s.classes.includes(viewingClass))?.name || 'Unassigned'}</span>
                                         <span>•</span>
                                         <span>{students.filter(s => s.grade === viewingClass).length} Students</span>
-                                        {classStartSerial !== '' && (
+                                        {classStartSerialStr && (
                                             <>
                                                 <span>•</span>
                                                 <span style={{ color: '#7c3aed', fontWeight: 700 }}>
-                                                    <Hash size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Starts at {classStartSerial}
+                                                    <Hash size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Starts: {classStartSerialStr}
                                                 </span>
                                             </>
                                         )}
@@ -116,7 +134,7 @@ const ClassListsTab = ({
                             </div>
                             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                                 {/* Serial config button */}
-                                <button onClick={() => { setShowSerialConfig(s => !s); setSerialStartInput(String(classStartSerial)); }} className="btn"
+                                <button onClick={() => { setShowSerialConfig(s => !s); setSerialStartBoysInput(classStartSerialBoys); setSerialStartGirlsInput(classStartSerialGirls); }} className="btn"
                                     style={{ background: showSerialConfig ? '#ede9fe' : '#f8fafc', color: '#7c3aed', borderColor: '#c4b5fd', padding: '0.4rem 0.75rem', fontSize: '0.85rem' }}>
                                     <Hash size={15} /> Serial Config
                                 </button>
@@ -144,23 +162,36 @@ const ClassListsTab = ({
                                         Serial Number Configuration for "{viewingClass}"
                                     </div>
                                     <div style={{ fontSize: '0.78rem', color: '#7c3aed' }}>
-                                        Set the starting serial number. New students added to this class will get auto-incrementing serials from this number.
+                                        Set the starting serial numbers for boys and girls.
                                     </div>
                                 </div>
-                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                    <input
-                                        type="number"
-                                        className="form-input"
-                                        placeholder="e.g. 200"
-                                        value={serialStartInput}
-                                        onChange={e => setSerialStartInput(e.target.value)}
-                                        style={{ width: '120px', padding: '0.4rem 0.6rem', borderColor: '#c4b5fd' }}
-                                        onKeyDown={e => { if (e.key === 'Enter') handleSaveSerialStart(); if (e.key === 'Escape') setShowSerialConfig(false); }}
-                                    />
-                                    <button onClick={handleSaveSerialStart} className="btn btn-primary" style={{ background: '#7c3aed', borderColor: '#7c3aed' }}>
+                                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#0369a1', textTransform: 'uppercase' }}>👦 Boys Start</span>
+                                        <input
+                                            type="number"
+                                            className="form-input"
+                                            placeholder="e.g. 100"
+                                            value={serialStartBoysInput}
+                                            onChange={e => setSerialStartBoysInput(e.target.value)}
+                                            style={{ width: '90px', padding: '0.4rem 0.6rem', borderColor: '#bae6fd' }}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#be185d', textTransform: 'uppercase' }}>👧 Girls Start</span>
+                                        <input
+                                            type="number"
+                                            className="form-input"
+                                            placeholder="e.g. 200"
+                                            value={serialStartGirlsInput}
+                                            onChange={e => setSerialStartGirlsInput(e.target.value)}
+                                            style={{ width: '90px', padding: '0.4rem 0.6rem', borderColor: '#fbcfe8' }}
+                                        />
+                                    </div>
+                                    <button onClick={handleSaveSerialStart} className="btn btn-primary" style={{ background: '#7c3aed', borderColor: '#7c3aed', padding: '0.45rem 0.75rem', height: 'fit-content', marginBottom: '1px' }}>
                                         <Check size={16} /> Save
                                     </button>
-                                    <button onClick={() => setShowSerialConfig(false)} className="btn" style={{ color: '#64748b' }}>
+                                    <button onClick={() => setShowSerialConfig(false)} className="btn" style={{ color: '#64748b', height: 'fit-content', marginBottom: '1px' }}>
                                         <X size={16} />
                                     </button>
                                 </div>
@@ -418,7 +449,11 @@ const ClassListsTab = ({
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
                                         {currentSection.classes.map(cls => {
                                             const count = students.filter(s => s.grade === cls).length;
-                                            const startSerial = CLASS_SERIAL_STARTS?.[cls];
+                                            const startSerialObj = CLASS_SERIAL_STARTS?.[cls] || {};
+                                            const sBoys = typeof startSerialObj === 'object' && startSerialObj !== null ? startSerialObj.boys : (typeof startSerialObj === 'string' ? startSerialObj : '');
+                                            const sGirls = typeof startSerialObj === 'object' && startSerialObj !== null ? startSerialObj.girls : '';
+                                            const serialDisp = [sBoys ? `👦 ${sBoys}` : '', sGirls ? `👧 ${sGirls}` : ''].filter(Boolean).join(' • ');
+
                                             return (
                                                 <div key={cls} onClick={() => setViewingClass(cls)}
                                                     style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem', cursor: 'pointer', transition: 'all 0.2s', position: 'relative' }}
@@ -428,9 +463,9 @@ const ClassListsTab = ({
                                                     <div style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                                         <Users size={14} /> {count} Students
                                                     </div>
-                                                    {startSerial !== undefined && startSerial !== null && (
+                                                    {serialDisp && (
                                                         <div style={{ fontSize: '0.75rem', color: '#7c3aed', fontWeight: 600, marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                                            <Hash size={11} /> Serial starts at {startSerial}
+                                                            <Hash size={11} /> Starts: {serialDisp}
                                                         </div>
                                                     )}
                                                     <button onClick={e => {
