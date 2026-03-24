@@ -2957,6 +2957,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         setActiveTab={setActiveTab} setAdmissionData={setAdmissionData}
                                         showSaveMessage={showSaveMessage} openConfirm={openConfirm}
                                         CLASS_SERIAL_STARTS={CLASS_SERIAL_STARTS} updateClassSerialStarts={updateClassSerialStarts}
+                                        uploadImage={uploadImage}
                                     />
                                 )}
                             </Suspense>

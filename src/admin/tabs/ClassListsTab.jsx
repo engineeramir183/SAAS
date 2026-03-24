@@ -21,6 +21,7 @@ const ClassListsTab = ({
     setActiveTab, setAdmissionData,
     showSaveMessage, openConfirm,
     CLASS_SERIAL_STARTS, updateClassSerialStarts,
+    uploadImage,
 }) => {
     const [editingSerialStudentId, setEditingSerialStudentId] = useState(null);
     const [editingSerialValue, setEditingSerialValue] = useState('');
@@ -250,11 +251,36 @@ const ClassListsTab = ({
                                         .map(student => (
                                             <tr key={student.id} style={{ borderBottom: '1px solid #f1f5f9', background: editingStudentId === student.id ? '#eff6ff' : 'transparent', transition: 'background 0.2s' }}>
                                                 <td style={{ padding: '0.5rem 0.75rem' }}>
-                                                    <div style={{ width: '38px', height: '38px', borderRadius: '50%', overflow: 'hidden', background: '#e0f2fe', border: '2px solid #bae6fd', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                    <div style={{ width: '38px', height: '38px', borderRadius: '50%', overflow: 'hidden', background: '#e0f2fe', border: '2px solid #bae6fd', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, position: 'relative' }} title={student.photo || student.image ? '' : 'Upload Photo'}>
                                                         {student.photo || student.image ? (
                                                             <img src={student.photo || student.image} alt={student.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                         ) : (
-                                                            <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0369a1' }}>{student.name?.charAt(0)?.toUpperCase()}</span>
+                                                            <>
+                                                                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0369a1' }}>{student.name?.charAt(0)?.toUpperCase()}</span>
+                                                                <div className="hover-overlay" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(255,255,255,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'all 0.2s', pointerEvents: 'none' }}>
+                                                                    <Upload size={16} color="#0369a1" />
+                                                                </div>
+                                                                <input
+                                                                    type="file"
+                                                                    accept="image/*"
+                                                                    onMouseEnter={e => e.target.previousSibling.style.opacity = 1}
+                                                                    onMouseLeave={e => e.target.previousSibling.style.opacity = 0}
+                                                                    onChange={async (e) => {
+                                                                        const file = e.target.files[0];
+                                                                        if (!file) return;
+                                                                        if (!uploadImage) { alert("Upload capability is not available."); return; }
+                                                                        showSaveMessage('Uploading photo directly...');
+                                                                        const publicUrl = await uploadImage(file, 'students');
+                                                                        if (publicUrl) {
+                                                                            const upd = students.map(s => s.id === student.id ? { ...s, photo: publicUrl, image: publicUrl } : s);
+                                                                            await setStudents(upd);
+                                                                            showSaveMessage('Photo uploaded successfully!');
+                                                                        }
+                                                                        e.target.value = '';
+                                                                    }}
+                                                                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
+                                                                />
+                                                            </>
                                                         )}
                                                     </div>
                                                 </td>
