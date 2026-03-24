@@ -1,5 +1,5 @@
-import React from 'react';
-import { ChevronRight, Upload, Download, PlusCircle, Users, Edit3, Trash2, GripVertical, ChevronUp, ChevronDown, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChevronRight, Upload, Download, PlusCircle, Users, Edit3, Trash2, GripVertical, ChevronUp, ChevronDown, X, Hash, Check, Settings } from 'lucide-react';
 
 const ClassListsTab = ({
     students, setStudents,
@@ -20,7 +20,49 @@ const ClassListsTab = ({
     exportClassRoster, exportPasswordsPDF,
     setActiveTab, setAdmissionData,
     showSaveMessage, openConfirm,
+    CLASS_SERIAL_STARTS, updateClassSerialStarts,
 }) => {
+    const [editingSerialStudentId, setEditingSerialStudentId] = useState(null);
+    const [editingSerialValue, setEditingSerialValue] = useState('');
+    const [showSerialConfig, setShowSerialConfig] = useState(false);
+    const [serialStartInput, setSerialStartInput] = useState('');
+
+    const classStartSerial = viewingClass ? (CLASS_SERIAL_STARTS?.[viewingClass] ?? '') : '';
+
+    const saveStudentSerial = async (studentId, newSerial) => {
+        // Global uniqueness check — no two students anywhere can share a serial
+        if (newSerial) {
+            const conflict = students.find(s => s.id !== studentId && String(s.serialNumber) === String(newSerial));
+            if (conflict) {
+                alert(`Serial number ${newSerial} is already assigned to "${conflict.name}" (${conflict.grade}). Serial numbers must be unique across the entire college.`);
+                return;
+            }
+        }
+        const updatedStudents = students.map(s =>
+            s.id === studentId ? { ...s, serialNumber: newSerial || null } : s
+        );
+        await setStudents(updatedStudents);
+        setEditingSerialStudentId(null);
+        showSaveMessage('Serial number updated!');
+    };
+
+    const handleSaveSerialStart = async () => {
+        if (!viewingClass) return;
+        const trimmed = serialStartInput.trim();
+        // Hard block: starting serial cannot already be assigned to any student
+        if (trimmed) {
+            const conflict = students.find(s => String(s.serialNumber) === trimmed);
+            if (conflict) {
+                alert(`Cannot set ${trimmed} as the starting serial — it is already assigned to "${conflict.name}" (${conflict.grade}, Serial: ${conflict.serialNumber}).\n\nPlease choose a starting number that is not already in use.`);
+                return;
+            }
+        }
+        const newMap = { ...(CLASS_SERIAL_STARTS || {}), [viewingClass]: trimmed === '' ? null : trimmed };
+        await updateClassSerialStarts(newMap);
+        setShowSerialConfig(false);
+        showSaveMessage(`Starting serial for "${viewingClass}" set to ${trimmed || 'none'}`);
+    };
+
     return (
         <div className="animate-fade-in">
             {
@@ -38,10 +80,23 @@ const ClassListsTab = ({
                                         <span>{SECTIONS.find(s => s.classes.includes(viewingClass))?.name || 'Unassigned'}</span>
                                         <span>•</span>
                                         <span>{students.filter(s => s.grade === viewingClass).length} Students</span>
+                                        {classStartSerial !== '' && (
+                                            <>
+                                                <span>•</span>
+                                                <span style={{ color: '#7c3aed', fontWeight: 700 }}>
+                                                    <Hash size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Starts at {classStartSerial}
+                                                </span>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             </div>
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                {/* Serial config button */}
+                                <button onClick={() => { setShowSerialConfig(s => !s); setSerialStartInput(String(classStartSerial)); }} className="btn"
+                                    style={{ background: showSerialConfig ? '#ede9fe' : '#f8fafc', color: '#7c3aed', borderColor: '#c4b5fd', padding: '0.4rem 0.75rem', fontSize: '0.85rem' }}>
+                                    <Hash size={15} /> Serial Config
+                                </button>
                                 <button onClick={() => { setSelectedClassForList(viewingClass); classImportFileRef.current.click(); }} className="btn btn-secondary">
                                     <Upload size={16} /> Import Excel
                                 </button>
@@ -56,6 +111,38 @@ const ClassListsTab = ({
                                 </button>
                             </div>
                         </div>
+
+                        {/* Serial Number Config Panel */}
+                        {showSerialConfig && (
+                            <div style={{ background: '#f5f3ff', borderBottom: '1px solid #ddd6fe', padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                                <Hash size={18} color="#7c3aed" />
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#5b21b6', marginBottom: '0.25rem' }}>
+                                        Serial Number Configuration for "{viewingClass}"
+                                    </div>
+                                    <div style={{ fontSize: '0.78rem', color: '#7c3aed' }}>
+                                        Set the starting serial number. New students added to this class will get auto-incrementing serials from this number.
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                    <input
+                                        type="number"
+                                        className="form-input"
+                                        placeholder="e.g. 200"
+                                        value={serialStartInput}
+                                        onChange={e => setSerialStartInput(e.target.value)}
+                                        style={{ width: '120px', padding: '0.4rem 0.6rem', borderColor: '#c4b5fd' }}
+                                        onKeyDown={e => { if (e.key === 'Enter') handleSaveSerialStart(); if (e.key === 'Escape') setShowSerialConfig(false); }}
+                                    />
+                                    <button onClick={handleSaveSerialStart} className="btn btn-primary" style={{ background: '#7c3aed', borderColor: '#7c3aed' }}>
+                                        <Check size={16} /> Save
+                                    </button>
+                                    <button onClick={() => setShowSerialConfig(false)} className="btn" style={{ color: '#64748b' }}>
+                                        <X size={16} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Gender tabs */}
                         <div style={{ padding: '0 1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: '1.5rem' }}>
@@ -82,6 +169,11 @@ const ClassListsTab = ({
                                 <thead>
                                     <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left', color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase' }}>
                                         <th style={{ padding: '0.75rem', width: '48px' }}></th>
+                                        <th style={{ padding: '0.75rem', width: '90px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                                <Hash size={12} /> Serial
+                                            </div>
+                                        </th>
                                         <th style={{ padding: '0.75rem' }}>ID</th>
                                         <th style={{ padding: '0.75rem' }}>Name</th>
                                         <th style={{ padding: '0.75rem' }}>Father Name</th>
@@ -93,7 +185,14 @@ const ClassListsTab = ({
                                 <tbody>
                                     {students
                                         .filter(s => s.grade === viewingClass && (classDetailTab === 'all' || s.admissions?.[0]?.gender === (classDetailTab === 'boys' ? 'Male' : 'Female')))
-                                        .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
+                                        .sort((a, b) => {
+                                            const sA = parseInt(a.serialNumber, 10);
+                                            const sB = parseInt(b.serialNumber, 10);
+                                            if (!isNaN(sA) && !isNaN(sB)) return sA - sB;
+                                            if (!isNaN(sA)) return -1;
+                                            if (!isNaN(sB)) return 1;
+                                            return a.id.localeCompare(b.id, undefined, { numeric: true });
+                                        })
                                         .map(student => (
                                             <tr key={student.id} style={{ borderBottom: '1px solid #f1f5f9', background: editingStudentId === student.id ? '#eff6ff' : 'transparent', transition: 'background 0.2s' }}>
                                                 <td style={{ padding: '0.5rem 0.75rem' }}>
@@ -105,7 +204,39 @@ const ClassListsTab = ({
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td style={{ padding: '0.75rem', fontWeight: 600 }}>{student.id}</td>
+                                                {/* Serial Number Cell — inline editable */}
+                                                <td style={{ padding: '0.5rem 0.75rem' }}>
+                                                    {editingSerialStudentId === student.id ? (
+                                                        <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                                                            <input
+                                                                autoFocus
+                                                                type="text"
+                                                                value={editingSerialValue}
+                                                                onChange={e => setEditingSerialValue(e.target.value)}
+                                                                onKeyDown={e => {
+                                                                    if (e.key === 'Enter') saveStudentSerial(student.id, editingSerialValue.trim());
+                                                                    if (e.key === 'Escape') setEditingSerialStudentId(null);
+                                                                }}
+                                                                style={{ width: '60px', padding: '0.2rem 0.3rem', border: '1.5px solid #7c3aed', borderRadius: '5px', fontSize: '0.8rem', fontWeight: 700 }}
+                                                            />
+                                                            <button onClick={() => saveStudentSerial(student.id, editingSerialValue.trim())}
+                                                                style={{ background: '#7c3aed', border: 'none', cursor: 'pointer', color: 'white', borderRadius: '4px', padding: '2px 4px', display: 'flex', alignItems: 'center' }}><Check size={12} /></button>
+                                                            <button onClick={() => setEditingSerialStudentId(null)}
+                                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}><X size={12} /></button>
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                                            <span style={{ fontWeight: 700, color: student.serialNumber ? '#7c3aed' : '#cbd5e1', fontSize: '0.9rem', minWidth: '36px' }}>
+                                                                {student.serialNumber || '—'}
+                                                            </span>
+                                                            <button onClick={() => { setEditingSerialStudentId(student.id); setEditingSerialValue(student.serialNumber || ''); }}
+                                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', opacity: 0.6 }} title="Edit serial">
+                                                                <Edit3 size={11} />
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td style={{ padding: '0.75rem', fontWeight: 600, fontSize: '0.82rem', color: '#475569' }}>{student.id}</td>
                                                 <td style={{ padding: '0.75rem' }}><div style={{ fontWeight: 600 }}>{student.name}</div></td>
                                                 <td style={{ padding: '0.75rem', color: '#64748b' }}>{student.admissions?.[0]?.fatherName || '—'}</td>
                                                 <td style={{ padding: '0.75rem' }}>
@@ -264,15 +395,21 @@ const ClassListsTab = ({
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
                                         {currentSection.classes.map(cls => {
                                             const count = students.filter(s => s.grade === cls).length;
+                                            const startSerial = CLASS_SERIAL_STARTS?.[cls];
                                             return (
                                                 <div key={cls} onClick={() => setViewingClass(cls)}
                                                     style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem', cursor: 'pointer', transition: 'all 0.2s', position: 'relative' }}
                                                     onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--color-primary)'}
                                                     onMouseLeave={e => e.currentTarget.style.borderColor = '#e2e8f0'}>
-                                                    <h5 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem', color: '#1e293b' }}>{cls}</h5>
+                                                    <h5 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.4rem', color: '#1e293b' }}>{cls}</h5>
                                                     <div style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                                         <Users size={14} /> {count} Students
                                                     </div>
+                                                    {startSerial !== undefined && startSerial !== null && (
+                                                        <div style={{ fontSize: '0.75rem', color: '#7c3aed', fontWeight: 600, marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                                            <Hash size={11} /> Serial starts at {startSerial}
+                                                        </div>
+                                                    )}
                                                     <button onClick={e => {
                                                         e.stopPropagation();
                                                         if (window.confirm(`Remove "${cls}" from this section?`)) {

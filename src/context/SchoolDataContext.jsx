@@ -11,6 +11,8 @@ const DEFAULT_TERMS = {};
 // If a subject has no entry, falls back to DEFAULT_SUBJECT_TOTAL (100).
 const DEFAULT_WEIGHTS = {};
 const DEFAULT_SUBJECT_TOTAL = 100;
+// CLASS_SERIAL_STARTS: { "9A": 200, "Inter 1st": 300 } — starting serial per class
+const DEFAULT_CLASS_SERIAL_STARTS = {};
 
 const SchoolDataContext = createContext();
 
@@ -42,6 +44,7 @@ export const SchoolDataProvider = ({ children }) => {
     const [terms, setTerms] = useState(DEFAULT_TERMS);
     const [sections, setSections] = useState([]);
     const [weights, setWeights] = useState(DEFAULT_WEIGHTS);
+    const [classSerialStarts, setClassSerialStarts] = useState(DEFAULT_CLASS_SERIAL_STARTS);
     const [loading, setLoading] = useState(true);
     const [adminCredentials, setAdminCredentials] = useState({ username: '', password: '' });
 
@@ -122,6 +125,7 @@ export const SchoolDataProvider = ({ children }) => {
             }
             if (metaMap['SECTIONS']) setSections(metaMap['SECTIONS']);
             if (metaMap['WEIGHTS']) setWeights(metaMap['WEIGHTS']);
+            if (metaMap['CLASS_SERIAL_STARTS']) setClassSerialStarts(metaMap['CLASS_SERIAL_STARTS']);
 
         } catch (error) {
             console.error('Error fetching data:', error);
@@ -213,6 +217,12 @@ export const SchoolDataProvider = ({ children }) => {
         if (!error) setWeights(newWeights);
     };
 
+    const updateClassSerialStarts = async (newMap) => {
+        const { error } = await supabase.from('metadata').upsert({ key: 'CLASS_SERIAL_STARTS', value: newMap });
+        if (!error) setClassSerialStarts(newMap);
+        return { error };
+    };
+
     const changeAdminPassword = async (newUsername, newPassword) => {
         const { error } = await supabase
             .from('admins')
@@ -232,6 +242,7 @@ export const SchoolDataProvider = ({ children }) => {
             TERMS: terms,
             SECTIONS: sections,
             WEIGHTS: weights,
+            CLASS_SERIAL_STARTS: classSerialStarts,
             adminCredentials,
             loading,
             fetchData,
@@ -246,6 +257,7 @@ export const SchoolDataProvider = ({ children }) => {
             updateTerms,
             updateSections,
             updateWeights,
+            updateClassSerialStarts,
             changeAdminPassword
         }}>
             {children}

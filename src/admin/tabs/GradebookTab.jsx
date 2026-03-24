@@ -1,5 +1,5 @@
-import React from 'react';
-import { Save, Download, Upload, Users, PlusCircle, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { Save, Download, Upload, Users, PlusCircle, X, Edit3, Check } from 'lucide-react';
 import { calcGrade, gradeColor, calcOverallPct, getTermResults, filterByGender } from '../utils/gradeUtils';
 
 const GradebookTab = ({
@@ -13,7 +13,12 @@ const GradebookTab = ({
     saveGradebook, downloadGradebookTemplate, exportGradebookExcel,
     archiveTerm, exportResultPDF, importGradebookExcel,
     gbImportFileRef, getCellValue, handleCellEdit, saveRemarks,
+    renameSubject, updateSubjectsForClasses,
 }) => {
+    const [editingSubject, setEditingSubject] = useState(null); // { oldName, newName }
+    const [addSubjectClasses, setAddSubjectClasses] = useState([]); // selected additional classes
+    const [showClassPicker, setShowClassPicker] = useState(false);
+
     const classSubjects = (SUBJECTS && !Array.isArray(SUBJECTS) ? (SUBJECTS[selectedClass] || []) : []);
     const getSubjectTotal = (sub, term) => {
         const t = term || gbTerm || TERMS[0] || 'Current';
@@ -92,24 +97,83 @@ const GradebookTab = ({
                         {/* Subjects */}
                         <div>
                             <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.5rem' }}>
-                                Subjects <span style={{ fontSize: '0.75rem', color: 'var(--color-primary)', fontWeight: 400 }}>— for "{selectedClass}" only</span>
+                                Subjects <span style={{ fontSize: '0.75rem', color: 'var(--color-primary)', fontWeight: 400 }}>— for "{selectedClass}"</span>
                             </div>
-                            <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                            {/* Add Subject Row */}
+                            <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
                                 <input className="form-input" placeholder="Add subject…" value={newSubjectInput}
                                     onChange={e => setNewSubjectInput(e.target.value)}
-                                    onKeyDown={e => { if (e.key === 'Enter' && newSubjectInput.trim()) { updateClassSubjects([...classSubjects, newSubjectInput.trim()]); setNewSubjectInput(''); } }}
-                                    style={{ flex: 1, padding: '0.35rem 0.6rem' }} />
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter' && newSubjectInput.trim()) {
+                                            if (addSubjectClasses.length > 0 && updateSubjectsForClasses) {
+                                                updateSubjectsForClasses(newSubjectInput.trim(), [selectedClass, ...addSubjectClasses]);
+                                            } else {
+                                                updateClassSubjects([...classSubjects, newSubjectInput.trim()]);
+                                            }
+                                            setNewSubjectInput(''); setAddSubjectClasses([]);
+                                        }
+                                    }}
+                                    style={{ flex: 1, minWidth: '120px', padding: '0.35rem 0.6rem' }} />
+                                <button className="btn" style={{ padding: '0.35rem 0.6rem', background: showClassPicker ? '#e0f2fe' : '#f8fafc', border: '1px solid #bae6fd', color: '#0369a1', fontSize: '0.75rem', fontWeight: 600 }}
+                                    onClick={() => setShowClassPicker(p => !p)} title="Also add to other classes">
+                                    📚 +Classes {addSubjectClasses.length > 0 ? `(${addSubjectClasses.length})` : ''}
+                                </button>
                                 <button className="btn btn-primary" style={{ padding: '0.35rem 0.75rem' }}
-                                    onClick={() => { if (newSubjectInput.trim()) { updateClassSubjects([...classSubjects, newSubjectInput.trim()]); setNewSubjectInput(''); } }}>
+                                    onClick={() => {
+                                        if (!newSubjectInput.trim()) return;
+                                        if (addSubjectClasses.length > 0 && updateSubjectsForClasses) {
+                                            updateSubjectsForClasses(newSubjectInput.trim(), [selectedClass, ...addSubjectClasses]);
+                                        } else {
+                                            updateClassSubjects([...classSubjects, newSubjectInput.trim()]);
+                                        }
+                                        setNewSubjectInput(''); setAddSubjectClasses([]);
+                                    }}>
                                     <PlusCircle size={14} />
                                 </button>
                             </div>
+                            {/* Multi-class picker */}
+                            {showClassPicker && (
+                                <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '0.6rem 0.75rem', marginBottom: '0.5rem' }}>
+                                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0369a1', marginBottom: '0.4rem' }}>Also add to these classes:</div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+                                        {sectionClasses.filter(c => c !== selectedClass).map(c => (
+                                            <button key={c} onClick={() => setAddSubjectClasses(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])}
+                                                style={{ padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', border: '1.5px solid', background: addSubjectClasses.includes(c) ? '#0369a1' : 'white', color: addSubjectClasses.includes(c) ? 'white' : '#0369a1', borderColor: '#0369a1', transition: 'all 0.15s' }}>
+                                                {c}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {/* Subject chips with inline edit */}
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                                 {classSubjects.map(s => (
-                                    <span key={s} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: '#e0f2fe', color: '#0369a1', borderRadius: '999px', padding: '0.2rem 0.7rem', fontSize: '0.8rem', fontWeight: 600 }}>
-                                        {s}
-                                        <button onClick={() => updateClassSubjects(classSubjects.filter(x => x !== s))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0369a1', display: 'flex', alignItems: 'center' }}><X size={12} /></button>
-                                    </span>
+                                    editingSubject && editingSubject.oldName === s ? (
+                                        <span key={s} style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', background: '#fffbeb', border: '1.5px solid #f59e0b', borderRadius: '999px', padding: '0.1rem 0.4rem' }}>
+                                            <input autoFocus value={editingSubject.newName}
+                                                onChange={e => setEditingSubject(p => ({ ...p, newName: e.target.value }))}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter' && editingSubject.newName.trim()) {
+                                                        if (renameSubject) renameSubject(editingSubject.oldName, editingSubject.newName.trim());
+                                                        setEditingSubject(null);
+                                                    }
+                                                    if (e.key === 'Escape') setEditingSubject(null);
+                                                }}
+                                                style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: '0.8rem', fontWeight: 700, color: '#92400e', width: `${Math.max(60, editingSubject.newName.length * 8)}px` }} />
+                                            <button onClick={() => { if (renameSubject && editingSubject.newName.trim()) renameSubject(editingSubject.oldName, editingSubject.newName.trim()); setEditingSubject(null); }}
+                                                style={{ background: '#f59e0b', border: 'none', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', borderRadius: '50%', padding: '1px' }}><Check size={11} /></button>
+                                            <button onClick={() => setEditingSubject(null)}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#92400e', display: 'flex', alignItems: 'center' }}><X size={11} /></button>
+                                        </span>
+                                    ) : (
+                                        <span key={s} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: '#e0f2fe', color: '#0369a1', borderRadius: '999px', padding: '0.2rem 0.5rem 0.2rem 0.7rem', fontSize: '0.8rem', fontWeight: 600 }}>
+                                            {s}
+                                            <button onClick={() => setEditingSubject({ oldName: s, newName: s })} title="Rename subject"
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0369a1', display: 'flex', alignItems: 'center', opacity: 0.7, padding: '1px' }}><Edit3 size={11} /></button>
+                                            <button onClick={() => updateClassSubjects(classSubjects.filter(x => x !== s))}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', display: 'flex', alignItems: 'center' }}><X size={12} /></button>
+                                        </span>
+                                    )
                                 ))}
                                 {classSubjects.length === 0 && <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>No subjects yet. Add one above.</span>}
                             </div>
@@ -360,7 +424,6 @@ const GradebookTab = ({
                                                 ))}
                                                 <th style={{ padding: '1rem 0.5rem', textAlign: 'center', fontWeight: 700, fontSize: '0.85rem', minWidth: '90px', background: '#1e293b', position: 'sticky', top: 0, zIndex: 10 }}>Total Obt.</th>
                                                 <th style={{ padding: '1rem 0.5rem', textAlign: 'center', fontWeight: 700, fontSize: '0.85rem', minWidth: '70px', background: '#1e293b', position: 'sticky', top: 0, zIndex: 10 }}>Grade</th>
-                                                <th style={{ padding: '1rem 0.5rem', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', minWidth: '180px', background: '#0f172a', position: 'sticky', top: 0, zIndex: 10 }}>Remarks</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -377,7 +440,6 @@ const GradebookTab = ({
                                                 const rowMaxMarks = subResults.reduce((sum, r) => sum + getSubjectTotal(r.subject), 0);
                                                 const rowGrade = rowAvg !== null ? calcGrade(rowAvg) : '—';
                                                 const rowGc = rowAvg !== null ? gradeColor(rowAvg) : { bg: '#f8fafc', text: '#94a3b8' };
-                                                const existingRemark = (student.results || [])[0]?.remarks || '';
                                                 return (
                                                     <tr key={student.id} style={{ borderTop: '1px solid #e2e8f0', background: rowIdx % 2 === 0 ? 'white' : '#f8fafc', transition: 'background 0.2s' }}>
                                                         <td style={{ padding: '0.75rem 1rem', position: 'sticky', left: 0, background: rowIdx % 2 === 0 ? 'white' : '#f8fafc', zIndex: 1, borderRight: '1px solid #e2e8f0' }}>
@@ -402,6 +464,24 @@ const GradebookTab = ({
                                                                 <td key={sub} style={{ padding: '0.6rem 0.5rem', textAlign: 'center' }}>
                                                                     <div style={{ position: 'relative', display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
                                                                         <input type="text" value={val}
+                                                                            id={`input-${encodeURIComponent(sub)}-${rowIdx}`}
+                                                                            onKeyDown={e => {
+                                                                                if (e.key === 'Enter' || e.key === 'ArrowDown') {
+                                                                                    e.preventDefault();
+                                                                                    const nextInput = document.getElementById(`input-${encodeURIComponent(sub)}-${rowIdx + 1}`);
+                                                                                    if (nextInput) {
+                                                                                        nextInput.focus();
+                                                                                        setTimeout(() => nextInput.select(), 10);
+                                                                                    }
+                                                                                } else if (e.key === 'ArrowUp') {
+                                                                                    e.preventDefault();
+                                                                                    const prevInput = document.getElementById(`input-${encodeURIComponent(sub)}-${rowIdx - 1}`);
+                                                                                    if (prevInput) {
+                                                                                        prevInput.focus();
+                                                                                        setTimeout(() => prevInput.select(), 10);
+                                                                                    }
+                                                                                }
+                                                                            }}
                                                                             placeholder="-"
                                                                             onChange={e => handleCellEdit(student.id, sub, e.target.value)}
                                                                             style={{ width: '70px', padding: '0.4rem', textAlign: 'center', borderRadius: '8px', border: isDirty ? '2px solid #3b82f6' : '1px solid #cbd5e1', background: gc.bg, color: gc.text, fontWeight: 700, fontSize: '0.95rem', outline: 'none', transition: 'all 0.2s' }} />
@@ -420,13 +500,6 @@ const GradebookTab = ({
                                                         </td>
                                                         <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center', background: rowGc.bg }}>
                                                             <span style={{ display: 'inline-block', background: rowGc.text, color: 'white', borderRadius: '8px', padding: '0.25rem 0.6rem', fontWeight: 800, fontSize: '0.9rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>{rowGrade}</span>
-                                                        </td>
-                                                        <td style={{ padding: '0.6rem 0.75rem' }}>
-                                                            <input type="text" defaultValue={existingRemark} placeholder="Add remarks..."
-                                                                onBlur={e => saveRemarks(student.id, classSubjects[0], e.target.value)}
-                                                                style={{ width: '100%', padding: '0.4rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.85rem', color: '#1e293b', background: '#f8fafc', outline: 'none' }}
-                                                                onFocus={e => e.target.style.border = '1px solid #3b82f6'}
-                                                            />
                                                         </td>
                                                     </tr>
                                                 );

@@ -25,7 +25,7 @@ const ClassListsTab = lazy(() => import('../admin/tabs/ClassListsTab'));
 const StudentEditModal = lazy(() => import('../admin/modals/StudentEditModal'));
 
 const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
-    const { schoolData, CLASSES, SUBJECTS, TERMS, SECTIONS, WEIGHTS, fetchData, setStudents, setFaculty, updateSchoolInfo, setAnnouncements, updateClasses, updateSubjects, updateTerms, updateSections, updateWeights, adminCredentials, changeAdminPassword } = useSchoolData();
+    const { schoolData, CLASSES, SUBJECTS, TERMS, SECTIONS, WEIGHTS, CLASS_SERIAL_STARTS, fetchData, setStudents, setFaculty, updateSchoolInfo, setAnnouncements, updateClasses, updateSubjects, updateTerms, updateSections, updateWeights, updateClassSerialStarts, adminCredentials, changeAdminPassword } = useSchoolData();
     const [activeTab, setActiveTab] = useState('dashboard');
     const [saveMessage, setSaveMessage] = useState('');
     const sectionClasses = (SECTIONS || []).flatMap(s => s.classes || []);
@@ -36,6 +36,35 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     const classTerms = (TERMS && !Array.isArray(TERMS) ? (TERMS[selectedClass] || []) : []);
     const updateClassTerms = (newList) => updateTerms({ ...TERMS, [selectedClass]: newList });
     const [reportSearch, setReportSearch] = useState('');
+
+    // ── Rename a subject for the current class and update all student results ──
+    const renameSubject = async (oldName, newName) => {
+        if (!oldName || !newName || oldName === newName) return;
+        // Update subjects map
+        const newSubjects = { ...SUBJECTS, [selectedClass]: (SUBJECTS[selectedClass] || []).map(s => s === oldName ? newName : s) };
+        await updateSubjects(newSubjects);
+        // Update student results for that class
+        const updatedStudents = students.map(s => {
+            if (s.grade !== selectedClass) return s;
+            const newResults = (s.results || []).map(r => r.subject === oldName ? { ...r, subject: newName } : r);
+            const newPrev = (s.previousResults || []).map(term => ({ ...term, results: term.results.map(r => r.subject === oldName ? { ...r, subject: newName } : r) }));
+            return { ...s, results: newResults, previousResults: newPrev };
+        });
+        await setStudents(updatedStudents);
+        showSaveMessage(`Subject renamed: "${oldName}" → "${newName}"`);
+    };
+
+    // ── Add a subject to multiple classes at once ──
+    const updateSubjectsForClasses = async (subjectName, targetClasses) => {
+        if (!subjectName || !targetClasses || targetClasses.length === 0) return;
+        const newSubjects = { ...(SUBJECTS || {}) };
+        targetClasses.forEach(cls => {
+            const existing = newSubjects[cls] || [];
+            if (!existing.includes(subjectName)) newSubjects[cls] = [...existing, subjectName];
+        });
+        await updateSubjects(newSubjects);
+        showSaveMessage(`"${subjectName}" added to ${targetClasses.length} class(es)!`);
+    };
 
     // ── Gradebook State ──
     // ── Class Management State ──
@@ -802,9 +831,31 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             const nextIdNum = maxNum + 1;
             const studentId = `ACS-${year}-${nextIdNum.toString().padStart(3, '0')}`;
 
+            // Auto-assign serial number — globally unique across ALL students
+            let autoSerial = d.serialNumber ? d.serialNumber : null;
+            if (!autoSerial) {
+                const classStart = CLASS_SERIAL_STARTS?.[d.applyingFor];
+                if (classStart !== undefined && classStart !== null) {
+                    // Floor: start from class starting serial (or 1 below it)
+                    const floor = parseInt(classStart, 10) - 1;
+                    // Find the highest serial across ALL students in the entire college
+                    const globalMaxSerial = students.reduce((max, s) => {
+                        const sn = parseInt(s.serialNumber, 10);
+                        return !isNaN(sn) ? Math.max(max, sn) : max;
+                    }, floor);
+                    // New serial = max(floor, globalMax) + 1
+                    autoSerial = String(Math.max(floor, globalMaxSerial) + 1);
+                }
+            }
+            // Also validate if admin manually entered a serial — block duplicates
+            if (autoSerial && students.some(s => String(s.serialNumber) === String(autoSerial))) {
+                alert(`Serial number ${autoSerial} is already in use by another student. Please assign a unique serial number.`);
+                return;
+            }
+
             const newStudentRecord = {
                 id: studentId,
-                serial_number: d.serialNumber ? d.serialNumber : null,
+                serial_number: autoSerial || null,
                 name: d.studentName,
                 password: 'acs' + Math.floor(1000 + Math.random() * 9000),
                 grade: d.applyingFor,
@@ -821,7 +872,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             if (error) throw error;
 
             await fetchData(); // Refresh local state
-            showSaveMessage(`Student ${d.studentName} saved with ID: ${studentId}`);
+            showSaveMessage(`Student ${d.studentName} saved with ID: ${studentId}${autoSerial ? ` (Serial: ${autoSerial})` : ''}`);
         } catch (error) {
             console.error("Error saving admission:", error.message);
             alert("Error saving to database, but printing will continue: " + error.message);
@@ -947,9 +998,10 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 }
             </style>
         </head>
-        <body>
-            <div class="no-print" style="text-align:center; padding: 20px; background: #fff; border-bottom: 1px solid #ddd;">
-                <button onclick="window.print()" style="padding: 12px 30px; background: #1e3a8a; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 800; font-size: 15px; box-shadow: 0 4px 6px rgba(30,58,138,0.2);">🖨️ PRINT ADMISSION FORM</button>
+        <body onload="setTimeout(()=>{window.print();},600)">
+            <div class="no-print" style="text-align:center; padding: 16px 20px; background: #1e3a8a; border-bottom: 3px solid #1e40af; display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap;">
+                <span style="color:white; font-weight:700; font-size:14px;">📄 To save as PDF: In the print dialog → change <strong>Destination</strong> to <em>"Save as PDF"</em> → click Save</span>
+                <button onclick="window.print()" style="padding: 10px 24px; background: white; color: #1e3a8a; border: none; border-radius: 8px; cursor: pointer; font-weight: 800; font-size: 14px;">🖨️ Print / Save as PDF</button>
             </div>
             <div class="page">
                 <div class="header-container">
@@ -1100,6 +1152,146 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
         const printWin = window.open('', '_blank');
         printWin.document.write(html);
+        printWin.document.close();
+    };
+
+    // ── Shared: build a single admission form page HTML from student data ──
+    const buildAdmissionFormHTML = (d) => {
+        const boxChars = (str, length, spacing = 0) => {
+            const chars = (str || '').replace(/[^A-Z0-9]/gi, '').toUpperCase().split('');
+            let html = '';
+            for (let i = 0; i < length; i++) {
+                html += `<span style="display:inline-block;width:20px;height:20px;border:1px solid #000;text-align:center;line-height:20px;font-weight:700;margin-right:${spacing}px;font-size:11px;">${chars[i] || ''}</span>`;
+            }
+            return html;
+        };
+        const bForm = d.bForm || d.admissions?.[0]?.bForm || '';
+        const fatherCnic = d.fatherCnic || d.admissions?.[0]?.fatherCnic || '';
+        const adm = d.admissions?.[0] || {};
+        const studentName = d.studentName || d.name || '';
+        const applyingFor = d.applyingFor || d.grade || '';
+        const applicationDate = d.applicationDate || adm.applicationDate || new Date().toISOString().split('T')[0];
+        const dob = d.dob || adm.dob || '';
+        const nationality = d.nationality || adm.nationality || 'PAKISTANI';
+        const gender = d.gender || adm.gender || '';
+        const religion = d.religion || adm.religion || 'ISLAM';
+        const photo = d.photo || d.image || '';
+        const allergies = d.allergies || adm.allergies || 'No';
+        const allergiesDetails = d.allergiesDetails || adm.allergiesDetails || '';
+        const chronicCondition = d.chronicCondition || adm.chronicCondition || 'No';
+        const chronicConditionDetails = d.chronicConditionDetails || adm.chronicConditionDetails || '';
+        const medication = d.medication || adm.medication || 'No';
+        const medicationDetails = d.medicationDetails || adm.medicationDetails || '';
+        const fatherName = d.fatherName || adm.fatherName || '';
+        const contact = d.contact || adm.contact || '';
+        const address = d.address || adm.address || '';
+        const whatsapp = d.whatsapp || adm.whatsapp || '';
+        const serialNumber = d.serialNumber || d.serial_number || '';
+        const docs = d.docs || { photos: false, bform: false, cnic: false };
+        return `
+        <div class="page">
+            <div class="header-container">
+                <img src="/logo.png" class="header-logo" onerror="this.style.display='none'" />
+                <div class="header-text">
+                    <h1>ACS School &amp; College</h1>
+                    <p>Main Jhang Road Near Attock Petrol Pump, Painsra, Faisalabad</p>
+                    <div class="header-contact">📞 0300-1333275</div>
+                </div>
+            </div>
+            <div class="meta-header">
+                <div>APPLYING FOR: <span style="color:#1e3a8a;border-bottom:1px solid #1e3a8a;min-width:80px;display:inline-block">${applyingFor}</span></div>
+                ${serialNumber ? `<div>SERIAL #: <span style="color:#7c3aed;font-weight:900">${serialNumber}</span></div>` : ''}
+                <div>DATE: <span style="color:#1e3a8a;border-bottom:1px solid #1e3a8a;min-width:80px;display:inline-block">${applicationDate}</span></div>
+            </div>
+            <div style="text-align:center;margin:10px 0">
+                <span style="background:#1e3a8a;color:#fff;padding:6px 40px;border-radius:6px;font-weight:900;font-size:18px;letter-spacing:1px;border:2px solid #1e3a8a">ADMISSION FORM</span>
+            </div>
+            <div class="photo-box">
+                ${photo ? `<img src="${photo}" style="width:100%;height:100%;object-fit:cover" />` : '<b>Photograph</b><span>(Passport Size)</span>'}
+            </div>
+            <div class="section-title" style="background:#1e3a8a">Student's Information</div>
+            <p style="font-size:9px;color:#64748b;margin:-4px 0 8px;font-weight:600">USE CAPITAL LETTERS ONLY</p>
+            <div class="field-row"><div class="field-label">Student Name:</div><div class="boxed-row">${boxChars(studentName, 25)}</div></div>
+            <div class="field-row"><div class="field-label">B-Form No:</div><div class="boxed-row">${boxChars(bForm.substring(0,5),5)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(bForm.substring(5,12),7)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(bForm.substring(12,13),1)}</div></div>
+            <div class="field-row"><div class="field-label">Date of Birth:</div><div class="boxed-row">${boxChars(dob.split('-')[2]||'',2)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(dob.split('-')[1]||'',2)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(dob.split('-')[0]||'',4)}</div><div style="margin-left:15px;font-weight:800;font-size:10px;color:#475569">NATIONALITY: <span class="underline" style="min-width:100px;display:inline-block">${nationality}</span></div></div>
+            <div class="field-row" style="margin-top:2px"><div class="field-label">Gender:</div><div class="checkbox-group"><div class="checkbox"><div class="box" style="${gender==='Male'?'background:#1e3a8a':''}"></div> MALE</div><div class="checkbox"><div class="box" style="${gender==='Female'?'background:#1e3a8a':''}"></div> FEMALE</div></div><div style="margin-left:30px;font-weight:800;font-size:10px;color:#475569">RELIGION: <span class="underline" style="min-width:130px;display:inline-block">${religion}</span></div></div>
+            <div class="section-title" style="background:#0f766e">Health &amp; Medical Info</div>
+            <div class="field-row"><div class="field-label" style="width:100px">Allergies:</div><div class="checkbox-group"><div class="checkbox"><div class="box" style="${allergies==='Yes'?'background:#0f766e':''}"></div> YES</div><div class="checkbox"><div class="box" style="${allergies==='No'?'background:#0f766e':''}"></div> NO</div></div><div style="margin-left:20px;font-weight:700;font-size:10px">DETAILS: <span class="underline">${allergiesDetails}</span></div></div>
+            <div class="field-row"><div class="field-label" style="width:160px">Chronic Condition:</div><div class="checkbox-group"><div class="checkbox"><div class="box" style="${chronicCondition==='Yes'?'background:#0f766e':''}"></div> YES</div><div class="checkbox"><div class="box" style="${chronicCondition==='No'?'background:#0f766e':''}"></div> NO</div></div><div style="margin-left:20px;font-weight:700;font-size:10px">DETAILS: <span class="underline">${chronicConditionDetails}</span></div></div>
+            <div class="field-row"><div class="field-label" style="width:220px">Regular Medication:</div><div class="checkbox-group"><div class="checkbox"><div class="box" style="${medication==='Yes'?'background:#0f766e':''}"></div> YES</div><div class="checkbox"><div class="box" style="${medication==='No'?'background:#0f766e':''}"></div> NO</div></div><div style="margin-left:20px;font-weight:700;font-size:10px;flex:1">DETAILS: <span class="underline">${medicationDetails}</span></div></div>
+            <div class="section-title" style="background:#b91c1c">Parents Information</div>
+            <div class="field-row"><div class="field-label">Father Name:</div><div class="boxed-row">${boxChars(fatherName,25)}</div></div>
+            <div class="field-row"><div class="field-label">Father CNIC:</div><div class="boxed-row">${boxChars(fatherCnic.substring(0,5),5)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(fatherCnic.substring(5,12),7)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(fatherCnic.substring(12,13),1)}</div><div style="margin-left:15px;font-weight:800;font-size:10px;color:#475569">CONTACT: <span class="underline" style="min-width:130px;display:inline-block">${contact}</span></div></div>
+            <div class="field-row" style="margin-top:5px"><div class="field-label">Address:</div><span class="underline">${address}</span><div style="margin-left:15px;font-weight:800;font-size:10px;color:#475569">WHATSAPP: <span class="underline" style="min-width:120px;display:inline-block">${whatsapp}</span></div></div>
+            <div class="section-title" style="background:#1e293b;padding:3px 20px">UNDERTAKING</div>
+            <div style="font-size:10px;line-height:1.5;color:#334155;padding:0 10px">
+                <b>I solemnly declare that:</b>
+                <div style="margin-left:15px">• I will abide by all rules and regulations of the school.<br>• I will pay all dues/fees promptly as per schedule.<br>• <span style="color:#b91c1c;font-weight:700">All information provided above is correct and true.</span><br>• Fees once paid are <span style="font-weight:700">non-refundable</span> in any situation.<br>• Admission is provisional until all required documents are submitted.</div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;margin-top:20px">
+                <div style="text-align:center;width:180px;border-top:1.5px solid #1e293b;padding-top:5px;font-size:11px;font-weight:800;color:#1e293b">PARENT'S SIGNATURE</div>
+            </div>
+            <div class="section-title" style="background:#4338ca">Required Documents</div>
+            <div style="display:flex;gap:30px;font-size:10px;font-weight:700;margin-left:10px;color:#4338ca">
+                <div class="checkbox"><div class="box" style="${docs.photos?'background:#4338ca':''}"></div> 4 PASSPORT PHOTOS</div>
+                <div class="checkbox"><div class="box" style="${docs.bform?'background:#4338ca':''}"></div> COPY OF B-FORM</div>
+                <div class="checkbox"><div class="box" style="${docs.cnic?'background:#4338ca':''}"></div> COPY OF PARENT CNIC</div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;margin-top:15px">
+                <div style="text-align:center;width:180px;border-top:1.5px solid #1e293b;padding-top:5px;font-size:11px;font-weight:800;color:#b91c1c">PRINCIPAL'S SIGNATURE</div>
+            </div>
+            <div style="position:absolute;bottom:15mm;left:20mm;right:20mm;height:1px;background:#e2e8f0"></div>
+        </div>`;
+    };
+
+    // ── Bulk Admission Form Printing ──
+    // mode: 'student' (by ID) | 'class' (by class name) | 'college' (all)
+    const printAdmissionFormBulk = (mode, value) => {
+        let targetStudents = [];
+        if (mode === 'student') {
+            const s = students.find(st => st.id === value);
+            if (!s) { alert('Student not found.'); return; }
+            targetStudents = [s];
+        } else if (mode === 'class') {
+            targetStudents = students.filter(s => s.grade === value);
+            if (targetStudents.length === 0) { alert(`No students found in class "${value}".`); return; }
+        } else if (mode === 'college') {
+            targetStudents = [...students];
+            if (targetStudents.length === 0) { alert('No students found.'); return; }
+        }
+        // Sort by serial, then name
+        targetStudents.sort((a, b) => {
+            const sa = parseInt(a.serialNumber, 10), sb = parseInt(b.serialNumber, 10);
+            if (!isNaN(sa) && !isNaN(sb)) return sa - sb;
+            return (a.name || '').localeCompare(b.name || '');
+        });
+        const sharedCSS = `
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+            * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
+            body { margin: 0; padding: 0; background: #f0f0f0; }
+            .page { width:210mm; min-height:297mm; margin:0 auto; background:#fff; padding:12mm 15mm; position:relative; box-shadow:0 0 10px rgba(0,0,0,0.1); page-break-after:always; }
+            .header-container { display:flex; align-items:center; border:2.5px solid #1e3a8a; padding:15px 25px; border-radius:12px; margin-bottom:25px; position:relative; background:linear-gradient(135deg,#ffffff,#f8fafc); }
+            .header-logo { width:100px; height:auto; margin-right:25px; }
+            .header-text { flex:1; text-align:center; }
+            .header-text h1 { margin:0; font-size:32px; color:#1e3a8a; font-weight:800; letter-spacing:1px; text-transform:uppercase; }
+            .header-text p { margin:4px 0; font-size:13px; color:#1e40af; font-weight:600; }
+            .header-contact { font-size:16px; font-weight:800; color:#1e3a8a; margin-top:5px; }
+            .section-title { background:#f97316; color:#fff; display:inline-block; padding:4px 15px; font-weight:800; border-radius:4px; margin:22px 0 12px; font-size:14px; text-transform:uppercase; }
+            .field-row { display:flex; align-items:center; margin-bottom:11px; font-size:12px; }
+            .field-label { width:130px; font-weight:700; font-size:10px; text-transform:uppercase; color:#334155; }
+            .boxed-row { display:flex; gap:1px; }
+            .photo-box { position:absolute; top:195px; right:15mm; width:35mm; height:44mm; border:2px dashed #64748b; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:5px; background:#f8fafc; }
+            .photo-box b { font-size:12px; color:#64748b; } .photo-box span { font-size:9px; color:#94a3b8; }
+            .checkbox-group { display:flex; gap:12px; }
+            .checkbox { display:flex; align-items:center; gap:4px; font-weight:600; }
+            .box { width:13px; height:13px; border:1.5px solid #000; }
+            .underline { border-bottom:1.5px solid #e2e8f0; flex:1; padding:0 5px; min-height:18px; font-weight:700; color:#1e293b; }
+            .meta-header { display:flex; justify-content:space-between; font-size:12px; font-weight:700; color:#475569; margin-bottom:20px; }
+            @media print { @page { size:A4; margin:0; } body { background:#fff; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; } .page { border:none; box-shadow:none; width:100%; padding:10mm 15mm; } .no-print { display:none!important; } }
+        `;
+        const pagesHTML = targetStudents.map(s => buildAdmissionFormHTML(s)).join('');
+        const printWin = window.open('', '_blank');
+        printWin.document.write(`<!DOCTYPE html><html><head><title>Admission Forms — ${mode === 'student' ? value : mode === 'class' ? value : 'All College'}</title><style>${sharedCSS}</style></head><body onload="setTimeout(()=>{window.print();},600)"><div class="no-print" style="text-align:center;padding:16px 20px;background:#1e3a8a;border-bottom:3px solid #1e40af;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;"><span style="color:white;font-weight:700;font-size:14px;">📄 To save as PDF: change <strong>Destination</strong> to <em>"Save as PDF"</em> in the dialog → click Save</span><button onclick="window.print()" style="padding:10px 24px;background:white;color:#1e3a8a;border:none;border-radius:8px;cursor:pointer;font-weight:800;font-size:14px;">🖨️ Print / Save as PDF (${targetStudents.length} form${targetStudents.length !== 1 ? 's' : ''})</button></div>${pagesHTML}</body></html>`);
         printWin.document.close();
     };
 
@@ -1313,13 +1505,17 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             records.push({ date: today, status });
         }
 
-        // Recompute totals from records
+        // Recompute totals — 'leave' and 'late' count as present for percentage
         const present = records.filter(r => r.status === 'present').length;
         const absent = records.filter(r => r.status === 'absent').length;
+        const leave = records.filter(r => r.status === 'leave').length;
+        const late = records.filter(r => r.status === 'late').length;
         const total = records.length;
-        const percentage = total > 0 ? parseFloat(((present / total) * 100).toFixed(1)) : 0;
+        // Leave and Late count as present days for attendance %
+        const presentForPct = present + leave + late;
+        const percentage = total > 0 ? parseFloat(((presentForPct / total) * 100).toFixed(1)) : 0;
 
-        const newAttendance = { records, total, present, absent, percentage };
+        const newAttendance = { records, total, present, absent, leave, late, percentage };
 
         const { error } = await supabase
             .from('students')
@@ -1328,7 +1524,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
         if (!error) {
             fetchData();
-            showSaveMessage(`${status === 'present' ? '✓ Present' : '✗ Absent'} marked for ${student.name} on ${today}!`);
+            const statusLabel = status === 'present' ? '✓ Present' : status === 'absent' ? '✗ Absent' : status === 'leave' ? '📋 Leave' : '⏰ Late';
+            showSaveMessage(`${statusLabel} marked for ${student.name} on ${today}!`);
         }
     };
 
@@ -2408,6 +2605,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                         showSaveMessage={showSaveMessage}
                         editingStudentId={editingStudentId}
                         setEditingStudentId={setEditingStudentId}
+                        SUBJECTS={SUBJECTS}
+                        CLASS_SERIAL_STARTS={CLASS_SERIAL_STARTS}
                     />
                 </Suspense>
             )}
@@ -2644,6 +2843,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         exportResultPDF={exportResultPDF} importGradebookExcel={importGradebookExcel}
                                         gbImportFileRef={gbImportFileRef} getCellValue={getCellValue}
                                         handleCellEdit={handleCellEdit} saveRemarks={saveRemarks}
+                                        renameSubject={renameSubject} updateSubjectsForClasses={updateSubjectsForClasses}
                                     />
                                 )}
 
@@ -2676,8 +2876,10 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         admissionData={admissionData} setAdmissionData={setAdmissionData}
                                         admissionInitialState={admissionInitialState}
                                         printAdmissionForm={printAdmissionForm}
+                                        printAdmissionFormBulk={printAdmissionFormBulk}
                                         handleAdmissionPhotoUpload={handleAdmissionPhotoUpload}
                                         photoFileRef={photoFileRef} sectionClasses={sectionClasses}
+                                        students={students}
                                     />
                                 )}
 
@@ -2752,6 +2954,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         exportClassRoster={exportClassRoster} exportPasswordsPDF={exportPasswordsPDF}
                                         setActiveTab={setActiveTab} setAdmissionData={setAdmissionData}
                                         showSaveMessage={showSaveMessage} openConfirm={openConfirm}
+                                        CLASS_SERIAL_STARTS={CLASS_SERIAL_STARTS} updateClassSerialStarts={updateClassSerialStarts}
                                     />
                                 )}
                             </Suspense>

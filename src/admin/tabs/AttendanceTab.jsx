@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Download, Printer, X, ChevronDown } from 'lucide-react';
+import { Download, Printer, X, ChevronDown, Edit3, Save, Check } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 
 /* ─────────────────────────────────────────────
@@ -441,6 +441,11 @@ const AttendanceTab = ({
     });
     const [studentSearchQuery, setStudentSearchQuery] = useState('');
     const [selectedStudentId, setSelectedStudentId] = useState('');
+    // ── Edit History state ──
+    const [showEditHistory, setShowEditHistory] = useState(false);
+    const [historyDate, setHistoryDate] = useState('');
+    const [historyEdits, setHistoryEdits] = useState({}); // { studentId: 'present'|'absent'|'unmark' }
+    const [historySaving, setHistorySaving] = useState(false);
 
     const today = new Date().toISOString().split('T')[0];
     const filterDate = attDateFilter || today;
@@ -462,6 +467,44 @@ const AttendanceTab = ({
         allClassStudents.flatMap(s => (s.attendance?.records || []).map(r => r.date))
     )].length;
 
+    // All unique recorded dates for this class (for history picker)
+    const allRecordedDates = [...new Set(
+        allClassStudents.flatMap(s => (s.attendance?.records || []).map(r => r.date))
+    )].sort((a, b) => b.localeCompare(a)); // newest first
+
+    // Save all history edits for the selected date
+    const saveHistoryEdits = async () => {
+        if (!historyDate || Object.keys(historyEdits).length === 0) return;
+        setHistorySaving(true);
+        const updates = allClassStudents
+            .filter(s => historyEdits[s.id] !== undefined)
+            .map(s => {
+                const newStatus = historyEdits[s.id];
+                let records = [...(s.attendance?.records || [])];
+                if (newStatus === 'unmark') {
+                    records = records.filter(r => r.date !== historyDate);
+                } else {
+                    const idx = records.findIndex(r => r.date === historyDate);
+                    if (idx >= 0) records[idx] = { date: historyDate, status: newStatus };
+                    else records.push({ date: historyDate, status: newStatus });
+                }
+                const present = records.filter(r => r.status === 'present').length;
+                const absent = records.filter(r => r.status === 'absent').length;
+                const leave = records.filter(r => r.status === 'leave').length;
+                const late = records.filter(r => r.status === 'late').length;
+                const presentForPct = present + leave + late;
+                const percentage = records.length > 0 ? parseFloat(((presentForPct / records.length) * 100).toFixed(1)) : 0;
+                return supabase.from('students').update({
+                    attendance: { records, total: records.length, present, absent, leave, late, percentage }
+                }).eq('id', s.id);
+            });
+        await Promise.all(updates);
+        await fetchData();
+        setHistorySaving(false);
+        setHistoryEdits({});
+        showSaveMessage(`Attendance history updated for ${historyDate}!`);
+    };
+
     const excelBtnStyle = { padding: '0.5rem 1rem', fontSize: '0.85rem', borderRadius: 'var(--radius-md)', fontWeight: 'var(--font-weight-semibold)', border: '2px solid', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', transition: 'all var(--transition-base)' };
 
     const markAll = async (status) => {
@@ -471,24 +514,31 @@ const AttendanceTab = ({
             if (idx >= 0) records[idx] = { date: filterDate, status };
             else records.push({ date: filterDate, status });
             const present = records.filter(r => r.status === 'present').length;
-            const absent = records.length - present;
+            const absent = records.filter(r => r.status === 'absent').length;
+            const leave = records.filter(r => r.status === 'leave').length;
+            const late = records.filter(r => r.status === 'late').length;
+            const presentForPct = present + leave + late;
             return supabase.from('students').update({
-                attendance: { records, total: records.length, present, absent, percentage: parseFloat(((present / records.length) * 100).toFixed(1)) }
+                attendance: { records, total: records.length, present, absent, leave, late, percentage: parseFloat(((presentForPct / records.length) * 100).toFixed(1)) }
             }).eq('id', s.id);
         });
         await Promise.all(updates);
         fetchData();
-        showSaveMessage(`All ${classStudents.length} students marked ${status === 'present' ? 'Present' : 'Absent'} for ${filterDate}!`);
+        const label = status === 'present' ? 'Present' : status === 'absent' ? 'Absent' : status === 'leave' ? 'Leave' : 'Late';
+        showSaveMessage(`All ${classStudents.length} students marked ${label} for ${filterDate}!`);
     };
 
     const unmarkAll = async () => {
         const updates = classStudents.map(s => {
             const records = [...(s.attendance?.records || [])].filter(r => r.date !== filterDate);
             const present = records.filter(r => r.status === 'present').length;
-            const absent = records.length - present;
-            const percentage = records.length > 0 ? parseFloat(((present / records.length) * 100).toFixed(1)) : 0;
+            const absent = records.filter(r => r.status === 'absent').length;
+            const leave = records.filter(r => r.status === 'leave').length;
+            const late = records.filter(r => r.status === 'late').length;
+            const presentForPct = present + leave + late;
+            const percentage = records.length > 0 ? parseFloat(((presentForPct / records.length) * 100).toFixed(1)) : 0;
             return supabase.from('students').update({
-                attendance: { records, total: records.length, present, absent, percentage }
+                attendance: { records, total: records.length, present, absent, leave, late, percentage }
             }).eq('id', s.id);
         });
         await Promise.all(updates);
@@ -504,7 +554,9 @@ const AttendanceTab = ({
 
     const presentToday = classStudents.filter(s => (s.attendance?.records || []).some(r => r.date === filterDate && r.status === 'present')).length;
     const absentToday = classStudents.filter(s => (s.attendance?.records || []).some(r => r.date === filterDate && r.status === 'absent')).length;
-    const unmarkedToday = classStudents.length - presentToday - absentToday;
+    const leaveToday = classStudents.filter(s => (s.attendance?.records || []).some(r => r.date === filterDate && r.status === 'leave')).length;
+    const lateToday = classStudents.filter(s => (s.attendance?.records || []).some(r => r.date === filterDate && r.status === 'late')).length;
+    const unmarkedToday = classStudents.length - presentToday - absentToday - leaveToday - lateToday;
 
     // ── Print actions ──
     const doPrint = () => {
@@ -607,6 +659,106 @@ const AttendanceTab = ({
                 </div>
             )}
 
+            {/* ── Edit History Panel ── */}
+            {showEditHistory && (
+                <div className="card animate-fade-in" style={{ marginBottom: '1.5rem', padding: '1.5rem', border: '2px solid #f59e0b', background: '#fffbeb' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <Edit3 size={20} color="#d97706" />
+                            <div>
+                                <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#92400e' }}>Edit Past Attendance</div>
+                                <div style={{ fontSize: '0.8rem', color: '#b45309' }}>Select a past date and edit each student's status</div>
+                            </div>
+                        </div>
+                        <button onClick={() => { setShowEditHistory(false); setHistoryEdits({}); setHistoryDate(''); }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={20} /></button>
+                    </div>
+
+                    {/* Date picker — from recorded dates */}
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+                        <div>
+                            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#92400e', display: 'block', marginBottom: '0.3rem' }}>Select Date</label>
+                            <select className="form-input" value={historyDate} onChange={e => { setHistoryDate(e.target.value); setHistoryEdits({}); }}
+                                style={{ borderColor: '#f59e0b', minWidth: '180px' }}>
+                                <option value="">— Pick a date —</option>
+                                {allRecordedDates.map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: '#92400e' }}>
+                            {allRecordedDates.length === 0 ? 'No recorded dates yet for this class.' : `${allRecordedDates.length} date(s) recorded`}
+                        </div>
+                    </div>
+
+                    {/* Editable table for selected date */}
+                    {historyDate && (
+                        <>
+                            <div style={{ overflowX: 'auto', marginBottom: '1rem', maxHeight: '50vh', overflowY: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr style={{ background: '#1e293b', color: 'white' }}>
+                                            <th style={{ padding: '0.6rem 1rem', textAlign: 'left', fontSize: '0.8rem', fontWeight: 700 }}>Student</th>
+                                            <th style={{ padding: '0.6rem 1rem', textAlign: 'center', fontSize: '0.8rem', fontWeight: 700 }}>Current Status</th>
+                                            <th style={{ padding: '0.6rem 1rem', textAlign: 'center', fontSize: '0.8rem', fontWeight: 700 }}>Edit Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {allClassStudents.map((s, i) => {
+                                            const existing = (s.attendance?.records || []).find(r => r.date === historyDate);
+                                            const currentStatus = existing?.status || 'unmark';
+                                            const editStatus = historyEdits[s.id];
+                                            const displayStatus = editStatus !== undefined ? editStatus : currentStatus;
+                                            const isEdited = editStatus !== undefined && editStatus !== currentStatus;
+                                            const statusStyle = (st) => st === 'present' ? { bg: '#dcfce7', color: '#15803d' } : st === 'absent' ? { bg: '#fee2e2', color: '#dc2626' } : st === 'leave' ? { bg: '#ede9fe', color: '#7c3aed' } : st === 'late' ? { bg: '#fef3c7', color: '#d97706' } : { bg: '#f1f5f9', color: '#94a3b8' };
+                                            const statusLabel = (st) => st === 'present' ? '✓ Present' : st === 'absent' ? '✗ Absent' : st === 'leave' ? '📋 Leave' : st === 'late' ? '⏰ Late' : '— Unmarked';
+                                            return (
+                                                <tr key={s.id} style={{ borderBottom: '1px solid #fde68a', background: isEdited ? '#fefce8' : i % 2 === 0 ? 'white' : '#fffbeb' }}>
+                                                    <td style={{ padding: '0.6rem 1rem', fontWeight: 600, color: '#1e293b' }}>
+                                                        {s.name}
+                                                        {isEdited && <span style={{ fontSize: '0.7rem', color: '#d97706', marginLeft: '0.4rem', fontWeight: 700 }}>✏ edited</span>}
+                                                    </td>
+                                                    <td style={{ padding: '0.6rem 1rem', textAlign: 'center' }}>
+                                                        <span style={{ padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700, background: statusStyle(currentStatus).bg, color: statusStyle(currentStatus).color }}>
+                                                            {statusLabel(currentStatus)}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '0.6rem 1rem', textAlign: 'center' }}>
+                                                        <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                                            {['present', 'absent', 'leave', 'late', 'unmark'].map(st => (
+                                                                <button key={st}
+                                                                    onClick={() => setHistoryEdits(prev => ({ ...prev, [s.id]: st }))}
+                                                                    style={{ padding: '0.25rem 0.45rem', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', border: '1.5px solid', transition: 'all 0.15s',
+                                                                        background: displayStatus === st ? (st === 'present' ? '#16a34a' : st === 'absent' ? '#dc2626' : st === 'leave' ? '#7c3aed' : st === 'late' ? '#d97706' : '#64748b') : 'white',
+                                                                        color: displayStatus === st ? 'white' : (st === 'present' ? '#16a34a' : st === 'absent' ? '#dc2626' : st === 'leave' ? '#7c3aed' : st === 'late' ? '#d97706' : '#64748b'),
+                                                                        borderColor: st === 'present' ? '#16a34a' : st === 'absent' ? '#dc2626' : st === 'leave' ? '#7c3aed' : st === 'late' ? '#d97706' : '#cbd5e1'
+                                                                    }}>
+                                                                    {st === 'present' ? '✓ P' : st === 'absent' ? '✗ A' : st === 'leave' ? '📋 L' : st === 'late' ? '⏰ Lt' : '↩ Clear'}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                {Object.keys(historyEdits).length > 0 && (
+                                    <span style={{ fontSize: '0.8rem', color: '#92400e', fontWeight: 600 }}>
+                                        {Object.keys(historyEdits).length} change(s) pending
+                                    </span>
+                                )}
+                                <button onClick={() => setHistoryEdits({})} className="btn" style={{ color: '#64748b' }}>Reset</button>
+                                <button onClick={saveHistoryEdits} disabled={historySaving || Object.keys(historyEdits).length === 0}
+                                    className="btn" style={{ background: '#d97706', color: 'white', borderColor: '#d97706', opacity: Object.keys(historyEdits).length === 0 ? 0.5 : 1 }}>
+                                    {historySaving ? 'Saving…' : <><Save size={15} /> Save Changes</>}
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            )}
+
             {/* ── Header ── */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
@@ -620,6 +772,12 @@ const AttendanceTab = ({
                     <input type="date" value={attDateFilter} onChange={e => setAttDateFilter(e.target.value)} className="form-input" style={{ padding: '0.5rem 0.8rem' }} />
                     <button onClick={exportAttendanceExcel} style={{ ...excelBtnStyle, background: '#217346', color: 'white', borderColor: '#217346' }}>
                         <Download size={16} /> Export
+                    </button>
+
+                    {/* Edit History button */}
+                    <button onClick={() => { setShowEditHistory(p => !p); setHistoryEdits({}); setHistoryDate(''); }}
+                        style={{ ...excelBtnStyle, background: showEditHistory ? '#d97706' : '#fffbeb', color: '#d97706', borderColor: '#f59e0b', fontWeight: 700 }}>
+                        <Edit3 size={16} /> Edit History
                     </button>
 
                     {/* Print dropdown */}
@@ -713,13 +871,15 @@ const AttendanceTab = ({
             </div>
 
             {/* ── Date Stats ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
                 {[
                     { label: 'Total Students', val: classStudents.length, color: '#2563eb', bg: '#eff6ff' },
                     { label: `Present (${filterDate})`, val: presentToday, color: '#16a34a', bg: '#f0fdf4' },
                     { label: `Absent (${filterDate})`, val: absentToday, color: '#dc2626', bg: '#fef2f2' },
-                    { label: 'Not Marked', val: unmarkedToday, color: '#b45309', bg: '#fffbeb' },
-                    { label: 'School Days', val: totalDays, color: '#7c3aed', bg: '#f5f3ff' },
+                    { label: `Leave (${filterDate})`, val: leaveToday, color: '#7c3aed', bg: '#f5f3ff' },
+                    { label: `Late (${filterDate})`, val: lateToday, color: '#d97706', bg: '#fffbeb' },
+                    { label: 'Not Marked', val: unmarkedToday, color: '#b45309', bg: '#fef3c7' },
+                    { label: 'School Days', val: totalDays, color: '#0369a1', bg: '#e0f2fe' },
                 ].map(s => (
                     <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.color}22`, borderRadius: '12px', padding: '0.85rem', textAlign: 'center' }}>
                         <div style={{ fontSize: '1.6rem', fontWeight: 800, color: s.color }}>{s.val}</div>
@@ -734,10 +894,10 @@ const AttendanceTab = ({
                     <div style={{ fontWeight: 700, color: '#1e293b' }}>Mark <span style={{ color: '#7c3aed' }}>{genderTab === 'all' ? 'All Students' : genderTab === 'boys' ? 'Boys' : 'Girls'}</span> for: <span style={{ color: '#2563eb' }}>{filterDate}</span></div>
                     <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.2rem' }}>Click to mark all {classStudents.length} students at once</div>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <button onClick={() => markAll('present')} style={{ padding: '0.5rem 1rem', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>✓ All Present</button>
                     <button onClick={() => markAll('absent')} style={{ padding: '0.5rem 1rem', background: '#dc2626', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>✗ All Absent</button>
-                    <button onClick={() => openConfirm('Unmark All', `Remove attendance records for all ${classStudents.length} students on ${filterDate}?`, unmarkAll, true)} style={{ padding: '0.5rem 1rem', background: '#b45309', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>↩ Unmark All</button>
+                    <button onClick={() => openConfirm('Unmark All', `Remove attendance records for all ${classStudents.length} students on ${filterDate}?`, unmarkAll, true)} style={{ padding: '0.5rem 1rem', background: '#64748b', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>↩ Unmark All</button>
                 </div>
             </div>
 
@@ -766,12 +926,16 @@ const AttendanceTab = ({
                                             <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>{student.name}</div>
                                             <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{student.id}</div>
                                         </td>
-                                        <td style={{ padding: '0.85rem 1rem', textAlign: 'center', minWidth: '140px' }}>
-                                            <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                                        <td style={{ padding: '0.85rem 1rem', textAlign: 'center', minWidth: '200px' }}>
+                                            <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                                                 <button onClick={() => markAttendance(student.id, 'present')} title="Mark Present"
-                                                    style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', background: todayRecord?.status === 'present' ? '#16a34a' : '#dcfce7', color: todayRecord?.status === 'present' ? 'white' : '#16a34a', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>✓ P</button>
+                                                    style={{ padding: '0.4rem 0.65rem', borderRadius: '6px', background: todayRecord?.status === 'present' ? '#16a34a' : '#dcfce7', color: todayRecord?.status === 'present' ? 'white' : '#16a34a', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem' }}>✓ P</button>
                                                 <button onClick={() => markAttendance(student.id, 'absent')} title="Mark Absent"
-                                                    style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', background: todayRecord?.status === 'absent' ? '#dc2626' : '#fee2e2', color: todayRecord?.status === 'absent' ? 'white' : '#dc2626', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>✗ A</button>
+                                                    style={{ padding: '0.4rem 0.65rem', borderRadius: '6px', background: todayRecord?.status === 'absent' ? '#dc2626' : '#fee2e2', color: todayRecord?.status === 'absent' ? 'white' : '#dc2626', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem' }}>✗ A</button>
+                                                <button onClick={() => markAttendance(student.id, 'leave')} title="Mark Leave"
+                                                    style={{ padding: '0.4rem 0.65rem', borderRadius: '6px', background: todayRecord?.status === 'leave' ? '#7c3aed' : '#f5f3ff', color: todayRecord?.status === 'leave' ? 'white' : '#7c3aed', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem' }}>📋 L</button>
+                                                <button onClick={() => markAttendance(student.id, 'late')} title="Mark Late"
+                                                    style={{ padding: '0.4rem 0.65rem', borderRadius: '6px', background: todayRecord?.status === 'late' ? '#d97706' : '#fffbeb', color: todayRecord?.status === 'late' ? 'white' : '#d97706', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem' }}>⏰ Lt</button>
                                             </div>
                                         </td>
                                         <td style={{ padding: '0.85rem 1rem', minWidth: '130px' }}>
@@ -787,13 +951,21 @@ const AttendanceTab = ({
                                         </td>
                                         <td style={{ padding: '0.85rem 1rem' }}>
                                             <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', maxWidth: '360px' }}>
-                                                {records.slice(0, 10).map(r => (
-                                                    <span key={r.date} title={`${r.date} — click to remove`}
-                                                        onClick={() => openConfirm('Remove Record', `Remove attendance record for ${student.name} on ${r.date}?`, () => removeAttendanceRecord(student.id, r.date), false)}
-                                                        style={{ padding: '0.15rem 0.5rem', borderRadius: '999px', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer', background: r.status === 'present' ? '#dcfce7' : '#fee2e2', color: r.status === 'present' ? '#15803d' : '#dc2626', border: `1px solid ${r.status === 'present' ? '#86efac' : '#fca5a5'}` }}>
-                                                        {r.date.slice(5)} {r.status === 'present' ? '✓' : '✗'}
-                                                    </span>
-                                                ))}
+                                                {records.slice(0, 10).map(r => {
+                                                    const chipColor = r.status === 'present' ? { bg: '#dcfce7', color: '#15803d', border: '#86efac' }
+                                                        : r.status === 'absent' ? { bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' }
+                                                        : r.status === 'leave' ? { bg: '#ede9fe', color: '#7c3aed', border: '#c4b5fd' }
+                                                        : r.status === 'late' ? { bg: '#fef3c7', color: '#d97706', border: '#fcd34d' }
+                                                        : { bg: '#f1f5f9', color: '#94a3b8', border: '#e2e8f0' };
+                                                    const statusIcon = r.status === 'present' ? '✓' : r.status === 'absent' ? '✗' : r.status === 'leave' ? '📋' : r.status === 'late' ? '⏰' : '?';
+                                                    return (
+                                                        <span key={r.date} title={`${r.date} — click to remove`}
+                                                            onClick={() => openConfirm('Remove Record', `Remove attendance record for ${student.name} on ${r.date}?`, () => removeAttendanceRecord(student.id, r.date), false)}
+                                                            style={{ padding: '0.15rem 0.5rem', borderRadius: '999px', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer', background: chipColor.bg, color: chipColor.color, border: `1px solid ${chipColor.border}` }}>
+                                                            {r.date.slice(5)} {statusIcon}
+                                                        </span>
+                                                    );
+                                                })}
                                                 {records.length > 10 && <span style={{ fontSize: '0.68rem', color: '#94a3b8', padding: '0.15rem 0.4rem' }}>+{records.length - 10} more</span>}
                                                 {records.length === 0 && <span style={{ fontSize: '0.78rem', color: '#cbd5e1', fontStyle: 'italic' }}>No records yet</span>}
                                             </div>

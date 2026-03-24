@@ -1,11 +1,11 @@
-import React, { useRef } from 'react';
-import { Save, User, Users, Award, Camera } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Save, User, Users, Award, Camera, ArrowRightLeft, AlertTriangle } from 'lucide-react';
 
 /**
  * StudentEditModal
  * Full-screen overlay modal for editing all student details.
- * Mirrors the Admission Form layout with sections for photo,
- * student info, health & medical, and parent info.
+ * Supports class transfer: auto-assigns a new globally unique serial
+ * and resets subjects to match the new class when the student is moved.
  */
 const StudentEditModal = ({
     editStudentData,
@@ -17,10 +17,17 @@ const StudentEditModal = ({
     showSaveMessage,
     handleStudentPhotoUpload,
     sectionClasses,
+    SUBJECTS,
+    CLASS_SERIAL_STARTS,
 }) => {
     const photoRef = useRef(null);
+    const [classChangeWarning, setClassChangeWarning] = useState(null);
 
     if (!editingStudentId || !editStudentData) return null;
+
+    const originalStudent = students.find(s => s.id === editingStudentId);
+    const originalClass = originalStudent?.grade;
+    const isClassChanged = editStudentData.grade && editStudentData.grade !== originalClass;
 
     const adm = (prev, key, val) => ({
         ...prev,
@@ -30,11 +37,89 @@ const StudentEditModal = ({
     const onClose = () => {
         setEditingStudentId(null);
         setEditStudentData(null);
+        setClassChangeWarning(null);
     };
 
-    // Wrap handleStudentPhotoUpload to use internal ref
     const handlePhotoChange = (e) => {
         handleStudentPhotoUpload(e, setEditStudentData);
+    };
+
+    // Called when admin selects a new class from the dropdown
+    const handleClassChange = (newClass) => {
+        if (newClass === originalClass) {
+            // Reverted back — restore original serial and results
+            setEditStudentData(p => ({
+                ...p,
+                grade: newClass,
+                serialNumber: originalStudent.serialNumber,
+                serial_number: originalStudent.serial_number,
+                results: originalStudent.results || [],
+            }));
+            setClassChangeWarning(null);
+            return;
+        }
+
+        // Compute new globally unique serial for the new class
+        let newSerial = null;
+        const classStart = CLASS_SERIAL_STARTS?.[newClass];
+        if (classStart !== undefined && classStart !== null) {
+            const floor = parseInt(classStart, 10) - 1;
+            // Global max excluding this student (they'll vacate their current serial)
+            const globalMaxSerial = students
+                .filter(s => s.id !== editingStudentId)
+                .reduce((max, s) => {
+                    const sn = parseInt(s.serialNumber, 10);
+                    return !isNaN(sn) ? Math.max(max, sn) : max;
+                }, floor);
+            newSerial = String(Math.max(floor, globalMaxSerial) + 1);
+        }
+
+        // Build new results based on new class subjects (blank marks, same terms)
+        const newClassSubjects = (SUBJECTS && !Array.isArray(SUBJECTS)) ? (SUBJECTS[newClass] || []) : [];
+        const newResults = newClassSubjects.map(sub => ({
+            subject: sub,
+            obtained: 0,
+            total: 100,
+            percentage: 0,
+            grade: 'F',
+            term: ''
+        }));
+
+        setEditStudentData(p => ({
+            ...p,
+            grade: newClass,
+            serialNumber: newSerial,
+            serial_number: newSerial,
+            results: newResults,
+        }));
+
+        setClassChangeWarning({
+            from: originalClass,
+            to: newClass,
+            newSerial,
+            subjectCount: newClassSubjects.length,
+        });
+    };
+
+    const handleSave = async () => {
+        // Validate serial uniqueness (only if it changed)
+        const newSerial = editStudentData.serialNumber || editStudentData.serial_number;
+        const originalSerial = originalStudent?.serialNumber;
+        if (newSerial && newSerial !== originalSerial) {
+            const conflict = students.find(s => s.id !== editingStudentId && String(s.serialNumber) === String(newSerial));
+            if (conflict) {
+                alert(`Serial number ${newSerial} is already assigned to "${conflict.name}" (${conflict.grade}). Please use a unique serial.`);
+                return;
+            }
+        }
+        const updated = students.map(s => s.id === editingStudentId ? editStudentData : s);
+        await setStudents(updated);
+        if (isClassChanged && classChangeWarning) {
+            showSaveMessage(`✅ ${editStudentData.name} transferred from ${classChangeWarning.from} → ${classChangeWarning.to}! Serial: ${classChangeWarning.newSerial || 'unchanged'}`);
+        } else {
+            showSaveMessage(`✅ ${editStudentData.name} updated successfully!`);
+        }
+        onClose();
     };
 
     return (
@@ -56,7 +141,12 @@ const StudentEditModal = ({
                     <div>
                         <h2 style={{ margin: 0, fontWeight: 800, fontSize: '1.3rem' }}>✏️ Edit Student</h2>
                         <p style={{ margin: '0.25rem 0 0', opacity: 0.8, fontSize: '0.85rem' }}>
-                            {editStudentData.id} — {editStudentData.grade}
+                            {editStudentData.id} — {originalClass}
+                            {isClassChanged && (
+                                <span style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '6px', padding: '0.1rem 0.5rem', marginLeft: '0.5rem', fontSize: '0.8rem' }}>
+                                    → {editStudentData.grade}
+                                </span>
+                            )}
                         </p>
                     </div>
                     <button onClick={onClose}
@@ -66,6 +156,23 @@ const StudentEditModal = ({
                 </div>
 
                 <div style={{ padding: '2rem' }}>
+
+                    {/* ── Class Change Warning Banner ── */}
+                    {classChangeWarning && (
+                        <div style={{ background: '#fffbeb', border: '1.5px solid #f59e0b', borderRadius: '10px', padding: '1rem 1.25rem', marginBottom: '1.5rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                            <AlertTriangle size={20} color="#d97706" style={{ flexShrink: 0, marginTop: '0.1rem' }} />
+                            <div>
+                                <div style={{ fontWeight: 700, color: '#92400e', marginBottom: '0.25rem' }}>
+                                    Class Transfer: {classChangeWarning.from} → {classChangeWarning.to}
+                                </div>
+                                <div style={{ fontSize: '0.85rem', color: '#78350f', lineHeight: 1.6 }}>
+                                    • Serial number will change to <strong>{classChangeWarning.newSerial || 'unassigned'}</strong> (globally unique)<br />
+                                    • Results will be reset with <strong>{classChangeWarning.subjectCount}</strong> subject(s) from {classChangeWarning.to}<br />
+                                    • Previous results will be preserved in the archive
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* ── Photo + Class ── */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem', marginBottom: '2rem', paddingBottom: '1.5rem', borderBottom: '1px solid #f1f5f9' }}>
@@ -89,18 +196,35 @@ const StudentEditModal = ({
                         </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {/* Class selector */}
                             <div>
-                                <label className="form-label">Applying For (Class)</label>
+                                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <ArrowRightLeft size={14} color="#7c3aed" /> Class (Transfer Student)
+                                </label>
                                 <select className="form-input" value={editStudentData.grade || ''}
-                                    onChange={e => setEditStudentData(p => ({ ...p, grade: e.target.value }))}>
-                                    {sectionClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                                    onChange={e => handleClassChange(e.target.value)}
+                                    style={{ borderColor: isClassChanged ? '#f59e0b' : undefined, fontWeight: isClassChanged ? 700 : undefined }}>
+                                    {sectionClasses.map(c => <option key={c} value={c}>{c}{c === originalClass ? ' (current)' : ''}</option>)}
                                 </select>
+                                {isClassChanged && (
+                                    <div style={{ fontSize: '0.75rem', color: '#d97706', marginTop: '0.25rem', fontWeight: 600 }}>
+                                        ⚠️ Changing class will reset subjects and auto-assign a new serial
+                                    </div>
+                                )}
                             </div>
+                            {/* Serial number (read-only when class changed — auto-assigned) */}
                             <div>
-                                <label className="form-label">Serial Number (Optional)</label>
+                                <label className="form-label">Serial Number</label>
                                 <input className="form-input" placeholder="Unique serial number"
-                                    value={editStudentData.serial_number || ''}
-                                    onChange={e => setEditStudentData(p => ({ ...p, serial_number: e.target.value }))} />
+                                    value={editStudentData.serialNumber || editStudentData.serial_number || ''}
+                                    readOnly={isClassChanged}
+                                    style={{ background: isClassChanged ? '#f1f5f9' : undefined, color: isClassChanged ? '#7c3aed' : undefined, fontWeight: isClassChanged ? 700 : undefined }}
+                                    onChange={e => !isClassChanged && setEditStudentData(p => ({ ...p, serialNumber: e.target.value, serial_number: e.target.value }))} />
+                                {isClassChanged && (
+                                    <div style={{ fontSize: '0.75rem', color: '#7c3aed', marginTop: '0.2rem' }}>
+                                        Auto-assigned for the new class
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -158,7 +282,7 @@ const StudentEditModal = ({
                     {/* ── Health & Medical ── */}
                     <div style={{ marginBottom: '2rem', background: '#f8fafc', borderRadius: '10px', padding: '1.25rem' }}>
                         <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-primary)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <Award size={16} /> Health & Medical
+                            <Award size={16} /> Health &amp; Medical
                         </h3>
                         <div className="grid grid-cols-2" style={{ gap: '1.25rem' }}>
                             <div>
@@ -245,14 +369,12 @@ const StudentEditModal = ({
                             className="btn" style={{ background: '#f1f5f9', color: '#64748b', padding: '0.6rem 1.5rem' }}>
                             Cancel
                         </button>
-                        <button className="btn btn-primary" style={{ padding: '0.6rem 2rem', fontWeight: 700 }}
-                            onClick={async () => {
-                                const updated = students.map(s => s.id === editingStudentId ? editStudentData : s);
-                                await setStudents(updated);
-                                showSaveMessage(`✅ ${editStudentData.name} updated successfully!`);
-                                onClose();
-                            }}>
-                            <Save size={16} /> Update Student
+                        <button className="btn btn-primary" style={{ padding: '0.6rem 2rem', fontWeight: 700, background: isClassChanged ? '#d97706' : undefined, borderColor: isClassChanged ? '#d97706' : undefined }}
+                            onClick={handleSave}>
+                            {isClassChanged
+                                ? <><ArrowRightLeft size={16} /> Transfer &amp; Save</>
+                                : <><Save size={16} /> Update Student</>
+                            }
                         </button>
                     </div>
                 </div>
