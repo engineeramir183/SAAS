@@ -318,23 +318,6 @@ const GradebookTab = ({
                                 {termLabel} Results
                             </h3>
                         </div>
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                            <button onClick={saveGradebook} disabled={gbSaving} className="btn btn-primary" style={{ padding: '0.5rem 1.25rem' }}>
-                                <Save size={16} /> {gbSaving ? 'Saving…' : 'Save Details'}
-                            </button>
-                            <button onClick={downloadGradebookTemplate} className="btn" style={{ background: '#10b981', color: 'white', borderColor: '#10b981', padding: '0.5rem 1rem' }}>
-                                <Download size={16} /> Template
-                            </button>
-                            <button onClick={() => gbImportFileRef.current.click()} className="btn" style={{ background: '#3b82f6', color: 'white', borderColor: '#3b82f6', padding: '0.5rem 1rem' }}>
-                                <Upload size={16} /> Import
-                            </button>
-                            <button onClick={exportGradebookExcel} className="btn" style={{ background: '#217346', color: 'white', borderColor: '#217346', padding: '0.5rem 1rem' }}>
-                                <Download size={16} /> Export Term
-                            </button>
-                            <button onClick={exportResultPDF} className="btn" style={{ background: '#dc2626', color: 'white', borderColor: '#dc2626', padding: '0.5rem 1rem' }}>
-                                📄 PDF Reports
-                            </button>
-                        </div>
                     </div>
 
                     <div style={{ padding: '2rem' }}>
@@ -358,6 +341,25 @@ const GradebookTab = ({
                                     </span>
                                 </button>
                             ))}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+                            <button onClick={saveGradebook} disabled={gbSaving} className="btn btn-primary" style={{ padding: '0.5rem 1.25rem' }}>
+                                <Save size={16} /> {gbSaving ? 'Saving…' : 'Save Details'}
+                            </button>
+                            <button onClick={downloadGradebookTemplate} className="btn" style={{ background: '#10b981', color: 'white', borderColor: '#10b981', padding: '0.5rem 1rem' }}>
+                                <Download size={16} /> Template
+                            </button>
+                            <button onClick={() => gbImportFileRef.current.click()} className="btn" style={{ background: '#3b82f6', color: 'white', borderColor: '#3b82f6', padding: '0.5rem 1rem' }}>
+                                <Upload size={16} /> Import
+                            </button>
+                            <button onClick={exportGradebookExcel} className="btn" style={{ background: '#217346', color: 'white', borderColor: '#217346', padding: '0.5rem 1rem' }}>
+                                <Download size={16} /> Export Term
+                            </button>
+                            <button onClick={exportResultPDF} className="btn" style={{ background: '#dc2626', color: 'white', borderColor: '#dc2626', padding: '0.5rem 1rem' }}>
+                                📄 PDF Reports
+                            </button>
                         </div>
 
                         {/* Class Statistics */}

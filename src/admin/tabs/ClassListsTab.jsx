@@ -49,18 +49,41 @@ const ClassListsTab = ({
     const handleSaveSerialStart = async () => {
         if (!viewingClass) return;
         const trimmed = serialStartInput.trim();
-        // Hard block: starting serial cannot already be assigned to any student
+        
         if (trimmed) {
-            const conflict = students.find(s => String(s.serialNumber) === trimmed);
-            if (conflict) {
-                alert(`Cannot set ${trimmed} as the starting serial — it is already assigned to "${conflict.name}" (${conflict.grade}, Serial: ${conflict.serialNumber}).\n\nPlease choose a starting number that is not already in use.`);
+            let startNum = parseInt(trimmed, 10);
+            if (isNaN(startNum)) {
+                alert("Please enter a valid numeric starting serial.");
                 return;
             }
+
+            const classStudents = students
+                .filter(s => s.grade === viewingClass)
+                .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+
+            const newSerials = classStudents.map((_, i) => String(startNum + i));
+            const conflict = students.find(s => s.grade !== viewingClass && newSerials.includes(String(s.serialNumber)));
+            
+            if (conflict) {
+                alert(`Cannot set ${trimmed} as the starting serial. Auto-incrementing would assign ${conflict.serialNumber} which is already in use by "${conflict.name}" (${conflict.grade}).\n\nPlease choose a different starting number.`);
+                return;
+            }
+
+            const classStudentIds = classStudents.map(s => s.id);
+            const newStudents = students.map(s => {
+                const idx = classStudentIds.indexOf(s.id);
+                if (idx !== -1) {
+                    return { ...s, serialNumber: String(startNum + idx) };
+                }
+                return s;
+            });
+            await setStudents(newStudents);
         }
+
         const newMap = { ...(CLASS_SERIAL_STARTS || {}), [viewingClass]: trimmed === '' ? null : trimmed };
         await updateClassSerialStarts(newMap);
         setShowSerialConfig(false);
-        showSaveMessage(`Starting serial for "${viewingClass}" set to ${trimmed || 'none'}`);
+        showSaveMessage(`Starting serial for "${viewingClass}" set to ${trimmed || 'none'} and auto-assigned to students`);
     };
 
     return (

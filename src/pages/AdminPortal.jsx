@@ -267,7 +267,9 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     //   - One "Current" sheet for active results
     //   - One "Summary" sheet showing all terms side-by-side
     const exportGradebookExcel = () => {
-        const classStudents = students.filter(s => s.grade === selectedClass);
+        const classStudents = students
+            .filter(s => s.grade === selectedClass)
+            .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
         const wb = XLSX.utils.book_new();
 
         // Collect all term names (archived + current)
