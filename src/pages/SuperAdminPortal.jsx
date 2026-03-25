@@ -315,7 +315,7 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                             )}
                                         </tbody>
                                     </table>
-                                ) : null}
+                                )}
                             </div>
                         </>
                     )}
