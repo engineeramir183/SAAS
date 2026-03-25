@@ -1,6 +1,6 @@
+import React, { useEffect } from 'react';
 import { ShieldCheck, MonitorSmartphone, BrainCircuit, Wallet, BarChart, Globe, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { useSuperAdmin } from '../context/SuperAdminContext';
-import { useEffect } from 'react';
 
 const SaaSLanding = ({ setCurrentPage }) => {
     const { saasInfo, fetchSaasInfo } = useSuperAdmin();

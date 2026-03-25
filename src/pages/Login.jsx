@@ -41,9 +41,11 @@ const Login = ({
 
         const { schoolCode, username, password } = credentials;
         
+        const u = username.trim().toLowerCase();
+        
         // 1. Super Admin (Global system access — no school code required)
-        if (username === 'superadmin') {
-            const result = await loginSuperAdmin(username, password);
+        if (u === 'superadmin') {
+            const result = await loginSuperAdmin(u, password);
             if (result.success) {
                 if (setIsSuperAdminPage) setIsSuperAdminPage(true);
                 setCurrentPage('superadmin');
@@ -222,7 +224,7 @@ const Login = ({
                                 onChange={handleChange}
                                 className="form-input"
                                 style={{ paddingLeft: '3rem' }}
-                                placeholder="Enter School Code  (e.g. oasis-01)"
+                                placeholder="Enter School Code (e.g. oasis-01)"
                                 autoComplete="organization"
                             />
                         </div>

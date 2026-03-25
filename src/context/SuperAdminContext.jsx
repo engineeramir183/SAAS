@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -31,15 +31,19 @@ export const SuperAdminProvider = ({ children }) => {
     // ─── Authentication ───────────────────────────────────────────────────────
     const loginSuperAdmin = async (username, password) => {
         setError(null);
+        const cleanUser = username.trim().toLowerCase();
+        const cleanPass = password.trim();
+
         const { data, error: err } = await supabase
             .from('super_admins')
             .select('*')
-            .eq('username', username)
-            .eq('password', password)   // TODO: bcrypt in production
-            .single();
+            .eq('username', cleanUser)
+            .eq('password', cleanPass)
+            .maybeSingle();
 
         if (err || !data) {
-            setError('Invalid Super Admin credentials.');
+            console.error('SuperAdmin Login Failed:', err || 'Account not found in super_admins table');
+            setError('Invalid Super Admin credentials. Check browser console (F12) for details.');
             return { success: false };
         }
 
@@ -47,6 +51,10 @@ export const SuperAdminProvider = ({ children }) => {
         await fetchAllSchools();
         return { success: true };
     };
+
+    useEffect(() => {
+        fetchSaasInfo();
+    }, []);
 
     const logoutSuperAdmin = () => {
         setIsSuperAdmin(false);
