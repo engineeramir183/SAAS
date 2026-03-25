@@ -100,20 +100,20 @@ const Footer = () => {
                         <div className="flex-col gap-2">
                             <div className="flex gap-2" style={{ alignItems: 'flex-start' }}>
                                 <MapPin size={18} style={{ marginTop: '2px', flexShrink: 0 }} />
-                                <span>{schoolData.contact.address}</span>
+                                <span>{schoolData?.contact?.address}</span>
                             </div>
                             <div className="flex gap-2" style={{ alignItems: 'center' }}>
                                 <Phone size={18} style={{ flexShrink: 0 }} />
-                                <span>{schoolData.contact.phone}</span>
+                                <span>{schoolData?.contact?.phone}</span>
                             </div>
                             <div className="flex gap-2" style={{ alignItems: 'center' }}>
                                 <Mail size={18} style={{ flexShrink: 0 }} />
-                                <span>{schoolData.contact.email}</span>
+                                <span>{schoolData?.contact?.email}</span>
                             </div>
                         </div>
                         <div style={{ marginTop: '1rem', fontSize: '0.875rem' }}>
                             <strong style={{ color: 'var(--color-white)' }}>Office Hours:</strong><br />
-                            {schoolData.contact.hours}
+                            {schoolData?.contact?.hours}
                         </div>
                     </div>
                 </div>

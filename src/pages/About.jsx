@@ -58,7 +58,7 @@ const About = () => {
                                 lineHeight: '1.8',
                                 color: 'var(--color-gray-700)'
                             }}>
-                                {schoolData.about.mission}
+                                {schoolData?.about?.mission}
                             </p>
                         </div>
 
@@ -89,7 +89,7 @@ const About = () => {
                                 lineHeight: '1.8',
                                 color: 'var(--color-gray-700)'
                             }}>
-                                {schoolData.about.vision}
+                                {schoolData?.about?.vision}
                             </p>
                         </div>
                     </div>
@@ -114,7 +114,7 @@ const About = () => {
                         color: 'var(--color-gray-700)',
                         textAlign: 'center'
                     }}>
-                        {schoolData.about.history}
+                        {schoolData?.about?.history}
                     </p>
                 </div>
             </section>
@@ -136,7 +136,7 @@ const About = () => {
                         gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
                         gap: '1.5rem'
                     }}>
-                        {schoolData.about.values.map((value, idx) => (
+                        {(schoolData?.about?.values ?? []).map((value, idx) => (
                             <div
                                 key={idx}
                                 className="card"
@@ -203,7 +203,7 @@ const About = () => {
                     </h2>
 
                     <div className="flex-col gap-2" style={{ textAlign: 'center' }}>
-                        {schoolData.about.accreditations.map((accred, idx) => (
+                        {(schoolData?.about?.accreditations ?? []).map((accred, idx) => (
                             <div
                                 key={idx}
                                 style={{

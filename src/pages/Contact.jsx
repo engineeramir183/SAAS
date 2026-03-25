@@ -41,7 +41,7 @@ const Contact = () => {
                     phone: formData.phone || 'Not provided',
                     subject: formData.subject,
                     message: formData.message,
-                    to_name: schoolData.name || 'ACS School & College'
+                    to_name: schoolData.name || 'School Name'
                 },
                 EMAILJS_PUBLIC_KEY
             );
@@ -266,7 +266,7 @@ const Contact = () => {
                                                 Address
                                             </h3>
                                             <p style={{ color: 'var(--color-gray-700)' }}>
-                                                {schoolData.contact.address}
+                                                {schoolData?.contact?.address}
                                             </p>
                                         </div>
                                     </div>
@@ -293,7 +293,7 @@ const Contact = () => {
                                                 Phone
                                             </h3>
                                             <p style={{ color: 'var(--color-gray-700)' }}>
-                                                {schoolData.contact.phone}
+                                                {schoolData?.contact?.phone}
                                             </p>
                                         </div>
                                     </div>
@@ -320,7 +320,7 @@ const Contact = () => {
                                                 Email
                                             </h3>
                                             <p style={{ color: 'var(--color-gray-700)' }}>
-                                                {schoolData.contact.email}
+                                                {schoolData?.contact?.email}
                                             </p>
                                         </div>
                                     </div>
@@ -347,7 +347,7 @@ const Contact = () => {
                                                 Office Hours
                                             </h3>
                                             <p style={{ color: 'var(--color-gray-700)' }}>
-                                                {schoolData.contact.hours}
+                                                {schoolData?.contact?.hours}
                                             </p>
                                         </div>
                                     </div>
@@ -367,7 +367,7 @@ const Contact = () => {
                     style={{ border: 0 }}
                     allowFullScreen=""
                     loading="lazy"
-                    title="ACS School & College - 8RXP+GXF, Jhang Rd, Faisalabad"
+                    title="School Location Map"
                 />
             </section>
         </div>

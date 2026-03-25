@@ -4,7 +4,7 @@ import { useSchoolData } from '../context/SchoolDataContext';
 
 const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, isAdmin, isDeveloper }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const { schoolData } = useSchoolData(); // Get school name/logo from context
+    const { schoolData, schoolSettings } = useSchoolData();
 
     const navItems = [
         { id: 'home', label: 'Home' },
@@ -14,6 +14,9 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, isAdmin, isDeveloper 
         { id: 'blog', label: 'Blog' },
         { id: 'contact', label: 'Contact' }
     ];
+
+    const schoolName = schoolData?.name || 'School';
+    const init = schoolName.split(' ').map(w => w[0]).join('').substring(0, 3).toUpperCase();
 
     return (
         <nav style={{
@@ -40,8 +43,8 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, isAdmin, isDeveloper 
                         overflow: 'hidden'
                     }}>
                         <img
-                            src="/logo.png"
-                            alt="ACS Logo"
+                            src={schoolSettings?.logo_url || "/logo.png"}
+                            alt="School Logo"
                             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                             onError={(e) => {
                                 e.target.style.display = 'none';
@@ -60,8 +63,8 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, isAdmin, isDeveloper 
                         </div>
                     </div>
                     <div style={{ lineHeight: 1.2 }}>
-                        <h1 style={{ fontSize: '1.25rem', fontWeight: 'bold', letterSpacing: '0.5px' }}>ACS</h1>
-                        <span style={{ fontSize: '0.75rem', opacity: 0.8, fontWeight: 300, letterSpacing: '1px' }}>SCHOOL & COLLEGE</span>
+                        <h1 style={{ fontSize: '1.25rem', fontWeight: 'bold', letterSpacing: '0.5px' }}>{init}</h1>
+                        <span style={{ fontSize: '0.75rem', opacity: 0.8, fontWeight: 300, letterSpacing: '1px' }}>{schoolName}</span>
                     </div>
                 </div>
 

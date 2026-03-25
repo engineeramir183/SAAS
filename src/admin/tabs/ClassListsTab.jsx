@@ -105,6 +105,53 @@ const ClassListsTab = ({
         showSaveMessage(`Starting serials for "${viewingClass}" updated and auto-assigned to students`);
     };
 
+    const printIDCards = (className) => {
+        const targetStudents = students.filter(s => s.grade === className).sort((a,b) => a.id.localeCompare(b.id, undefined, {numeric: true}));
+        if(targetStudents.length === 0) {
+            openConfirm('No Students', 'There are no students in this class to print ID cards for.', null, false);
+            return;
+        }
+
+        let html = `<!DOCTYPE html><html><head><title>ID Cards - ${className}</title><style>
+            @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap');
+            body { font-family: 'Outfit', sans-serif; background: #f1f5f9; padding: 20px; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
+            .id-card { width: 54mm; height: 86mm; background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; position: relative; border: 1px solid #cbd5e1; display: flex; flex-direction: column; }
+            .header { background: #1e3a8a; color: white; text-align: center; padding: 10px 5px; font-weight: 800; font-size: 13px; line-height: 1.2; }
+            .photo-box { width: 70px; height: 70px; margin: 15px auto; border-radius: 50%; border: 3px solid #1e3a8a; overflow: hidden; background: #e2e8f0; display: flex; align-items: center; justify-content: center; }
+            .photo-box img { width: 100%; height: 100%; object-fit: cover; }
+            .name { text-align: center; font-weight: 800; font-size: 15px; color: #0f172a; margin: 0 5px; padding-bottom: 5px; border-bottom: 2px solid #e2e8f0; }
+            .details { padding: 10px; font-size: 11px; font-weight: 600; color: #334155; display: grid; gap: 4px; }
+            .label { color: #64748b; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
+            .footer { background: #dc2626; color: white; text-align: center; padding: 6px; font-size: 9px; font-weight: 700; margin-top: auto; }
+            @media print { body { background: white; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .id-card { box-shadow: none; border: 1px dashed #cbd5e1; page-break-inside: avoid; } .btn-print { display: none; } }
+            .btn-print { position: fixed; bottom: 20px; right: 20px; padding: 15px 30px; background: #2563eb; color: white; border: none; border-radius: 999px; font-weight: bold; font-size: 16px; cursor: pointer; box-shadow: 0 10px 15px -3px rgba(37,99,235,0.4); z-index: 1000; }
+        </style></head><body><button class="btn-print" onclick="window.print()">🖨️ Print ID Cards</button>`;
+
+        targetStudents.forEach(s => {
+            const bForm = s.admissions?.[0]?.bForm || 'Not Provided';
+            const gender = s.admissions?.[0]?.gender || 'N/A';
+            const photoSrc = s.image || s.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(s.name) + '&background=e2e8f0&color=64748b';
+            
+            html += `<div class="id-card">
+                <div class="header">ACS<br>SCHOOL & COLLEGE</div>
+                <div class="photo-box"><img src="${photoSrc}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=e2e8f0&color=64748b'" /></div>
+                <div class="name">${s.name}</div>
+                <div class="details">
+                    <div><div class="label">Roll Number</div><div style="color:#2563eb;font-weight:800">${s.id}</div></div>
+                    <div><div class="label">Class</div><div style="font-weight:800">${s.grade}</div></div>
+                    <div><div class="label">B-Form / CNIC</div><div>${bForm}</div></div>
+                    <div><div class="label">Gender</div><div>${gender}</div></div>
+                </div>
+                <div class="footer">STUDENT IDENTITY CARD</div>
+            </div>`;
+        });
+
+        html += `</body></html>`;
+        const win = window.open('', '_blank');
+        win.document.write(html);
+        win.document.close();
+    };
+
     return (
         <div className="animate-fade-in">
             {
@@ -146,7 +193,10 @@ const ClassListsTab = ({
                                     <Download size={16} /> Export
                                 </button>
                                 <button onClick={() => { setSelectedClassForList(viewingClass); setTimeout(() => exportPasswordsPDF(viewingClass), 100); }} className="btn" style={{ background: '#2563eb', color: 'white', borderColor: '#2563eb' }}>
-                                    📄 Passwords PDF
+                                    📄 Passwords
+                                </button>
+                                <button onClick={() => { setSelectedClassForList(viewingClass); printIDCards(viewingClass); }} className="btn" style={{ background: '#7c3aed', color: 'white', borderColor: '#7c3aed' }}>
+                                    🪪 ID Cards
                                 </button>
                                 <button onClick={() => { setSelectedClassForList(viewingClass); setAdmissionData(prev => ({ ...prev, applyingFor: viewingClass })); setActiveTab('admissions'); }} className="btn btn-primary">
                                     <PlusCircle size={16} /> Add Student

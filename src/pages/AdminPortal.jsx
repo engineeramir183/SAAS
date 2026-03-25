@@ -4,12 +4,13 @@ import {
     Save, CheckCircle, XCircle, Edit3, User,
     Download, Upload, FileText, Search, Camera,
     BellPlus, Trash2, Megaphone, PlusCircle, Lock,
-    Building, School, Check, X, ChevronRight, Layout,
-    GripVertical, ChevronUp, ChevronDown, Menu
+    Building, School, Check, X, ChevronRight, Layout, Building2,
+    GripVertical, ChevronUp, ChevronDown, Menu, TrendingDown
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useSchoolData } from '../context/SchoolDataContext';
 import { supabase } from '../supabaseClient';
+import OnboardingWizard from '../components/OnboardingWizard';
 
 // ── Lazily-loaded tab components (module-level so references are stable) ──
 const GradebookTab = lazy(() => import('../admin/tabs/GradebookTab'));
@@ -22,10 +23,26 @@ const FacultyTab = lazy(() => import('../admin/tabs/FacultyTab'));
 const FacilitiesTab = lazy(() => import('../admin/tabs/FacilitiesTab'));
 const BlogTab = lazy(() => import('../admin/tabs/BlogTab'));
 const ClassListsTab = lazy(() => import('../admin/tabs/ClassListsTab'));
+const ExpensesTab = lazy(() => import('../admin/tabs/ExpensesTab'));
 const StudentEditModal = lazy(() => import('../admin/modals/StudentEditModal'));
+const SettingsTab = lazy(() => import('../admin/tabs/SettingsTab'));
 
 const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
-    const { schoolData, CLASSES, SUBJECTS, TERMS, SECTIONS, WEIGHTS, CLASS_SERIAL_STARTS, fetchData, setStudents, setFaculty, updateSchoolInfo, setAnnouncements, updateClasses, updateSubjects, updateTerms, updateSections, updateWeights, updateClassSerialStarts, adminCredentials, changeAdminPassword } = useSchoolData();
+    const { schoolData, CLASSES, SUBJECTS, TERMS, SECTIONS, WEIGHTS, CLASS_SERIAL_STARTS, CLASS_FEE_DEFAULTS, EXPENSES, fetchData, setStudents, setFaculty, updateSchoolInfo, setAnnouncements, updateClasses, updateSubjects, updateTerms, updateSections, updateWeights, updateClassSerialStarts, updateClassFeeDefaults, updateExpenses, adminCredentials, changeAdminPassword, currencySymbol, schoolSettings, completeOnboarding, loading } = useSchoolData();
+    
+    if (loading) {
+        return (
+            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: 'white', fontFamily: "'Inter', sans-serif" }}>
+                <div style={{ textAlign: 'center' }}>
+                    <div className="animate-spin" style={{ width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.1)', borderTopColor: '#3b82f6', borderRadius: '50%', margin: '0 auto 1.5rem' }}></div>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>Loading Institution Data</h2>
+                    <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>Fetching secure environment for {schoolData?.name || 'your school'}...</p>
+                </div>
+            </div>
+        );
+    }
+
+    const schoolName = schoolData?.name || 'School Name';
     const [activeTab, setActiveTab] = useState('dashboard');
     const [saveMessage, setSaveMessage] = useState('');
     const sectionClasses = (SECTIONS || []).flatMap(s => s.classes || []);
@@ -430,7 +447,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             .slice()
             .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
         const subs = classSubjects;
-        const schoolName = schoolData.name || 'ACS School & College';
+        
         const printDate = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'long', year: 'numeric' });
         const sectionName = (SECTIONS || []).find(s => s.classes.includes(selectedClass))?.name || '';
         const genderLabel = gbGenderTab === 'all' ? 'All Students' : (gbGenderTab === 'boys' ? 'Boys' : 'Girls');
@@ -581,7 +598,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             .slice()
             .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
 
-        const schoolName = schoolData.name || 'ACS School & College';
+        
 
         const pages = classStudents.map((s, idx) => {
             return `
@@ -884,10 +901,10 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
         // Helper to create boxed character spans
         const boxChars = (str, length, spacing = 0) => {
-            const chars = str.replace(/[^A-Z0-9]/gi, '').toUpperCase().split('');
+            const chars = (str || '').replace(/[^A-Z0-9 ]/gi, '').toUpperCase().split('');
             let html = '';
             for (let i = 0; i < length; i++) {
-                html += `<span style="display:inline-block;width:20px;height:20px;border:1px solid #000;text-align:center;line-height:20px;font-weight:700;margin-right:${spacing}px;font-size:11px;">${chars[i] || ''}</span>`;
+                html += `<span style="display:inline-block;width:20px;height:20px;border:1px solid #000;text-align:center;line-height:20px;font-weight:700;margin-right:${spacing}px;font-size:11px;">${chars[i] === ' ' ? '&nbsp;' : (chars[i] || '')}</span>`;
             }
             return html;
         };
@@ -965,7 +982,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 .boxed-row { display: flex; gap: 1px; }
                 .photo-box { 
                     position: absolute; 
-                    top: 195px; 
+                    top: 175px; 
                     right: 15mm; 
                     width: 35mm; 
                     height: 44mm; 
@@ -1007,9 +1024,9 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             </div>
             <div class="page">
                 <div class="header-container">
-                    <img src="/logo.png" class="header-logo" onerror="this.style.display='none'" />
+                    <img src="${schoolSettings?.logo_url || '/logo.png'}" class="header-logo" onerror="this.style.display='none'" />
                     <div class="header-text">
-                        <h1>ACS School & College</h1>
+                        <h1>{schoolName}</h1>
                         <p>Main Jhang Road Near Attock Petrol Pump, Painsra, Faisalabad</p>
                         <div class="header-contact">📞 0300-1333275</div>
                     </div>
@@ -1031,7 +1048,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                     `}
                 </div>
 
-                <div class="section-title" style="background:#1e3a8a">Student's Information</div>
+                <div class="section-title" style="background:#1e3a8a; margin-top: 45px;">Student's Information</div>
                 <p style="font-size:9px; color:#64748b; margin:-4px 0 8px; font-weight:600;">USE CAPITAL LETTERS ONLY</p>
 
                 <div class="field-row">
@@ -1160,10 +1177,10 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     // ── Shared: build a single admission form page HTML from student data ──
     const buildAdmissionFormHTML = (d) => {
         const boxChars = (str, length, spacing = 0) => {
-            const chars = (str || '').replace(/[^A-Z0-9]/gi, '').toUpperCase().split('');
+            const chars = (str || '').replace(/[^A-Z0-9 ]/gi, '').toUpperCase().split('');
             let html = '';
             for (let i = 0; i < length; i++) {
-                html += `<span style="display:inline-block;width:20px;height:20px;border:1px solid #000;text-align:center;line-height:20px;font-weight:700;margin-right:${spacing}px;font-size:11px;">${chars[i] || ''}</span>`;
+                html += `<span style="display:inline-block;width:20px;height:20px;border:1px solid #000;text-align:center;line-height:20px;font-weight:700;margin-right:${spacing}px;font-size:11px;">${chars[i] === ' ' ? '&nbsp;' : (chars[i] || '')}</span>`;
             }
             return html;
         };
@@ -1193,9 +1210,9 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         return `
         <div class="page">
             <div class="header-container">
-                <img src="/logo.png" class="header-logo" onerror="this.style.display='none'" />
+                <img src="${schoolSettings?.logo_url || '/logo.png'}" class="header-logo" onerror="this.style.display='none'" />
                 <div class="header-text">
-                    <h1>ACS School &amp; College</h1>
+                    <h1>${schoolName}</h1>
                     <p>Main Jhang Road Near Attock Petrol Pump, Painsra, Faisalabad</p>
                     <div class="header-contact">📞 0300-1333275</div>
                 </div>
@@ -1211,7 +1228,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             <div class="photo-box">
                 ${photo ? `<img src="${photo}" style="width:100%;height:100%;object-fit:cover" />` : '<b>Photograph</b><span>(Passport Size)</span>'}
             </div>
-            <div class="section-title" style="background:#1e3a8a">Student's Information</div>
+            <div class="section-title" style="background:#1e3a8a; margin-top: 45px;">Student's Information</div>
             <p style="font-size:9px;color:#64748b;margin:-4px 0 8px;font-weight:600">USE CAPITAL LETTERS ONLY</p>
             <div class="field-row"><div class="field-label">Student Name:</div><div class="boxed-row">${boxChars(studentName, 25)}</div></div>
             <div class="field-row"><div class="field-label">B-Form No:</div><div class="boxed-row">${boxChars(bForm.substring(0,5),5)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(bForm.substring(5,12),7)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(bForm.substring(12,13),1)}</div></div>
@@ -1282,7 +1299,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             .field-row { display:flex; align-items:center; margin-bottom:11px; font-size:12px; }
             .field-label { width:130px; font-weight:700; font-size:10px; text-transform:uppercase; color:#334155; }
             .boxed-row { display:flex; gap:1px; }
-            .photo-box { position:absolute; top:195px; right:15mm; width:35mm; height:44mm; border:2px dashed #64748b; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:5px; background:#f8fafc; }
+            .photo-box { position:absolute; top:175px; right:15mm; width:35mm; height:44mm; border:2px dashed #64748b; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:5px; background:#f8fafc; }
             .photo-box b { font-size:12px; color:#64748b; } .photo-box span { font-size:9px; color:#94a3b8; }
             .checkbox-group { display:flex; gap:12px; }
             .checkbox { display:flex; align-items:center; gap:4px; font-weight:600; }
@@ -1644,7 +1661,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         showSaveMessage(`Fee month "${monthLabel}" opened for ${selectedClass}!`);
     };
 
-    // Toggle a specific month's fee status for a student
+    // Toggle a specific month's fee status for a student (Quick Toggle)
     const toggleMonthFeeStatus = async (studentId, monthLabel) => {
         const updatedStudents = students.map(s => {
             if (s.id !== studentId) return s;
@@ -1658,6 +1675,18 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         });
         await setStudents(updatedStudents);
         showSaveMessage('Fee status updated!');
+    };
+
+    // Update full detailed fee record for a student
+    const updateStudentFeeRecord = async (studentId, monthLabel, newRecordData) => {
+        const updatedStudents = students.map(s => {
+            if (s.id !== studentId) return s;
+            const history = s.feeHistory || [];
+            const updated = history.map(h => h.month === monthLabel ? { ...h, ...newRecordData } : h);
+            return { ...s, feeHistory: updated };
+        });
+        await setStudents(updatedStudents);
+        showSaveMessage('Fee record updated successfully!');
     };
 
     // Mark all students in selected class as paid for a given month
@@ -1779,7 +1808,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         const gradeColor = (pct) => pct >= 90 ? '#0d7c52' : pct >= 75 ? '#1a5fb4' : pct >= 60 ? '#c4841d' : '#c0392b';
         const gradeBg = (pct) => pct >= 90 ? '#e6f9f0' : pct >= 75 ? '#e8f0fc' : pct >= 60 ? '#fef5e7' : '#fce8e6';
         const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-        const schoolName = schoolData.name || 'ACS School & College';
+        
         const schoolAddress = schoolData.contact?.address || '';
         const schoolPhone = schoolData.contact?.phone || '';
         const schoolEmail = schoolData.contact?.email || '';
@@ -1901,7 +1930,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 <div style="text-align:center;padding:24px 40px 18px;border-bottom:3px double #1a3a6b;page-break-inside:avoid;">
                     <!-- School Logo and Name Info -->
                     <div style="display:flex;align-items:center;justify-content:center;gap:15px;margin-bottom:10px;">
-                        <img src="/logo.png" style="width:105px;height:auto;border-radius:0;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';" />
+                        <img src="${schoolSettings?.logo_url || '/logo.png'}" style="width:105px;height:auto;border-radius:0;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';" />
                         <div style="display:none;width:105px;height:105px;background:#f1f5f9;border-radius:10px;align-items:center;justify-content:center;font-size:40px;">🏫</div>
                         <div style="text-align:left;">
                             <h1 style="font-family:'Playfair Display',Georgia,serif;font-size:28px;font-weight:800;color:#1a3a6b;letter-spacing:1px;margin:0;">
@@ -2530,12 +2559,27 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         { id: 'marks', label: 'Manage Exams', icon: Award, desc: 'Input exam marks and configure subject weights.' },
         { id: 'attendance', label: 'Attendance', icon: Calendar, desc: 'Track daily attendance and absentees.' },
         { id: 'fees', label: 'Fee Management', icon: DollarSign, desc: 'Record tuition fees and payments.' },
+        { id: 'expenses', label: 'Expense Tracker', icon: TrendingDown, desc: 'Log expenses and view net profit.' },
         { id: 'reports', label: 'Report Cards', icon: FileText, desc: 'View analysis and print student report cards.' },
         { id: 'faculty', label: 'Faculty & Teachers', icon: User, desc: 'Manage your teaching staff profiles.' },
         { id: 'announcements', label: 'Noticeboard', icon: Megaphone, desc: 'Broadcast notices to portals.' },
         { id: 'facilities', label: 'School Facilities', icon: Building, desc: 'List and update school infrastructure.' },
-        { id: 'blog', label: 'Website Blog', icon: Layout, desc: 'Post stories and news to the public website.' }
+        { id: 'blog', label: 'Website Blog', icon: Layout, desc: 'Post stories and news to the public website.' },
+        { id: 'settings', label: 'School Settings', icon: Building2, desc: 'Update school name, logo, mission, and vision.' }
     ];
+
+    // ── Onboarding Guard ─────────────────────────────────────────────────────
+    // For a brand new school, is_onboarded will be false (after SQL migration).
+    // If it's undefined, it means the SQL migration hasn't been run or data is still initializing. 
+    if (schoolSettings && schoolSettings.is_onboarded === false) {
+        return (
+            <OnboardingWizard 
+                schoolData={schoolData} 
+                completeOnboarding={completeOnboarding}
+                onComplete={() => fetchData()} 
+            />
+        );
+    }
 
     return (
         <div className="dashboard-container" style={{ overflowX: 'hidden' }}>
@@ -2868,7 +2912,19 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         students={students} selectedClass={selectedClass} setSelectedClass={setSelectedClass} sectionClasses={sectionClasses}
                                         openNewFeeMonth={openNewFeeMonth} toggleMonthFeeStatus={toggleMonthFeeStatus}
                                         markAllPaidForMonth={markAllPaidForMonth} markAllUnpaidForMonth={markAllUnpaidForMonth}
-                                        deleteFeeMonth={deleteFeeMonth}
+                                        deleteFeeMonth={deleteFeeMonth} updateStudentFeeRecord={updateStudentFeeRecord}
+                                        CLASS_FEE_DEFAULTS={CLASS_FEE_DEFAULTS} updateClassFeeDefaults={updateClassFeeDefaults}
+                                        currencySymbol={currencySymbol} schoolName={schoolName} schoolLogo={schoolSettings?.logo_url || '/logo.png'}
+                                    />
+                                )}
+
+                                {/* Expenses */}
+                                {activeTab === 'expenses' && (
+                                    <ExpensesTab
+                                        EXPENSES={EXPENSES}
+                                        updateExpenses={updateExpenses}
+                                        students={students}
+                                        currencySymbol={currencySymbol}
                                     />
                                 )}
 
@@ -2958,6 +3014,15 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         showSaveMessage={showSaveMessage} openConfirm={openConfirm}
                                         CLASS_SERIAL_STARTS={CLASS_SERIAL_STARTS} updateClassSerialStarts={updateClassSerialStarts}
                                         uploadImage={uploadImage}
+                                    />
+                                )}
+
+                                {/* School Settings */}
+                                {activeTab === 'settings' && (
+                                    <SettingsTab
+                                        schoolData={schoolData}
+                                        updateSchoolInfo={updateSchoolInfo}
+                                        showSaveMessage={showSaveMessage}
                                     />
                                 )}
                             </Suspense>

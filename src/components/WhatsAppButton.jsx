@@ -1,8 +1,11 @@
 import React from 'react';
+import { useSchoolData } from '../context/SchoolDataContext';
 
 const WhatsAppButton = () => {
-    const phoneNumber = '923001202275';
-    const message = encodeURIComponent('Hello! I would like to inquire about ACS School & College.');
+    const { schoolData } = useSchoolData();
+    const phoneNumber = schoolData?.contact?.phone?.replace(/\D/g, '') || '923001202275';
+    const schoolName = schoolData?.name || 'School';
+    const message = encodeURIComponent(`Hello! I would like to inquire about ${schoolName}.`);
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
 
     return (

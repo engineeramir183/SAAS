@@ -58,7 +58,7 @@ ${htmlBody}
 <div class="footer">
   <span>Generated: ${new Date().toLocaleString()}</span>
   <button onclick="window.print()" style="background:#1e3a5f;color:#fff;border:none;padding:6px 18px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">🖨 Print</button>
-  <span>ACS School Management System</span>
+  <span>${schoolName || 'School'} Management System</span>
 </div>
 <style>@media print{.footer button{display:none!important}}</style>
 </body>

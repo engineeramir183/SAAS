@@ -163,8 +163,8 @@ const AdmissionsTab = ({
                             <input type="text" className="form-input" placeholder="Enter full name" value={admissionData.studentName} onChange={e => update('studentName', e.target.value.toUpperCase())} />
                         </div>
                         <div>
-                            <label className="form-label">B-Form Number</label>
-                            <input type="text" className="form-input" placeholder="35202-0000000-0" value={admissionData.bForm} onChange={e => update('bForm', e.target.value)} />
+                            <label className="form-label">National ID / B-Form Number</label>
+                            <input type="text" className="form-input" placeholder="e.g. 35202-0000000-0" value={admissionData.bForm} onChange={e => update('bForm', e.target.value)} />
                         </div>
                         <div>
                             <label className="form-label">Date of Birth</label>
@@ -245,7 +245,7 @@ const AdmissionsTab = ({
                             <input type="text" className="form-input" value={admissionData.fatherName} onChange={e => update('fatherName', e.target.value.toUpperCase())} />
                         </div>
                         <div>
-                            <label className="form-label">CNIC Number</label>
+                            <label className="form-label">National ID / CNIC Number</label>
                             <input type="text" className="form-input" placeholder="35202-0000000-0" value={admissionData.fatherCnic} onChange={e => update('fatherCnic', e.target.value)} />
                         </div>
                         <div>
@@ -253,7 +253,7 @@ const AdmissionsTab = ({
                             <input type="text" className="form-input" value={admissionData.contact} onChange={e => update('contact', e.target.value)} />
                         </div>
                         <div>
-                            <label className="form-label">WhatsApp Number</label>
+                            <label className="form-label">Mobile / WhatsApp Number</label>
                             <input type="text" className="form-input" value={admissionData.whatsapp} onChange={e => update('whatsapp', e.target.value)} />
                         </div>
                         <div className="col-span-2">
@@ -271,8 +271,8 @@ const AdmissionsTab = ({
                     <div className="flex flex-col gap-3">
                         {[
                             { key: 'photos', label: '4 Passport size photographs' },
-                            { key: 'bform', label: 'A Copy of B-Form' },
-                            { key: 'cnic', label: 'A Copy of CNIC of Parents/Guardian' },
+                            { key: 'bform', label: 'National ID / B-Form Copy' },
+                            { key: 'cnic', label: 'National ID / CNIC of Parents/Guardian' },
                         ].map(({ key, label }) => (
                             <label key={key} className="flex gap-2" style={{ alignItems: 'center', cursor: 'pointer' }}>
                                 <input type="checkbox" checked={admissionData.docs[key]} onChange={e => update('docs', { ...admissionData.docs, [key]: e.target.checked })} /> {label}

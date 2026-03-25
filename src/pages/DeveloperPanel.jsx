@@ -5,24 +5,26 @@ import {
     BarChart3, GraduationCap, DollarSign, CheckCircle,
     XCircle, X, School, Search
 } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 import { useSchoolData } from '../context/SchoolDataContext';
 
 const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
-    const { schoolData, updateSchoolInfo, updateAbout, updateContact, setFaculty: setContextFaculty, setFacilities: setContextFacilities } = useSchoolData();
+    const { schoolData, updateSchoolInfo, updateAbout, updateContact, setFaculty: setContextFaculty, setFacilities: setContextFacilities, updateSchoolSettings, schoolSettings } = useSchoolData();
 
     const [activeSection, setActiveSection] = useState('dashboard');
     const [isEditing, setIsEditing] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
     const [saveMessage, setSaveMessage] = useState('');
     const [dashboardSearch, setDashboardSearch] = useState('');
 
     // School info state - initialized from context
     const [schoolInfo, setSchoolInfo] = useState({
-        name: schoolData.name || 'ACS School & College',
+        name: schoolData.name || 'School Name',
         tagline: schoolData.tagline || 'Ready to Lead. Ready to Inspire.',
         description: schoolData.description || 'A world-class education that empowers students to reach their full potential.',
         phone: schoolData.contact?.phone || '0300 1333275',
         email: schoolData.contact?.email || 'Infoacspainsra@gmail.com',
-        address: schoolData.contact?.address || 'ACS School & College, Jhang Road Painsra, Pakistan',
+        address: schoolData.contact?.address || 'School Address',
         mission: schoolData.about?.mission || '',
         vision: schoolData.about?.vision || ''
     });
@@ -383,6 +385,36 @@ const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
 
                                     <div style={cardStyle}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                            <div style={{ paddingBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem', display: 'flex', gap: '2rem', alignItems: 'center' }}>
+                                                <div style={{ width: '120px', height: '120px', background: '#f8fafc', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '2px dashed #cbd5e1' }}>
+                                                    <img src={schoolSettings?.logo_url || '/logo.png'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="School Logo" onerror="this.src='/logo.png'" />
+                                                </div>
+                                                <div>
+                                                    <h3 style={{ fontWeight: 700, color: '#1e293b', marginBottom: '0.4rem', fontSize: '1.1rem' }}>School Logo</h3>
+                                                    <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '1rem', maxWidth: '300px' }}>Upload a transparent PNG or high-quality JPG image. Recommended size: 400x400px.</p>
+                                                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1.2rem', borderRadius: '10px', background: isUploading ? '#cbd5e1' : '#f1f5f9', color: isUploading ? '#64748b' : '#3b82f6', fontWeight: 600, fontSize: '0.9rem', cursor: isUploading ? 'not-allowed' : 'pointer', border: '1px solid #e2e8f0' }}>   
+                                                        {isUploading ? 'Uploading...' : 'Upload Logo'}
+                                                        <input type="file" style={{ display: 'none' }} disabled={isUploading} accept="image/*" onChange={async (e) => {
+                                                            const file = e.target.files[0];
+                                                            if (!file) return;
+                                                            setIsUploading(true);
+                                                            try {
+                                                                const fileExt = file.name.split('.').pop();
+                                                                const fileName = `${schoolData?.id || 'school'}-${Date.now()}.${fileExt}`;
+                                                                const { data, error } = await supabase.storage.from('branding').upload(fileName, file);
+                                                                if (error) throw error;
+                                                                const { data: { publicUrl } } = supabase.storage.from('branding').getPublicUrl(fileName);
+                                                                await updateSchoolSettings({ logo_url: publicUrl });
+                                                                showSave('Logo updated successfully!');
+                                                            } catch (err) {
+                                                                alert('Error uploading logo: ' + err.message);
+                                                            } finally {
+                                                                setIsUploading(false);
+                                                            }
+                                                        }} />
+                                                    </label>
+                                                </div>
+                                            </div>
                                             <div>
                                                 <label style={labelStyle}>School Name</label>
                                                 <input
