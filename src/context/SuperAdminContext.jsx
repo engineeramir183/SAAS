@@ -24,6 +24,7 @@ export const useSuperAdmin = () => {
 export const SuperAdminProvider = ({ children }) => {
     const [isSuperAdmin, setIsSuperAdmin] = useState(false);
     const [schools,      setSchools]      = useState([]);
+    const [saasInfo,     setSaasInfo]     = useState(null);
     const [loading,      setLoading]      = useState(false);
     const [error,        setError]        = useState(null);
 
@@ -57,12 +58,33 @@ export const SuperAdminProvider = ({ children }) => {
         setLoading(true);
         const { data, error: err } = await supabase
             .from('schools')
-            .select('*')
+            .select('*, school_info(*)')
             .order('created_at', { ascending: false });
 
         if (!err) setSchools(data || []);
         setLoading(false);
         return { data, error: err };
+    };
+
+    const fetchSaasInfo = async () => {
+        const { data, error: err } = await supabase
+            .from('saas_info')
+            .select('*')
+            .eq('id', 'global')
+            .maybeSingle();
+        
+        if (!err && data) setSaasInfo(data);
+        return { data, error: err };
+    };
+
+    const updateSaasInfo = async (updates) => {
+        const { error: err } = await supabase
+            .from('saas_info')
+            .update(updates)
+            .eq('id', 'global');
+        
+        if (!err) await fetchSaasInfo();
+        return { error: err };
     };
 
     /**
@@ -151,11 +173,14 @@ export const SuperAdminProvider = ({ children }) => {
         <SuperAdminContext.Provider value={{
             isSuperAdmin,
             schools,
+            saasInfo,
             loading,
             error,
             loginSuperAdmin,
             logoutSuperAdmin,
             fetchAllSchools,
+            fetchSaasInfo,
+            updateSaasInfo,
             registerSchool,
             deactivateSchool,
             reactivateSchool,

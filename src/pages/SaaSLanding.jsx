@@ -1,7 +1,20 @@
-import React, { useState } from 'react';
 import { ShieldCheck, MonitorSmartphone, BrainCircuit, Wallet, BarChart, Globe, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { useSuperAdmin } from '../context/SuperAdminContext';
+import { useEffect } from 'react';
 
 const SaaSLanding = ({ setCurrentPage }) => {
+    const { saasInfo, fetchSaasInfo } = useSuperAdmin();
+
+    useEffect(() => {
+        if (!saasInfo) fetchSaasInfo();
+    }, []);
+
+    const businessName = saasInfo?.business_name || 'KHR Digital Labs';
+    const supportEmail = saasInfo?.support_email || 'sales@khrdigitallabs.com';
+    const whatsappNum = saasInfo?.whatsapp_number || '+92 300 1333275';
+    const heroTitle = saasInfo?.hero_title || 'Enterprise SaaS for Modern Institutions.';
+    const heroSubtitle = saasInfo?.hero_subtitle || 'Engineered by KHR Digital Labs. The definitive Multi-Tenant cloud platform to instantly deploy, scale, and manage educational environments safely.';
+
     return (
         <div style={{ fontFamily: "'Inter', sans-serif", background: '#f8fafc', color: '#0f172a', minHeight: '100vh', overflowX: 'hidden' }}>
             
@@ -11,7 +24,7 @@ const SaaSLanding = ({ setCurrentPage }) => {
                     <div style={{ background: 'linear-gradient(135deg, #1e293b, #0f172a)', padding: '0.6rem', borderRadius: '10px', color: 'white' }}>
                         <MonitorSmartphone size={24} />
                     </div>
-                    <span style={{ fontSize: '1.5rem', fontWeight: 900, letterSpacing: '-0.5px', color: '#1e293b' }}>KHR <span style={{ color: '#0f172a', fontWeight: 400 }}>Digital Labs</span></span>
+                    <span style={{ fontSize: '1.5rem', fontWeight: 900, letterSpacing: '-0.5px', color: '#1e293b' }}>{businessName.split(' ')[0]} <span style={{ color: '#0f172a', fontWeight: 400 }}>{businessName.split(' ').slice(1).join(' ')}</span></span>
                 </div>
                 <div style={{ display: 'flex', gap: '2rem', alignItems: 'center', fontWeight: 600, fontSize: '0.95rem', color: '#64748b' }}>
                     <a href="#features" style={{ textDecoration: 'none', color: 'inherit', transition: 'color 0.2s' }}>Features</a>
@@ -28,12 +41,15 @@ const SaaSLanding = ({ setCurrentPage }) => {
                 <div style={{ position: 'absolute', top: '20%', right: '5%', width: '400px', height: '400px', background: 'rgba(99, 102, 241, 0.1)', filter: 'blur(120px)', borderRadius: '50%' }}></div>
                 
                 <h1 style={{ fontSize: '4.5rem', fontWeight: 900, lineHeight: 1.1, margin: '0 0 1.5rem', color: '#0f172a', textShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
-                    Enterprise SaaS for<br/>
-                    <span style={{ background: 'linear-gradient(135deg, #0f172a, #334155)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Modern Institutions.</span>
+                    {heroTitle.includes('for') ? (
+                        <>
+                            {heroTitle.split('for')[0]}for<br/>
+                            <span style={{ background: 'linear-gradient(135deg, #0f172a, #334155)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{heroTitle.split('for')[1] || 'Modern Institutions.'}</span>
+                        </>
+                    ) : heroTitle}
                 </h1>
-                <p style={{ fontSize: '1.25rem', color: '#475569', maxWidth: '700px', margin: '0 auto 3rem', lineHeight: 1.6 }}>
-                    Engineered by KHR Digital Labs. 
-                    The definitive Multi-Tenant cloud platform to instantly deploy, scale, and manage educational environments safely.
+                <p style={{ fontSize: '1.25rem', color: '#475569', maxWidth: '750px', margin: '0 auto 3rem', lineHeight: 1.6 }}>
+                    {heroSubtitle}
                 </p>
                 <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
                     <a href="#contact" style={{ textDecoration: 'none', background: '#0f172a', color: 'white', border: 'none', padding: '1rem 2.5rem', borderRadius: '12px', fontSize: '1.1rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 10px 25px -5px rgba(15,23,42,0.4)' }}>
@@ -126,12 +142,12 @@ const SaaSLanding = ({ setCurrentPage }) => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', background: 'white', padding: '3rem', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)' }}>
                         <div>
                             <div style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.3rem' }}>Sales & Onboarding</div>
-                            <a href="mailto:sales@khrdigitallabs.com" style={{ fontSize: '1.5rem', fontWeight: 700, color: '#2563eb', textDecoration: 'none' }}>sales@khrdigitallabs.com</a>
+                            <a href={`mailto:${supportEmail}`} style={{ fontSize: '1.5rem', fontWeight: 700, color: '#2563eb', textDecoration: 'none' }}>{supportEmail}</a>
                         </div>
                         <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '1rem 0' }} />
                         <div>
                             <div style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.3rem' }}>Direct Line (WhatsApp)</div>
-                            <a href="https://wa.me/923001333275" target="_blank" rel="noreferrer" style={{ fontSize: '1.5rem', fontWeight: 700, color: '#10b981', textDecoration: 'none' }}>+92 300 1333275</a>
+                            <a href={`https://wa.me/${whatsappNum.replace(/\+/g, '').replace(/\s/g, '')}`} target="_blank" rel="noreferrer" style={{ fontSize: '1.5rem', fontWeight: 700, color: '#10b981', textDecoration: 'none' }}>{whatsappNum}</a>
                         </div>
                     </div>
                 </div>
@@ -141,9 +157,9 @@ const SaaSLanding = ({ setCurrentPage }) => {
             <footer style={{ background: '#0f172a', padding: '3rem 5%', borderTop: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <MonitorSmartphone size={20} />
-                    <span style={{ fontSize: '1.1rem', fontWeight: 800 }}>KHR Digital Labs</span>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 800 }}>{businessName}</span>
                 </div>
-                <div style={{ fontSize: '0.85rem' }}>© 2026 KHR Digital Labs. All rights reserved.</div>
+                <div style={{ fontSize: '0.85rem' }}>© {new Date().getFullYear()} {businessName}. All rights reserved.</div>
             </footer>
         </div>
     );
