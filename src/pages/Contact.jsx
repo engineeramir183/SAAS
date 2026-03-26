@@ -361,7 +361,7 @@ const Contact = () => {
             {/* Map Section */}
             <section style={{ height: '400px', background: 'var(--color-gray-200)' }}>
                 <iframe
-                    src="https://www.google.com/maps?q=8RXP%2BGXF,+Jhang+Rd,+Faisalabad,+36000&output=embed"
+                    src={`https://www.google.com/maps?q=${encodeURIComponent(schoolData?.contact?.address || 'Pakistan')}&output=embed`}
                     width="100%"
                     height="100%"
                     style={{ border: 0 }}

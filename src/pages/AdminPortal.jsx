@@ -112,6 +112,34 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         }
     }, [SECTIONS, selectedSectionId]);
 
+    // ── One-time WEIGHTS migration: old format → class-scoped format ──────────
+    // Old: { "Test 6": { "Biology": 75 } }
+    // New: { "Free Medical": { "Test 6": { "Biology": 75 } }, "Pre Engineering": { "Test 6": { ... } } }
+    useEffect(() => {
+        if (!WEIGHTS || typeof WEIGHTS !== 'object' || Array.isArray(WEIGHTS)) return;
+        if (sectionClasses.length === 0) return;
+
+        // Detect old format: old format has term-name keys (strings that are NOT class names)
+        // New format has class-name keys at the top level
+        const topLevelKeys = Object.keys(WEIGHTS);
+        if (topLevelKeys.length === 0) return;
+
+        const isOldFormat = topLevelKeys.some(k => !sectionClasses.includes(k));
+        if (!isOldFormat) return; // Already in new format, skip migration
+
+        // migrate: apply old weights to every class
+        console.log('[WEIGHTS MIGRATION] Detected old flat format, migrating…', WEIGHTS);
+        const migrated = {};
+        sectionClasses.forEach(cls => {
+            migrated[cls] = { ...WEIGHTS }; // each class gets a copy of the old flat weights
+        });
+        updateWeights(migrated).then(() => {
+            console.log('[WEIGHTS MIGRATION] Done. Weights are now class-scoped.');
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [WEIGHTS, sectionClasses.join(',')]);
+    // ─────────────────────────────────────────────────────────────────────────
+
     // ── Gradebook State ──
     const [gbTerm, setGbTerm] = useState('');
     useEffect(() => {
@@ -126,13 +154,20 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     const [newTermInput, setNewTermInput] = useState('');
     const [showGbSettings, setShowGbSettings] = useState(false);
 
+    // classWeights: the slice of WEIGHTS for the current class, e.g. WEIGHTS[selectedClass]
+    const classWeights = (WEIGHTS && typeof WEIGHTS === 'object' && !Array.isArray(WEIGHTS) && WEIGHTS[selectedClass] && typeof WEIGHTS[selectedClass] === 'object') ? WEIGHTS[selectedClass] : WEIGHTS;
     const getSubjectTotal = (sub, term) => {
         const t = term || gbTerm || classTerms[0] || 'Current';
-        if (WEIGHTS) {
-            if (WEIGHTS[t] && typeof WEIGHTS[t] === 'object' && WEIGHTS[t][sub] !== undefined && WEIGHTS[t][sub] !== '') return Number(WEIGHTS[t][sub]);
-            if (typeof WEIGHTS[sub] === 'number') return Number(WEIGHTS[sub]);
+        if (classWeights) {
+            if (classWeights[t] && typeof classWeights[t] === 'object' && classWeights[t][sub] !== undefined && classWeights[t][sub] !== '') return Number(classWeights[t][sub]);
+            if (typeof classWeights[sub] === 'number') return Number(classWeights[sub]);
         }
         return 100;
+    };
+    // Wrapper: updates weights scoped to the current class only
+    const updateClassWeights = (newClassWeights) => {
+        const newW = { ...(WEIGHTS || {}), [selectedClass]: newClassWeights };
+        updateWeights(newW);
     };
 
     // ── Overall Percentage Calculation ──
@@ -841,14 +876,19 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
         // 1. Save to Supabase
         try {
+            const prefix = schoolSettings?.school_id?.split('-')[0]?.toUpperCase() || 'ID';
             const year = new Date().getFullYear();
-            // Find the max existing ID number to avoid duplicates after deletions
+            // Find the max existing ID number for this school (ignoring prefix case)
             const maxNum = students.reduce((max, s) => {
-                const match = s.id?.match(/ACS-\d{4}-(\d+)/);
-                return match ? Math.max(max, parseInt(match[1], 10)) : max;
+                const parts = (s.id || '').split('-');
+                if (parts.length >= 3 && parts[0].toUpperCase() === prefix) {
+                    const num = parseInt(parts[parts.length - 1], 10);
+                    return !isNaN(num) ? Math.max(max, num) : max;
+                }
+                return max;
             }, 0);
             const nextIdNum = maxNum + 1;
-            const studentId = `ACS-${year}-${nextIdNum.toString().padStart(3, '0')}`;
+            const studentId = `${prefix}-${year}-${nextIdNum.toString().padStart(3, '0')}`;
 
             // Auto-assign serial number — globally unique across ALL students
             let autoSerial = d.serialNumber ? d.serialNumber : null;
@@ -876,7 +916,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 id: studentId,
                 serial_number: autoSerial || null,
                 name: d.studentName,
-                password: 'acs' + Math.floor(1000 + Math.random() * 9000),
+                password: (schoolSettings?.school_id?.split('-')[0]?.toLowerCase() || 'pass') + Math.floor(1000 + Math.random() * 9000),
                 grade: d.applyingFor,
                 image: d.photo,
                 fee_history: [],
@@ -1026,14 +1066,15 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 <div class="header-container">
                     <img src="${schoolSettings?.logo_url || '/logo.png'}" class="header-logo" onerror="this.style.display='none'" />
                     <div class="header-text">
-                        <h1>{schoolName}</h1>
-                        <p>Main Jhang Road Near Attock Petrol Pump, Painsra, Faisalabad</p>
-                        <div class="header-contact">📞 0300-1333275</div>
+                        <h1>${schoolName}</h1>
+                        <p>${schoolData?.contact?.address || 'School Address'}</p>
+                        <div class="header-contact">📞 ${schoolData?.contact?.phone || schoolData?.contact?.whatsapp || 'Contact Number'}</div>
                     </div>
                 </div>
 
                 <div class="meta-header">
                     <div>APPLYING FOR: <span style="color:#1e3a8a; border-bottom:1px solid #1e3a8a; min-width:80px; display:inline-block">${d.applyingFor}</span></div>
+                    ${d.serialNumber ? `<div>SERIAL #: <span style="color:#7c3aed; font-weight:900">${d.serialNumber}</span></div>` : ''}
                     <div>DATE: <span style="color:#1e3a8a; border-bottom:1px solid #1e3a8a; min-width:80px; display:inline-block">${d.applicationDate}</span></div>
                 </div>
 
@@ -1048,7 +1089,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                     `}
                 </div>
 
-                <div class="section-title" style="background:#1e3a8a; margin-top: 45px;">Student's Information</div>
+                <div class="section-title" style="background:#1e3a8a; margin-top: 10px;">Student's Information</div>
                 <p style="font-size:9px; color:#64748b; margin:-4px 0 8px; font-weight:600;">USE CAPITAL LETTERS ONLY</p>
 
                 <div class="field-row">
@@ -1088,31 +1129,6 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                     <div style="margin-left: 30px; font-weight:800; font-size:10px; color:#475569;">RELIGION: <span class="underline" style="min-width:130px; display:inline-block">${d.religion || 'ISLAM'}</span></div>
                 </div>
 
-                <div class="section-title" style="background:#0f766e">Health & Medical Info</div>
-                <div class="field-row">
-                    <div class="field-label" style="width:100px;">Allergies:</div>
-                    <div class="checkbox-group">
-                        <div class="checkbox"><div class="box" style="${d.allergies === 'Yes' ? 'background:#0f766e' : ''}"></div> YES</div>
-                        <div class="checkbox"><div class="box" style="${d.allergies === 'No' ? 'background:#0f766e' : ''}"></div> NO</div>
-                    </div>
-                    <div style="margin-left:20px; font-weight:700; font-size:10px;">DETAILS: <span class="underline">${d.allergiesDetails}</span></div>
-                </div>
-                <div class="field-row">
-                    <div class="field-label" style="width:160px;">Chronic Condition:</div>
-                    <div class="checkbox-group">
-                        <div class="checkbox"><div class="box" style="${d.chronicCondition === 'Yes' ? 'background:#0f766e' : ''}"></div> YES</div>
-                        <div class="checkbox"><div class="box" style="${d.chronicCondition === 'No' ? 'background:#0f766e' : ''}"></div> NO</div>
-                    </div>
-                    <div style="margin-left:20px; font-weight:700; font-size:10px;">DETAILS: <span class="underline">${d.chronicConditionDetails}</span></div>
-                </div>
-                <div class="field-row">
-                    <div class="field-label" style="width:220px;">Regular Medication:</div>
-                    <div class="checkbox-group">
-                        <div class="checkbox"><div class="box" style="${d.medication === 'Yes' ? 'background:#0f766e' : ''}"></div> YES</div>
-                        <div class="checkbox"><div class="box" style="${d.medication === 'No' ? 'background:#0f766e' : ''}"></div> NO</div>
-                    </div>
-                    <div style="margin-left:20px; font-weight:700; font-size:10px; flex:1;">DETAILS: <span class="underline">${d.medicationDetails}</span></div>
-                </div>
 
                 <div class="section-title" style="background:#b91c1c">Parents Information</div>
                 <div class="field-row">
@@ -1213,8 +1229,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 <img src="${schoolSettings?.logo_url || '/logo.png'}" class="header-logo" onerror="this.style.display='none'" />
                 <div class="header-text">
                     <h1>${schoolName}</h1>
-                    <p>Main Jhang Road Near Attock Petrol Pump, Painsra, Faisalabad</p>
-                    <div class="header-contact">📞 0300-1333275</div>
+                    <p>${schoolData?.contact?.address || 'School Address'}</p>
+                    <div class="header-contact">📞 ${schoolData?.contact?.phone || schoolData?.contact?.whatsapp || 'Contact Number'}</div>
                 </div>
             </div>
             <div class="meta-header">
@@ -1228,16 +1244,12 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             <div class="photo-box">
                 ${photo ? `<img src="${photo}" style="width:100%;height:100%;object-fit:cover" />` : '<b>Photograph</b><span>(Passport Size)</span>'}
             </div>
-            <div class="section-title" style="background:#1e3a8a; margin-top: 45px;">Student's Information</div>
+            <div class="section-title" style="background:#1e3a8a; margin-top: 10px;">Student's Information</div>
             <p style="font-size:9px;color:#64748b;margin:-4px 0 8px;font-weight:600">USE CAPITAL LETTERS ONLY</p>
             <div class="field-row"><div class="field-label">Student Name:</div><div class="boxed-row">${boxChars(studentName, 25)}</div></div>
             <div class="field-row"><div class="field-label">B-Form No:</div><div class="boxed-row">${boxChars(bForm.substring(0,5),5)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(bForm.substring(5,12),7)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(bForm.substring(12,13),1)}</div></div>
             <div class="field-row"><div class="field-label">Date of Birth:</div><div class="boxed-row">${boxChars(dob.split('-')[2]||'',2)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(dob.split('-')[1]||'',2)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(dob.split('-')[0]||'',4)}</div><div style="margin-left:15px;font-weight:800;font-size:10px;color:#475569">NATIONALITY: <span class="underline" style="min-width:100px;display:inline-block">${nationality}</span></div></div>
             <div class="field-row" style="margin-top:2px"><div class="field-label">Gender:</div><div class="checkbox-group"><div class="checkbox"><div class="box" style="${gender==='Male'?'background:#1e3a8a':''}"></div> MALE</div><div class="checkbox"><div class="box" style="${gender==='Female'?'background:#1e3a8a':''}"></div> FEMALE</div></div><div style="margin-left:30px;font-weight:800;font-size:10px;color:#475569">RELIGION: <span class="underline" style="min-width:130px;display:inline-block">${religion}</span></div></div>
-            <div class="section-title" style="background:#0f766e">Health &amp; Medical Info</div>
-            <div class="field-row"><div class="field-label" style="width:100px">Allergies:</div><div class="checkbox-group"><div class="checkbox"><div class="box" style="${allergies==='Yes'?'background:#0f766e':''}"></div> YES</div><div class="checkbox"><div class="box" style="${allergies==='No'?'background:#0f766e':''}"></div> NO</div></div><div style="margin-left:20px;font-weight:700;font-size:10px">DETAILS: <span class="underline">${allergiesDetails}</span></div></div>
-            <div class="field-row"><div class="field-label" style="width:160px">Chronic Condition:</div><div class="checkbox-group"><div class="checkbox"><div class="box" style="${chronicCondition==='Yes'?'background:#0f766e':''}"></div> YES</div><div class="checkbox"><div class="box" style="${chronicCondition==='No'?'background:#0f766e':''}"></div> NO</div></div><div style="margin-left:20px;font-weight:700;font-size:10px">DETAILS: <span class="underline">${chronicConditionDetails}</span></div></div>
-            <div class="field-row"><div class="field-label" style="width:220px">Regular Medication:</div><div class="checkbox-group"><div class="checkbox"><div class="box" style="${medication==='Yes'?'background:#0f766e':''}"></div> YES</div><div class="checkbox"><div class="box" style="${medication==='No'?'background:#0f766e':''}"></div> NO</div></div><div style="margin-left:20px;font-weight:700;font-size:10px;flex:1">DETAILS: <span class="underline">${medicationDetails}</span></div></div>
             <div class="section-title" style="background:#b91c1c">Parents Information</div>
             <div class="field-row"><div class="field-label">Father Name:</div><div class="boxed-row">${boxChars(fatherName,25)}</div></div>
             <div class="field-row"><div class="field-label">Father CNIC:</div><div class="boxed-row">${boxChars(fatherCnic.substring(0,5),5)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(fatherCnic.substring(5,12),7)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(fatherCnic.substring(12,13),1)}</div><div style="margin-left:15px;font-weight:800;font-size:10px;color:#475569">CONTACT: <span class="underline" style="min-width:130px;display:inline-block">${contact}</span></div></div>
@@ -1289,13 +1301,13 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
             body { margin: 0; padding: 0; background: #f0f0f0; }
             .page { width:210mm; min-height:297mm; margin:0 auto; background:#fff; padding:12mm 15mm; position:relative; box-shadow:0 0 10px rgba(0,0,0,0.1); page-break-after:always; }
-            .header-container { display:flex; align-items:center; border:2.5px solid #1e3a8a; padding:15px 25px; border-radius:12px; margin-bottom:25px; position:relative; background:linear-gradient(135deg,#ffffff,#f8fafc); }
+            .header-container { display:flex; align-items:center; border:2.5px solid #1e3a8a; padding:15px 25px; border-radius:12px; margin-bottom:15px; position:relative; background:linear-gradient(135deg,#ffffff,#f8fafc); }
             .header-logo { width:100px; height:auto; margin-right:25px; }
             .header-text { flex:1; text-align:center; }
             .header-text h1 { margin:0; font-size:32px; color:#1e3a8a; font-weight:800; letter-spacing:1px; text-transform:uppercase; }
             .header-text p { margin:4px 0; font-size:13px; color:#1e40af; font-weight:600; }
             .header-contact { font-size:16px; font-weight:800; color:#1e3a8a; margin-top:5px; }
-            .section-title { background:#f97316; color:#fff; display:inline-block; padding:4px 15px; font-weight:800; border-radius:4px; margin:22px 0 12px; font-size:14px; text-transform:uppercase; }
+            .section-title { background:#f97316; color:#fff; display:inline-block; padding:4px 15px; font-weight:800; border-radius:4px; margin:15px 0 8px; font-size:14px; text-transform:uppercase; }
             .field-row { display:flex; align-items:center; margin-bottom:11px; font-size:12px; }
             .field-label { width:130px; font-weight:700; font-size:10px; text-transform:uppercase; color:#334155; }
             .boxed-row { display:flex; gap:1px; }
@@ -2430,14 +2442,19 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                         // 3. Generate or Validate ID
                         let studentId = providedId;
                         if (!studentId) {
+                            const prefix = schoolSettings?.school_id?.split('-')[0]?.toUpperCase() || 'ID';
                             const year = new Date().getFullYear();
-                            // Find the max existing ID number to avoid duplicates after deletions
+                            // Find the max existing ID number for this school
                             const maxNum = [...students, ...newStudents].reduce((max, s) => {
-                                const match = s.id?.match(/ACS-\d{4}-(\d+)/);
-                                return match ? Math.max(max, parseInt(match[1], 10)) : max;
+                                const parts = (s.id || '').split('-');
+                                if (parts.length >= 3 && parts[0].toUpperCase() === prefix) {
+                                    const num = parseInt(parts[parts.length - 1], 10);
+                                    return !isNaN(num) ? Math.max(max, num) : max;
+                                }
+                                return max;
                             }, 0);
                             const seq = String(maxNum + 1).padStart(3, '0');
-                            studentId = `ACS-${year}-${seq}`;
+                            studentId = `${prefix}-${year}-${seq}`;
                         } else {
                             if (students.some(s => s.id === studentId) || newStudents.some(s => s.id === studentId)) {
                                 errors.push(`Row ${rowNum}: Student ID '${studentId}' already exists.`);
@@ -2451,7 +2468,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                             id: studentId,
                             serialNumber: serial ? String(serial).trim() : null,
                             name: name,
-                            password: password || ('acs' + Math.floor(1000 + Math.random() * 9000)),
+                            password: password || ((schoolSettings?.school_id?.split('-')[0]?.toLowerCase() || 'pass') + Math.floor(1000 + Math.random() * 9000)),
                             grade: grade,
                             image: '',
                             feeHistory: [],
@@ -2876,14 +2893,14 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                 {activeTab === 'marks' && (
                                     <GradebookTab
                                         students={students} selectedClass={selectedClass} setSelectedClass={setSelectedClass} sectionClasses={sectionClasses}
-                                        TERMS={classTerms} SUBJECTS={SUBJECTS} WEIGHTS={WEIGHTS}
+                                        TERMS={classTerms} SUBJECTS={SUBJECTS} WEIGHTS={classWeights}
                                         gbTerm={gbTerm} setGbTerm={setGbTerm} gbGenderTab={gbGenderTab} setGbGenderTab={setGbGenderTab}
                                         gbEdits={gbEdits} setGbEdits={setGbEdits} gbSaving={gbSaving}
                                         showGbStats={showGbStats} setShowGbStats={setShowGbStats}
                                         showGbSettings={showGbSettings} setShowGbSettings={setShowGbSettings}
                                         newSubjectInput={newSubjectInput} setNewSubjectInput={setNewSubjectInput}
                                         newTermInput={newTermInput} setNewTermInput={setNewTermInput}
-                                        updateClassSubjects={updateClassSubjects} updateTerms={updateClassTerms} updateWeights={updateWeights}
+                                        updateClassSubjects={updateClassSubjects} updateTerms={updateClassTerms} updateWeights={updateClassWeights}
                                         saveGradebook={saveGradebook} downloadGradebookTemplate={downloadGradebookTemplate}
                                         exportGradebookExcel={exportGradebookExcel} archiveTerm={archiveTerm}
                                         exportResultPDF={exportResultPDF} importGradebookExcel={importGradebookExcel}
@@ -3014,6 +3031,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         showSaveMessage={showSaveMessage} openConfirm={openConfirm}
                                         CLASS_SERIAL_STARTS={CLASS_SERIAL_STARTS} updateClassSerialStarts={updateClassSerialStarts}
                                         uploadImage={uploadImage}
+                                        schoolName={schoolName}
+                                        schoolLogo={schoolSettings?.logo_url || '/logo.png'}
                                     />
                                 )}
 

@@ -612,7 +612,7 @@ const Home = ({ setCurrentPage }) => {
                             marginBottom: '1rem',
                             color: 'var(--color-gray-900)'
                         }}>
-                            Why Choose ACS?
+                            Why Choose {schoolData.name}?
                         </h2>
                         <p style={{
                             textAlign: 'center',

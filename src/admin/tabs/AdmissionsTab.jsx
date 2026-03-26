@@ -203,36 +203,6 @@ const AdmissionsTab = ({
                     </div>
                 </div>
 
-                {/* Health & Medical */}
-                <div style={{ marginBottom: '2.5rem' }}>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '1.25rem', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Award size={18} /> Health &amp; Medical Information
-                    </h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                        {[
-                            { key: 'allergies', label: 'Any Allergies?' },
-                            { key: 'chronicCondition', label: 'Chronic Medical Condition?' },
-                            { key: 'medication', label: 'Take Regular Medication?' },
-                        ].map(({ key, label }) => (
-                            <div className="grid grid-cols-2" style={{ gap: '2rem' }} key={key}>
-                                <div>
-                                    <label className="form-label">{label}</label>
-                                    <div className="flex gap-4">
-                                        {['Yes', 'No'].map(o => (
-                                            <label key={o} className="flex gap-2" style={{ alignItems: 'center', cursor: 'pointer' }}>
-                                                <input type="radio" checked={admissionData[key] === o} onChange={() => update(key, o)} /> {o}
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="form-label">Details (If any)</label>
-                                    <input type="text" className="form-input" value={admissionData[`${key}Details`] || ''} onChange={e => update(`${key}Details`, e.target.value)} />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
 
                 {/* Parent Information */}
                 <div style={{ marginBottom: '2.5rem' }}>

@@ -22,6 +22,8 @@ const ClassListsTab = ({
     showSaveMessage, openConfirm,
     CLASS_SERIAL_STARTS, updateClassSerialStarts,
     uploadImage,
+    schoolName = 'School',
+    schoolLogo = '',
 }) => {
     const [editingSerialStudentId, setEditingSerialStudentId] = useState(null);
     const [editingSerialValue, setEditingSerialValue] = useState('');
@@ -133,7 +135,10 @@ const ClassListsTab = ({
             const photoSrc = s.image || s.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(s.name) + '&background=e2e8f0&color=64748b';
             
             html += `<div class="id-card">
-                <div class="header">ACS<br>SCHOOL & COLLEGE</div>
+                <div class="header">
+                    ${schoolLogo ? `<img src="${schoolLogo}" style="height:30px;margin-bottom:5px;display:block;margin-left:auto;margin-right:auto;" />` : ''}
+                    ${schoolName?.toUpperCase() || 'SCHOOL'}
+                </div>
                 <div class="photo-box"><img src="${photoSrc}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=e2e8f0&color=64748b'" /></div>
                 <div class="name">${s.name}</div>
                 <div class="details">
