@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Users, DollarSign, Activity, TrendingUp, TrendingDown, Clock, ShieldCheck, GraduationCap, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, DollarSign, Activity, TrendingUp, TrendingDown, Clock, ShieldCheck, GraduationCap, CheckCircle, ChevronDown, ChevronUp, Lock } from 'lucide-react';
 
-const DashboardTab = ({ students, schoolData, EXPENSES, adminTabs, setActiveTab, currencySymbol }) => {
+const DashboardTab = ({ students, schoolData, EXPENSES, adminTabs, setActiveTab, currencySymbol, isProPlan, setUpgradeModal }) => {
     const [revenueExpanded, setRevenueExpanded] = useState(false);
     const [statsExpanded, setStatsExpanded] = useState(false);
     
@@ -245,10 +245,15 @@ const DashboardTab = ({ students, schoolData, EXPENSES, adminTabs, setActiveTab,
                                     ];
                                     const c = colors[idx % colors.length];
 
+                                    const isLocked = !isProPlan && tab.isPro;
+
                                     return (
                                         <div
                                             key={tab.id}
-                                            onClick={() => setActiveTab(tab.id)}
+                                            onClick={() => {
+                                                if (isLocked) { setUpgradeModal({ open: true, featureName: tab.label }); } 
+                                                else { setActiveTab(tab.id); }
+                                            }}
                                             className="card"
                                             style={{
                                                 padding: '1.75rem 1.75rem',
@@ -273,12 +278,19 @@ const DashboardTab = ({ students, schoolData, EXPENSES, adminTabs, setActiveTab,
                                                 e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
                                             }}
                                         >
-                                            <div style={{
-                                                background: c.bg, padding: '1rem', borderRadius: '14px', color: c.icon,
-                                            }}>
-                                                <tab.icon size={28} strokeWidth={2.5} />
+                                            <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                <div style={{
+                                                    background: c.bg, padding: '1rem', borderRadius: '14px', color: isLocked ? '#cbd5e1' : c.icon,
+                                                }}>
+                                                    <tab.icon size={28} strokeWidth={2.5} />
+                                                </div>
+                                                {isLocked && (
+                                                    <div style={{ background: '#f8fafc', padding: '0.4rem', borderRadius: '8px', color: '#94a3b8' }}>
+                                                        <Lock size={16} />
+                                                    </div>
+                                                )}
                                             </div>
-                                            <div>
+                                            <div style={{ opacity: isLocked ? 0.6 : 1 }}>
                                                 <h3 style={{ fontWeight: 800, fontSize: '1.1rem', color: '#0f172a', marginBottom: '0.3rem' }}>{tab.label}</h3>
                                                 <p style={{ color: '#64748b', fontSize: '0.85rem', lineHeight: 1.5, margin: 0 }}>{tab.desc}</p>
                                             </div>

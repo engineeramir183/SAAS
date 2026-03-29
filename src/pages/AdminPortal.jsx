@@ -50,6 +50,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     const students = schoolData?.students || [];
     const [activeTab, setActiveTab] = useState('dashboard');
     const [saveMessage, setSaveMessage] = useState('');
+    const isProPlan = schoolData?.plan === 'pro' || schoolData?.plan === 'premium';
+    const [upgradeModal, setUpgradeModal] = useState({ open: false, featureName: '' });
     const showSaveMessage = (msg) => {
         setSaveMessage(msg);
         setTimeout(() => setSaveMessage(''), 3000);
@@ -2604,19 +2606,19 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     };
 
     const adminTabs = [
-        { id: 'admissions', label: 'Admissions Desk', icon: PlusCircle, desc: 'Handle new enrollments and student applications.' },
-        { id: 'classes', label: 'Classes & Sections', icon: Users, desc: 'Configure classrooms and manage student rosters.' },
-        { id: 'marks', label: 'Manage Exams', icon: Award, desc: 'Input exam marks and configure subject weights.' },
-        { id: 'scanner', label: 'QR Scanner', icon: Camera, desc: 'Instantly scan ID cards for daily attendance.' },
-        { id: 'attendance', label: 'Attendance', icon: Calendar, desc: 'Track daily attendance and absentees.' },
-        { id: 'fees', label: 'Fee Management', icon: DollarSign, desc: 'Record tuition fees and payments.' },
-        { id: 'expenses', label: 'Expense Tracker', icon: TrendingDown, desc: 'Log expenses and view net profit.' },
-        { id: 'reports', label: 'Report Cards', icon: FileText, desc: 'View analysis and print student report cards.' },
-        { id: 'faculty', label: 'Faculty & Teachers', icon: User, desc: 'Manage your teaching staff profiles.' },
-        { id: 'announcements', label: 'Noticeboard', icon: Megaphone, desc: 'Broadcast notices to portals.' },
-        { id: 'facilities', label: 'School Facilities', icon: Building, desc: 'List and update school infrastructure.' },
-        { id: 'blog', label: 'Website Blog', icon: Layout, desc: 'Post stories and news to the public website.' },
-        { id: 'settings', label: 'School Settings', icon: Building2, desc: 'Update school name, logo, mission, and vision.' }
+        { id: 'admissions', label: 'Admissions Desk', icon: PlusCircle, desc: 'Handle new enrollments and student applications.', isPro: false },
+        { id: 'classes', label: 'Classes & Sections', icon: Users, desc: 'Configure classrooms and manage student rosters.', isPro: false },
+        { id: 'marks', label: 'Manage Exams', icon: Award, desc: 'Input exam marks and configure subject weights.', isPro: false },
+        { id: 'scanner', label: 'QR Scanner', icon: Camera, desc: 'Instantly scan ID cards for daily attendance.', isPro: true },
+        { id: 'attendance', label: 'Attendance', icon: Calendar, desc: 'Track daily attendance and absentees.', isPro: false },
+        { id: 'fees', label: 'Fee Management', icon: DollarSign, desc: 'Record tuition fees and payments.', isPro: false },
+        { id: 'expenses', label: 'Expense Tracker', icon: TrendingDown, desc: 'Log expenses and view net profit.', isPro: true },
+        { id: 'reports', label: 'Report Cards', icon: FileText, desc: 'View analysis and print student report cards.', isPro: true },
+        { id: 'faculty', label: 'Faculty & Teachers', icon: User, desc: 'Manage your teaching staff profiles.', isPro: false },
+        { id: 'announcements', label: 'Noticeboard', icon: Megaphone, desc: 'Broadcast notices to portals.', isPro: false },
+        { id: 'facilities', label: 'School Facilities', icon: Building, desc: 'List and update school infrastructure.', isPro: false },
+        { id: 'blog', label: 'Website Blog', icon: Layout, desc: 'Post stories and news to the public website.', isPro: true },
+        { id: 'settings', label: 'School Settings', icon: Building2, desc: 'Update school name, logo, mission, and vision.', isPro: false }
     ];
 
     // ── Onboarding Guard ─────────────────────────────────────────────────────
@@ -2645,6 +2647,30 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                             <button onClick={() => { confirmModal.onConfirm?.(); closeConfirm(); }} style={{ padding: '0.6rem 1.5rem', borderRadius: '8px', border: 'none', background: confirmModal.danger ? '#ef4444' : '#2563eb', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
                                 {confirmModal.danger ? 'Yes, Delete' : 'Confirm'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Upgrade Modal ── */}
+            {upgradeModal.open && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                    <div className="card animate-fade-in" style={{ maxWidth: '460px', width: '100%', padding: '2.5rem', textAlign: 'center', borderTop: '4px solid #8b5cf6' }}>
+                        <div style={{ background: '#f5f3ff', padding: '1rem', borderRadius: '50%', color: '#8b5cf6', display: 'inline-block', marginBottom: '1.5rem' }}><Lock size={32} /></div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.75rem' }}>Upgrade to Professional</div>
+                        <div style={{ color: '#475569', fontSize: '1rem', lineHeight: 1.6, marginBottom: '2rem' }}>
+                            {(() => {
+                                const f = upgradeModal.featureName;
+                                if (f === 'QR Scanner') return <><strong style={{ color: '#0f172a' }}>Say goodbye to manual roll calls!</strong> Upgrade to instantly scan ID cards, automatically mark daily attendance, and save hours of administrative work.</>;
+                                if (f === 'Expense Tracker') return <><strong style={{ color: '#0f172a' }}>Take full control of your finances.</strong> Upgrade to unlock powerful Profit & Loss tracking, automatically balance tuition against expenses, and find out exactly how profitable your school is!</>;
+                                if (f === 'Report Cards') return <><strong style={{ color: '#0f172a' }}>Stop calculating grades by hand.</strong> Upgrade to instantly generate, calculate, and print professional terminal report cards for your entire school with one click!</>;
+                                if (f === 'Website Blog') return <><strong style={{ color: '#0f172a' }}>Build your school's brand online.</strong> Upgrade to publish news, events, and stories directly to your school's public website and attract more admissions!</>;
+                                return <>The <strong style={{ color: '#0f172a' }}>{f}</strong> module is a premium feature. Upgrade your workspace to unlock advanced automation, analytics, and integrations.</>;
+                            })()}
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+                            <button onClick={() => setUpgradeModal({ open: false, featureName: '' })} style={{ padding: '0.8rem 1.5rem', borderRadius: '10px', border: '1px solid #e2e8f0', background: 'white', color: '#475569', fontWeight: 600, cursor: 'pointer', flex: 1 }}>Close</button>
+                            <a href={`https://wa.me/923457685122?text=${encodeURIComponent('Hi, we are interested in upgrading our plan to unlock ' + upgradeModal.featureName + '.')}`} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', padding: '0.8rem 1.5rem', borderRadius: '10px', border: 'none', background: '#10b981', color: 'white', fontWeight: 700, cursor: 'pointer', flex: 1, boxShadow: '0 4px 14px 0 rgba(16,185,129,0.39)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Upgrade via WhatsApp</a>
                         </div>
                     </div>
                 </div>
@@ -2777,22 +2803,30 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                         ];
                         const c = tabColors[idx % tabColors.length];
                         const isActive = activeTab === tab.id;
+                        const isLocked = !isProPlan && tab.isPro;
 
                         return (
-                            <button key={tab.id} onClick={() => { setActiveTab(tab.id); setIsSidebarOpen(false); }} className="btn hover-scale" style={{
+                            <button key={tab.id} onClick={() => { 
+                                if (isLocked) { setUpgradeModal({ open: true, featureName: tab.label }); return; }
+                                setActiveTab(tab.id); setIsSidebarOpen(false); 
+                            }} className="btn hover-scale" style={{
                                 justifyContent: 'flex-start',
                                 padding: '0.85rem 1.25rem',
                                 background: isActive ? c.bg : 'transparent',
-                                color: isActive ? 'white' : '#94a3b8',
+                                color: isLocked ? '#cbd5e1' : (isActive ? 'white' : '#94a3b8'),
                                 fontWeight: isActive ? 700 : 500,
                                 border: 'none',
                                 boxShadow: isActive ? `0 4px 12px -3px ${c.shadow}` : 'none',
                                 borderRadius: '12px',
                                 width: '100%',
                                 textAlign: 'left',
-                                transition: 'all 0.2s ease'
+                                transition: 'all 0.2s ease',
+                                display: 'flex',
+                                alignItems: 'center'
                             }}>
-                                <tab.icon size={20} style={{ marginRight: '0.75rem', opacity: isActive ? 1 : 0.7 }} /> {tab.label}
+                                <tab.icon size={20} style={{ marginRight: '0.75rem', opacity: isActive ? 1 : 0.7 }} /> 
+                                <span style={{ flex: 1 }}>{tab.label}</span>
+                                {isLocked && <Lock size={14} style={{ opacity: 0.6 }} />}
                             </button>
                         );
                     })}
@@ -2840,6 +2874,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                 adminTabs={adminTabs} 
                                 setActiveTab={setActiveTab} 
                                 currencySymbol={currencySymbol} 
+                                isProPlan={isProPlan}
+                                setUpgradeModal={setUpgradeModal}
                             />
                         </Suspense>
                     )}
