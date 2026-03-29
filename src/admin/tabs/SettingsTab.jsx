@@ -2,28 +2,37 @@ import React, { useState } from 'react';
 import { Save, Building2, Target, Eye, MapPin, Phone, Mail, Globe, Image as ImageIcon, Upload } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 
-const SettingsTab = ({ schoolData, updateSchoolInfo, showSaveMessage }) => {
+const SettingsTab = ({ schoolData, schoolSettings, updateSchoolInfo, updateSchoolSettings, showSaveMessage }) => {
     const [loading, setLoading] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
 
     const [form, setForm] = useState({
-        name: schoolData?.name || '',
-        tagline: schoolData?.tagline || '',
-        mission: schoolData?.about?.mission || '',
-        vision: schoolData?.about?.vision || '',
-        address: schoolData?.contact?.address || '',
-        phone: schoolData?.contact?.phone || '',
-        email: schoolData?.contact?.email || '',
-        logo_url: schoolData?.logo_url || '/logo.png'
+        name:     schoolData?.name              || '',
+        tagline:  schoolData?.tagline           || '',
+        mission:  schoolData?.about?.mission    || '',
+        vision:   schoolData?.about?.vision     || '',
+        address:  schoolData?.contact?.address  || '',
+        phone:    schoolData?.contact?.phone    || '',
+        email:    schoolData?.contact?.email    || '',
+        // logo_url lives in the `schools` table (schoolSettings), NOT school_info
+        logo_url: schoolSettings?.logo_url      || schoolData?.logo_url || '/logo.png'
     });
 
     const handleSave = async () => {
         setLoading(true);
-        const { error } = await updateSchoolInfo(form);
+        // Save text details to school_info table
+        const { logo_url, ...infoData } = form;
+        const { error: infoError } = await updateSchoolInfo(infoData);
+        
+        // Save brand details (logo) to schools table
+        const { error: settingsError } = await updateSchoolSettings({ logo_url });
+
         setLoading(false);
-        if (!error) showSaveMessage('✅ School details updated successfully!');
-        else alert('Error: ' + error.message);
+        if (infoError) alert('Error updating info: ' + infoError.message);
+        else if (settingsError) alert('Error updating settings: ' + settingsError.message);
+        else showSaveMessage('✅ School details and branding updated successfully!');
     };
+
 
     const handleLogoUpload = async (e) => {
         const file = e.target.files?.[0];

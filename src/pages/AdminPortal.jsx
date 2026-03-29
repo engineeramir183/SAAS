@@ -28,7 +28,7 @@ const StudentEditModal = lazy(() => import('../admin/modals/StudentEditModal'));
 const SettingsTab = lazy(() => import('../admin/tabs/SettingsTab'));
 
 const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
-    const { schoolData, CLASSES, SUBJECTS, TERMS, SECTIONS, WEIGHTS, CLASS_SERIAL_STARTS, CLASS_FEE_DEFAULTS, EXPENSES, fetchData, setStudents, setFaculty, updateSchoolInfo, setAnnouncements, updateClasses, updateSubjects, updateTerms, updateSections, updateWeights, updateClassSerialStarts, updateClassFeeDefaults, updateExpenses, adminCredentials, changeAdminPassword, currencySymbol, schoolSettings, completeOnboarding, loading } = useSchoolData();
+    const { schoolData, CLASSES, SUBJECTS, TERMS, SECTIONS, WEIGHTS, CLASS_SERIAL_STARTS, CLASS_FEE_DEFAULTS, EXPENSES, fetchData, setStudents, setFaculty, updateSchoolInfo, updateSchoolSettings, setAnnouncements, updateClasses, updateSubjects, updateTerms, updateSections, updateWeights, updateClassSerialStarts, updateClassFeeDefaults, updateExpenses, adminCredentials, changeAdminPassword, currencySymbol, schoolSettings, completeOnboarding, loading } = useSchoolData();
     
     if (loading) {
         return (
@@ -3040,9 +3040,12 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                 {activeTab === 'settings' && (
                                     <SettingsTab
                                         schoolData={schoolData}
+                                        schoolSettings={schoolSettings}
                                         updateSchoolInfo={updateSchoolInfo}
+                                        updateSchoolSettings={updateSchoolSettings}
                                         showSaveMessage={showSaveMessage}
                                     />
+
                                 )}
                             </Suspense>
                         </div>
