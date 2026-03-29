@@ -32,9 +32,18 @@ import SaaSLanding from './pages/SaaSLanding';
 function App() {
     const searchParams = new URLSearchParams(window.location.search);
     const initialSchool = searchParams.get('school');
+    const initialPage   = searchParams.get('page');   // e.g. ?page=login
     const isSaaSMode = !initialSchool;
 
-    const [currentPage,     setCurrentPage]     = useState(isSaaSMode ? 'saas' : 'home');
+    // Priority: ?page= param → school home → SaaS landing
+    const getInitialPage = () => {
+        if (initialPage) return initialPage;   // direct deep-link
+        if (isSaaSMode)  return 'saas';
+        return 'home';
+    };
+
+    const [currentPage,     setCurrentPage]     = useState(getInitialPage());
+
     const [isLoggedIn,      setIsLoggedIn]      = useState(false);
     const [isAdmin,         setIsAdmin]         = useState(false);
     const [isDeveloper,     setIsDeveloper]     = useState(false);
