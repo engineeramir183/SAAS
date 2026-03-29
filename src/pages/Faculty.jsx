@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Mail, Briefcase } from 'lucide-react';
 import { useSchoolData } from '../context/SchoolDataContext';
 
 const Faculty = ({ isAdmin }) => {
-    const { schoolData } = useSchoolData();
+    const { schoolData, fetchPublicData } = useSchoolData();
     const [selectedDept, setSelectedDept] = useState('All');
+
+    // Lazily load faculty/facilities/blogs/testimonials on mount
+    useEffect(() => { fetchPublicData(); }, []);
+
 
     const departments = ['All', 'Administration', 'Academic Leadership', 'Science', 'Mathematics', 'Athletics', 'Fine Arts'];
 

@@ -5,15 +5,16 @@ import { useSchoolData } from '../context/SchoolDataContext';
 const categories = ['All', 'Events', 'Achievements', 'Campus', 'Education'];
 
 const Blog = () => {
-    useEffect(() => {
-        window.scrollTo(0, 0);
-    }, []);
-
-    const { schoolData } = useSchoolData();
+    const { schoolData, fetchPublicData } = useSchoolData();
     const blogPosts = schoolData.blogs || [];
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedPost, setSelectedPost] = useState(null);
+
+    useEffect(() => {
+        window.scrollTo(0, 0);
+        fetchPublicData(); // Lazily load blogs, faculty, facilities, testimonials
+    }, []);
 
     const filteredPosts = blogPosts.filter(post => {
         const matchesCategory = selectedCategory === 'All' || post.category === selectedCategory;

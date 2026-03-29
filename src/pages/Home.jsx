@@ -163,7 +163,7 @@ const ParticleField = () => {
 };
 
 const Home = ({ setCurrentPage }) => {
-    const { schoolData } = useSchoolData();
+    const { schoolData, fetchPublicData } = useSchoolData();
     const [heroLoaded, setHeroLoaded] = useState(false);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const [scrollY, setScrollY] = useState(0);
@@ -175,8 +175,10 @@ const Home = ({ setCurrentPage }) => {
         setTimeout(() => setHeroLoaded(true), 100);
         const handleScroll = () => setScrollY(window.scrollY);
         window.addEventListener('scroll', handleScroll, { passive: true });
+        fetchPublicData(); // Lazily load testimonials, faculty, facilities, blogs
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
+
 
     const handleMouseMove = (e) => {
         const rect = e.currentTarget.getBoundingClientRect();

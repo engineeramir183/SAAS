@@ -69,25 +69,23 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
     const [adminCredentials,  setAdminCredentials]  = useState({ username: '', password: '' });
 
     // ─── Core fetch — every query is scoped to currentSchoolId ───────────────
+    // ─── Core fetch — loads only business-critical data on every app start ──────
+    // Faculty, facilities, testimonials, blogs are loaded separately via
+    // fetchPublicData() and only when the public-facing pages need them.
     const fetchData = async (sid = currentSchoolId) => {
         try {
             setLoading(true);
 
-            // Fire all queries in parallel
+            // Fire only the 6 critical queries in parallel
             const [
                 { data: schoolRow },
                 { data: info },
-                { data: faculty },
-                { data: facilities },
-                { data: testimonials },
                 { data: metaRows },
                 { data: announcements },
                 { data: students },
-                { data: blogs },
                 { data: admins }
             ] = await Promise.all([
                 // Master school settings (currency, logo, etc.)
-                // maybeSingle() returns null instead of throwing when no row exists
                 supabase
                     .from('schools')
                     .select('*')
@@ -95,52 +93,33 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                     .maybeSingle(),
 
                 // Public school info (name, tagline, about, contact...)
-                // maybeSingle() is safe on a fresh/empty database
                 supabase
                     .from('school_info')
                     .select('*')
                     .eq('school_id', sid)
                     .maybeSingle(),
 
-                supabase
-                    .from('faculty')
-                    .select('*')
-                    .eq('school_id', sid)
-                    .order('id'),
-
-                supabase
-                    .from('facilities')
-                    .select('*')
-                    .eq('school_id', sid)
-                    .order('id'),
-
-                supabase
-                    .from('testimonials')
-                    .select('*')
-                    .eq('school_id', sid),
-
+                // Metadata (CLASSES, SUBJECTS, TERMS, WEIGHTS, etc.)
                 supabase
                     .from('metadata')
                     .select('*')
                     .eq('school_id', sid),
 
+                // Announcements (needed on dashboard + student portal)
                 supabase
                     .from('announcements')
                     .select('*')
                     .eq('school_id', sid)
                     .order('id', { ascending: false }),
 
+                // Students — explicit columns, ordered by serial number
                 supabase
                     .from('students')
-                    .select('*')
-                    .eq('school_id', sid),
-
-                supabase
-                    .from('blogs')
-                    .select('*')
+                    .select('id, name, grade, image, serial_number, password, attendance, fee_history, results, admissions, previous_results')
                     .eq('school_id', sid)
-                    .order('created_at', { ascending: false }),
+                    .order('serial_number', { ascending: true, nullsFirst: false }),
 
+                // Admin credentials
                 supabase
                     .from('admins')
                     .select('*')
@@ -178,12 +157,10 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 ...(info || {}),
                 about:         info?.about   || { mission: '', vision: '', values: [], history: '' },
                 contact:       info?.contact || { phone: '', email: '', address: '', hours: '' },
-                faculty:       faculty       || [],
-                facilities:    facilities    || [],
-                testimonials:  testimonials  || [],
                 announcements: announcements || [],
-                blogs:         blogs         || [],
                 students:      normalisedStudents
+                // Note: faculty, facilities, testimonials, blogs are loaded
+                // lazily via fetchPublicData() — only when public pages open
             }));
 
             // ── Apply metadata ────────────────────────────────────────────────
@@ -225,6 +202,34 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
         }
     };
 
+    // ─── Lazy fetch — public-facing data (faculty, facilities, blogs, testimonials)
+    // Call this only from pages that actually display this data
+    const fetchPublicData = async (sid = currentSchoolId) => {
+        try {
+            const [
+                { data: faculty },
+                { data: facilities },
+                { data: testimonials },
+                { data: blogs }
+            ] = await Promise.all([
+                supabase.from('faculty').select('*').eq('school_id', sid).order('id'),
+                supabase.from('facilities').select('*').eq('school_id', sid).order('id'),
+                supabase.from('testimonials').select('*').eq('school_id', sid),
+                supabase.from('blogs').select('*').eq('school_id', sid).order('created_at', { ascending: false })
+            ]);
+            setData(prev => ({
+                ...prev,
+                faculty:      faculty      || [],
+                facilities:   facilities   || [],
+                testimonials: testimonials || [],
+                blogs:        blogs        || []
+            }));
+        } catch (error) {
+            console.error('Error fetching public data:', error);
+        }
+    };
+
+
     // Re-fetch whenever the active school changes
     useEffect(() => {
         setCurrentSchoolId(schoolId);
@@ -265,7 +270,10 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
             .update(preparedUpdates)
             .eq('school_id', currentSchoolId);
         
-        if (!error) fetchData();
+        if (!error) {
+            // Update local state directly — no full re-fetch needed
+            setData(prev => ({ ...prev, ...preparedUpdates }));
+        }
         return { error };
     };
 
@@ -299,46 +307,72 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
     const setFaculty = async (facultyList) => {
         const tagged = facultyList.map(f => ({ ...f, school_id: currentSchoolId }));
         const { error } = await supabase.from('faculty').upsert(tagged);
-        if (!error) fetchData();
+        if (!error) {
+            // Update local state directly — no full re-fetch needed
+            setData(prev => ({ ...prev, faculty: tagged }));
+        }
+        return { error };
     };
 
     const setFacilities = async (facilitiesList) => {
         const tagged = facilitiesList.map(f => ({ ...f, school_id: currentSchoolId }));
         const { error } = await supabase.from('facilities').upsert(tagged);
-        if (!error) fetchData();
+        if (!error) {
+            // Update local state directly — no full re-fetch needed
+            setData(prev => ({ ...prev, facilities: tagged }));
+        }
+        return { error };
     };
 
     const setStudents = async (studentsList) => {
         const dbStudents = studentsList.map(s => ({
-            school_id:       currentSchoolId,   // ← always stamped
-            id:              s.id,
-            serial_number:   s.serialNumber     !== undefined ? s.serialNumber   : s.serial_number,
-            password:        s.password,
-            name:            s.name,
-            grade:           s.grade,
-            image:           s.image            !== undefined ? s.image          : s.photo,
-            fee_history:     s.feeHistory       !== undefined ? s.feeHistory     : (s.fee_history || []),
-            results:         s.results          || [],
-            attendance:      s.attendance       || {},
-            previous_results: s.previousResults !== undefined ? s.previousResults : s.previous_results || [],
-            admissions:      s.admissions       || []
+            school_id:        currentSchoolId,   // ← always stamped
+            id:               s.id,
+            serial_number:    s.serialNumber     !== undefined ? s.serialNumber   : s.serial_number,
+            password:         s.password,
+            name:             s.name,
+            grade:            s.grade,
+            image:            s.image            !== undefined ? s.image          : s.photo,
+            fee_history:      s.feeHistory       !== undefined ? s.feeHistory     : (s.fee_history || []),
+            results:          s.results          || [],
+            attendance:       s.attendance       || {},
+            previous_results: s.previousResults  !== undefined ? s.previousResults : s.previous_results || [],
+            admissions:       s.admissions       || []
         }));
 
         const { error } = await supabase.from('students').upsert(dbStudents);
-        if (!error) fetchData();
+        if (!error) {
+            // Normalise and update local state directly — no full re-fetch needed
+            const normalisedStudents = studentsList.map(s => ({
+                ...s,
+                photo:           s.image || s.photo,
+                feeHistory:      s.feeHistory      || s.fee_history      || [],
+                previousResults: s.previousResults || s.previous_results || [],
+                serialNumber:    s.serialNumber    !== undefined ? s.serialNumber : s.serial_number
+            }));
+            setData(prev => ({ ...prev, students: normalisedStudents }));
+        }
         return { error };
     };
 
     const setAnnouncements = async (announcementsList) => {
         const tagged = announcementsList.map(a => ({ ...a, school_id: currentSchoolId }));
         const { error } = await supabase.from('announcements').upsert(tagged);
-        if (!error) fetchData();
+        if (!error) {
+            // Update local state directly — no full re-fetch needed
+            setData(prev => ({ ...prev, announcements: tagged }));
+        }
+        return { error };
     };
 
     const setBlogs = async (blogsList) => {
         const tagged = blogsList.map(b => ({ ...b, school_id: currentSchoolId }));
         const { error } = await supabase.from('blogs').upsert(tagged);
-        if (!error) fetchData();
+        if (!error) {
+            // Update local state directly — no full re-fetch needed
+            setData(prev => ({ ...prev, blogs: tagged }));
+        }
+        return { error };
     };
 
     // ─── Metadata helpers — composite key (school_id, key) ───────────────────
@@ -424,6 +458,8 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
             // ── State ────────────────────────────────────────────────────────
             loading,
             fetchData,
+            fetchPublicData,   // ← call this from Faculty/Blog/Facilities/Home pages
+
 
             // ── Mutation helpers ─────────────────────────────────────────────
             updateSchoolInfo,

@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useSchoolData } from '../context/SchoolDataContext';
 
 const Facilities = () => {
-    const { schoolData } = useSchoolData();
+    const { schoolData, fetchPublicData } = useSchoolData();
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [lightboxImage, setLightboxImage] = useState(null);
+
+    // Lazily load faculty/facilities/blogs/testimonials on mount
+    useEffect(() => { fetchPublicData(); }, []);
 
     const categories = ['All', 'Academic', 'Sports', 'Arts', 'Technology', 'Facilities'];
 
