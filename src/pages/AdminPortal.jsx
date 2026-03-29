@@ -11,9 +11,11 @@ import * as XLSX from 'xlsx';
 import { useSchoolData } from '../context/SchoolDataContext';
 import { supabase } from '../supabaseClient';
 import OnboardingWizard from '../components/OnboardingWizard';
+import { sendWhatsAppMessage, WhatsAppTemplates } from '../services/WhatsAppService';
 
 // ── Lazily-loaded tab components (module-level so references are stable) ──
 const GradebookTab = lazy(() => import('../admin/tabs/GradebookTab'));
+const ScannerTab = lazy(() => import('../admin/tabs/ScannerTab'));
 const AttendanceTab = lazy(() => import('../admin/tabs/AttendanceTab'));
 const FeeTab = lazy(() => import('../admin/tabs/FeeTab'));
 const AdmissionsTab = lazy(() => import('../admin/tabs/AdmissionsTab'));
@@ -26,6 +28,8 @@ const ClassListsTab = lazy(() => import('../admin/tabs/ClassListsTab'));
 const ExpensesTab = lazy(() => import('../admin/tabs/ExpensesTab'));
 const StudentEditModal = lazy(() => import('../admin/modals/StudentEditModal'));
 const SettingsTab = lazy(() => import('../admin/tabs/SettingsTab'));
+const DashboardTab = lazy(() => import('../admin/tabs/DashboardTab'));
+
 
 const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     const { schoolData, CLASSES, SUBJECTS, TERMS, SECTIONS, WEIGHTS, CLASS_SERIAL_STARTS, CLASS_FEE_DEFAULTS, EXPENSES, fetchData, setStudents, setFaculty, updateSchoolInfo, updateSchoolSettings, setAnnouncements, updateClasses, updateSubjects, updateTerms, updateSections, updateWeights, updateClassSerialStarts, updateClassFeeDefaults, updateExpenses, adminCredentials, changeAdminPassword, currencySymbol, schoolSettings, completeOnboarding, loading } = useSchoolData();
@@ -43,8 +47,13 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     }
 
     const schoolName = schoolData?.name || 'School Name';
+    const students = schoolData?.students || [];
     const [activeTab, setActiveTab] = useState('dashboard');
     const [saveMessage, setSaveMessage] = useState('');
+    const showSaveMessage = (msg) => {
+        setSaveMessage(msg);
+        setTimeout(() => setSaveMessage(''), 3000);
+    };
     const sectionClasses = (SECTIONS || []).flatMap(s => s.classes || []);
     const [selectedClass, setSelectedClass] = useState(sectionClasses[0] || '');
     // Per-class subjects: SUBJECTS is now { className: [subject,...] }
@@ -761,8 +770,6 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     const [editingStudentId, setEditingStudentId] = useState(null);
     const [editStudentData, setEditStudentData] = useState(null);
 
-    const students = schoolData.students || [];
-
     const handleFacultyPhotoUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -811,11 +818,6 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         await supabase.auth.signOut();
         setIsAdmin(false);
         setCurrentPage('home');
-    };
-
-    const showSaveMessage = (msg) => {
-        setSaveMessage(msg);
-        setTimeout(() => setSaveMessage(''), 3000);
     };
 
     const uploadImage = async (file, bucket) => {
@@ -932,6 +934,12 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
             await fetchData(); // Refresh local state
             showSaveMessage(`Student ${d.studentName} saved with ID: ${studentId}${autoSerial ? ` (Serial: ${autoSerial})` : ''}`);
+
+            // WhatsApp Automation: Welcome Message
+            if (schoolSettings?.auto_admission_alert) {
+                const welcomeMsg = WhatsAppTemplates.admissionWelcome(d.studentName, studentId, schoolName);
+                sendWhatsAppMessage(d.whatsapp, welcomeMsg, schoolSettings);
+            }
         } catch (error) {
             console.error("Error saving admission:", error.message);
             alert("Error saving to database, but printing will continue: " + error.message);
@@ -1557,6 +1565,15 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             fetchData();
             const statusLabel = status === 'present' ? '✓ Present' : status === 'absent' ? '✗ Absent' : status === 'leave' ? '📋 Leave' : '⏰ Late';
             showSaveMessage(`${statusLabel} marked for ${student.name} on ${today}!`);
+
+            // WhatsApp Automation: Attendance Alert
+            if (status === 'absent' && schoolSettings?.auto_attendance_alert) {
+                const parentPhone = student.admissions?.[0]?.whatsapp || student.admissions?.[0]?.contact || '';
+                if (parentPhone) {
+                    const msg = WhatsAppTemplates.attendanceAbsent(student.name, today, schoolName);
+                    sendWhatsAppMessage(parentPhone, msg, schoolSettings);
+                }
+            }
         }
     };
 
@@ -1699,6 +1716,22 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         });
         await setStudents(updatedStudents);
         showSaveMessage('Fee record updated successfully!');
+
+        // WhatsApp Automation: Fee Receipt
+        if (newRecordData.status === 'paid' && schoolSettings?.auto_fee_alert) {
+            const student = students.find(s => s.id === studentId);
+            const parentPhone = student?.admissions?.[0]?.whatsapp || student?.admissions?.[0]?.contact || '';
+            if (parentPhone) {
+                const msg = WhatsAppTemplates.feePaid(
+                    student.name, 
+                    monthLabel, 
+                    `${currencySymbol} ${newRecordData.paidAmount || 0}`, 
+                    `${currencySymbol} ${newRecordData.balance || 0}`, 
+                    schoolName
+                );
+                sendWhatsAppMessage(parentPhone, msg, schoolSettings);
+            }
+        }
     };
 
     // Mark all students in selected class as paid for a given month
@@ -2574,6 +2607,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         { id: 'admissions', label: 'Admissions Desk', icon: PlusCircle, desc: 'Handle new enrollments and student applications.' },
         { id: 'classes', label: 'Classes & Sections', icon: Users, desc: 'Configure classrooms and manage student rosters.' },
         { id: 'marks', label: 'Manage Exams', icon: Award, desc: 'Input exam marks and configure subject weights.' },
+        { id: 'scanner', label: 'QR Scanner', icon: Camera, desc: 'Instantly scan ID cards for daily attendance.' },
         { id: 'attendance', label: 'Attendance', icon: Calendar, desc: 'Track daily attendance and absentees.' },
         { id: 'fees', label: 'Fee Management', icon: DollarSign, desc: 'Record tuition fees and payments.' },
         { id: 'expenses', label: 'Expense Tracker', icon: TrendingDown, desc: 'Log expenses and view net profit.' },
@@ -2796,93 +2830,18 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 </header>
 
                 <div className="dashboard-content">
-                    {/* ── Dashboard Grid Menu ── */}
+                    {/* ── BI Insights Dashboard ── */}
                     {activeTab === 'dashboard' && (
-                        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-
-                            {/* Welcome Banner */}
-                            <div className="dashboard-banner">
-                                <div className="dashboard-banner-content">
-                                    <h2>Good Morning, Admin!</h2>
-                                    <p>Here is what's happening at your school today. Select a module below to manage operations.</p>
-                                </div>
-                                {/* Decorative Circles */}
-                                <div className="banner-circle banner-circle-top"></div>
-                                <div className="banner-circle banner-circle-bottom"></div>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
-                                {adminTabs.map((tab, idx) => {
-                                    // Assign distinct colors based on index to make the grid pop
-                                    const colors = [
-                                        { bg: '#eff6ff', icon: '#3b82f6', border: '#bfdbfe', grad: 'linear-gradient(135deg, white 0%, #eff6ff 100%)' }, // Blue
-                                        { bg: '#fdf4ff', icon: '#d946ef', border: '#fbcfe8', grad: 'linear-gradient(135deg, white 0%, #fae8ff 100%)' }, // Fuchsia
-                                        { bg: '#ecfdf5', icon: '#10b981', border: '#a7f3d0', grad: 'linear-gradient(135deg, white 0%, #d1fae5 100%)' }, // Emerald
-                                        { bg: '#fff7ed', icon: '#f97316', border: '#fed7aa', grad: 'linear-gradient(135deg, white 0%, #ffedd5 100%)' }, // Orange
-                                        { bg: '#f5f3ff', icon: '#8b5cf6', border: '#ddd6fe', grad: 'linear-gradient(135deg, white 0%, #ede9fe 100%)' }, // Violet
-                                        { bg: '#f0fdfa', icon: '#14b8a6', border: '#99f6e4', grad: 'linear-gradient(135deg, white 0%, #ccfbf1 100%)' }, // Teal
-                                        { bg: '#fef2f2', icon: '#ef4444', border: '#fecaca', grad: 'linear-gradient(135deg, white 0%, #fee2e2 100%)' }, // Red
-                                        { bg: '#fefce8', icon: '#eab308', border: '#fef08a', grad: 'linear-gradient(135deg, white 0%, #fef9c3 100%)' }, // Yellow
-                                        { bg: '#f8fafc', icon: '#64748b', border: '#e2e8f0', grad: 'linear-gradient(135deg, white 0%, #f1f5f9 100%)' }, // Slate
-                                        { bg: '#fdf2f8', icon: '#ec4899', border: '#fbcfe8', grad: 'linear-gradient(135deg, white 0%, #fce7f3 100%)' }  // Pink
-                                    ];
-                                    const c = colors[idx % colors.length];
-
-                                    return (
-                                        <div
-                                            key={tab.id}
-                                            onClick={() => setActiveTab(tab.id)}
-                                            className="card"
-                                            style={{
-                                                padding: '2rem 1.75rem',
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                alignItems: 'flex-start',
-                                                textAlign: 'left',
-                                                gap: '1.25rem',
-                                                transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                                                border: '1px solid #e2e8f0',
-                                                borderTop: `5px solid ${c.icon}`,
-                                                background: c.grad,
-                                                borderRadius: '20px',
-                                                position: 'relative',
-                                                overflow: 'hidden'
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                e.currentTarget.style.transform = 'translateY(-8px) scale(1.02)';
-                                                e.currentTarget.style.boxShadow = `0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px ${c.icon}40`;
-                                                e.currentTarget.style.borderColor = c.border;
-                                                const iconBg = e.currentTarget.querySelector('.icon-bg');
-                                                if (iconBg) iconBg.style.transform = 'scale(1.15) rotate(5deg)';
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                                                e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-                                                e.currentTarget.style.borderColor = '#e2e8f0';
-                                                const iconBg = e.currentTarget.querySelector('.icon-bg');
-                                                if (iconBg) iconBg.style.transform = 'scale(1) rotate(0deg)';
-                                            }}
-                                        >
-                                            <div className="icon-bg" style={{
-                                                background: c.bg,
-                                                padding: '1.25rem',
-                                                borderRadius: '16px',
-                                                color: c.icon,
-                                                boxShadow: `inset 0 2px 4px rgba(255,255,255,0.5), 0 4px 6px -1px ${c.icon}20`,
-                                                transition: 'transform 0.3s ease'
-                                            }}>
-                                                <tab.icon size={36} strokeWidth={2.5} />
-                                            </div>
-                                            <div>
-                                                <h3 style={{ fontWeight: 800, fontSize: '1.2rem', color: '#0f172a', marginBottom: '0.4rem', letterSpacing: '-0.3px' }}>{tab.label}</h3>
-                                                <p style={{ color: '#64748b', fontSize: '0.9rem', lineHeight: 1.5, margin: 0 }}>{tab.desc}</p>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
+                        <Suspense fallback={<div style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>Loading dashboard insights...</div>}>
+                            <DashboardTab 
+                                students={students} 
+                                schoolData={schoolData} 
+                                EXPENSES={EXPENSES} 
+                                adminTabs={adminTabs} 
+                                setActiveTab={setActiveTab} 
+                                currencySymbol={currencySymbol} 
+                            />
+                        </Suspense>
                     )}
 
                     {/* ── Tab Content ── */}
@@ -2910,6 +2869,17 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                     />
                                 )}
 
+                                {/* Scanner */}
+                                {activeTab === 'scanner' && (
+                                    <ScannerTab
+                                        students={students}
+                                        setStudents={setStudents}
+                                        showSaveMessage={showSaveMessage}
+                                        schoolName={schoolName}
+                                        schoolSettings={schoolSettings}
+                                    />
+                                )}
+
                                 {/* Attendance */}
                                 {activeTab === 'attendance' && (
                                     <AttendanceTab
@@ -2923,7 +2893,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                     />
                                 )}
 
-                                {/* Fee */}
+                                 {/* Fee */}
                                 {activeTab === 'fees' && (
                                     <FeeTab
                                         students={students} selectedClass={selectedClass} setSelectedClass={setSelectedClass} sectionClasses={sectionClasses}
@@ -2932,6 +2902,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         deleteFeeMonth={deleteFeeMonth} updateStudentFeeRecord={updateStudentFeeRecord}
                                         CLASS_FEE_DEFAULTS={CLASS_FEE_DEFAULTS} updateClassFeeDefaults={updateClassFeeDefaults}
                                         currencySymbol={currencySymbol} schoolName={schoolName} schoolLogo={schoolSettings?.logo_url || '/logo.png'}
+                                        schoolSettings={schoolSettings}
                                     />
                                 )}
 
@@ -2983,6 +2954,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         tempFacultyMember={tempFacultyMember} setTempFacultyMember={setTempFacultyMember}
                                         addFaculty={addFaculty} saveFaculty={saveFaculty} deleteFaculty={deleteFaculty}
                                         facultyFileRef={facultyFileRef}
+                                        fetchData={fetchData} showSaveMessage={showSaveMessage}
                                     />
                                 )}
 

@@ -14,7 +14,8 @@ const FeeModal = ({ student, record, onClose, updateStudentFeeRecord, classDefau
         paidAmount: record.paidAmount || (record.status === 'paid' ? 1000 : 0),
         status: record.status || 'unpaid',
         paymentDate: record.paymentDate || new Date().toISOString().split('T')[0],
-        paymentMethod: record.paymentMethod || 'Cash'
+        paymentMethod: record.paymentMethod || 'Cash',
+        isOnline: record.isOnline || false
     });
 
     const baseTotal = ['tuitionFee', 'admissionFee', 'annualFee', 'examFee', 'transportFee', 'labFee'].reduce((sum, key) => sum + Number(formData[key]), 0);
@@ -147,8 +148,15 @@ const FeeModal = ({ student, record, onClose, updateStudentFeeRecord, classDefau
                                     <option value="EasyPaisa">EasyPaisa</option>
                                     <option value="JazzCash">JazzCash</option>
                                     <option value="Cheque">Cheque</option>
+                                    <option value="Online Portal">Online Portal</option>
                                 </select>
                             </div>
+                        </div>
+                        <div style={{ marginBottom: '1rem' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700, color: '#0369a1' }}>
+                                <input type="checkbox" checked={formData.isOnline} onChange={e => setFormData({...formData, isOnline: e.target.checked})} />
+                                Mark as Online Payment
+                            </label>
                         </div>
                         <div>
                             <label className="form-label">Manual Status Override</label>
@@ -162,9 +170,22 @@ const FeeModal = ({ student, record, onClose, updateStudentFeeRecord, classDefau
                 </div>
 
                 <div style={{ padding: '1.25rem 1.5rem', background: '#f8fafc', borderTop: '1px solid #e2e8f0', borderRadius: '0 0 16px 16px', display: 'flex', justifyContent: 'space-between' }}>
-                    <button onClick={handlePrintReceipt} className="btn" style={{ background: 'white', border: '2px solid #e2e8f0', color: '#475569', display: 'flex', gap: '0.5rem', alignItems: 'center', fontWeight: 700 }}>
-                        <Printer size={16} /> Print Receipt
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button onClick={handlePrintReceipt} className="btn" style={{ background: 'white', border: '2px solid #e2e8f0', color: '#475569', display: 'flex', gap: '0.4rem', alignItems: 'center', fontWeight: 700 }}>
+                            <Printer size={16} /> Print
+                        </button>
+                        <button 
+                            onClick={() => {
+                                const msg = `Fee Reminder for ${student.name} (${record.month}):\n\nTotal Due: ${currencySymbol} ${netPayable}\nPaid: ${currencySymbol} ${formData.paidAmount}\nBalance: ${currencySymbol} ${balance}\n\nPay via:\n${schoolSettings?.bank_account ? `- Bank: ${schoolSettings.bank_account} (${schoolSettings.bank_name})\n` : ''}${schoolSettings?.easypaisa_number ? `- EasyPaisa: ${schoolSettings.easypaisa_number}\n` : ''}${schoolSettings?.jazzcash_number ? `- JazzCash: ${schoolSettings.jazzcash_number}\n` : ''}\nThank you, ${schoolName}`;
+                                navigator.clipboard.writeText(msg);
+                                alert('Payment information copied to clipboard! You can now paste and send it to the parent.');
+                            }}
+                            className="btn" 
+                            style={{ background: '#f0f9ff', border: '2px solid #bae6fd', color: '#0369a1', display: 'flex', gap: '0.4rem', alignItems: 'center', fontWeight: 700 }}
+                        >
+                            <MessageCircle size={16} /> Share Link
+                        </button>
+                    </div>
                     <div style={{ display: 'flex', gap: '0.75rem' }}>
                         <button onClick={onClose} className="btn" style={{ background: 'white', border: '1px solid #e2e8f0', color: '#64748b' }}>Cancel</button>
                         <button onClick={handleSave} className="btn btn-primary" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><Save size={16} /> Save Record</button>
@@ -180,7 +201,8 @@ const FeeTab = ({
     openNewFeeMonth, toggleMonthFeeStatus, markAllPaidForMonth,
     markAllUnpaidForMonth, deleteFeeMonth, updateStudentFeeRecord,
     CLASS_FEE_DEFAULTS, updateClassFeeDefaults,
-    currencySymbol = 'RS', schoolName = 'School', schoolLogo = '/logo.png'
+    currencySymbol = 'RS', schoolName = 'School', schoolLogo = '/logo.png',
+    schoolSettings = {}
 }) => {
     const [genderTab, setGenderTab] = useState('all');
     const [selectedFee, setSelectedFee] = useState(null);
@@ -235,8 +257,16 @@ const FeeTab = ({
             <div style="font-weight:800; font-size:14px; display:flex; justify-content:space-between; margin-top:10px; padding-top:10px; border-top:2px solid #e2e8f0;"><span>NET PAYABLE</span> <span>${currencySymbol} ${netPayable}</span></div>
             <div style="font-size:12px; display:flex; justify-content:space-between; margin-top:5px;"><span>Amount Paid</span> <span>${currencySymbol} ${paidAmount}</span></div>
             <div style="font-weight:700; font-size:12px; display:flex; justify-content:space-between; margin-top:5px; color:#dc2626;"><span>Balance Due</span> <span>${currencySymbol} ${balance}</span></div>
+            
             <hr style="border:0; border-top:1px dashed #cbd5e1; margin: 10px 0;" />
-            <div style="text-align:center; font-size:10px; color:#94a3b8;">System Generated Receipt</div>
+            <div style="background:#f8fafc; padding:8px; border-radius:6px; font-size:11px;">
+                <div style="font-weight:800; color:#1e3a8a; margin-bottom:4px; text-transform:uppercase;">Pay Online Using:</div>
+                ${schoolSettings?.bank_account ? `<div style="margin-bottom:2px;">Bank: ${schoolSettings.bank_name} / ${schoolSettings.bank_account}</div>` : ''}
+                ${schoolSettings?.easypaisa_number ? `<div style="margin-bottom:2px;">EasyPaisa: ${schoolSettings.easypaisa_number}</div>` : ''}
+                ${schoolSettings?.jazzcash_number ? `<div style="margin-bottom:2px;">JazzCash: ${schoolSettings.jazzcash_number}</div>` : ''}
+                ${schoolSettings?.payment_instructions ? `<div style="font-style:italic; margin-top:4px; font-size:10px; color:#64748b;">* ${schoolSettings.payment_instructions}</div>` : ''}
+            </div>
+            <div style="text-align:center; font-size:10px; color:#94a3b8; margin-top:10px;">System Generated Receipt</div>
         </div>`;
     };
 
@@ -468,9 +498,10 @@ const FeeTab = ({
                                                             history.map(h => {
                                                                 const isPaid = h.status === 'paid';
                                                                 const isPartial = h.status === 'partial';
+                                                                const isOnline = h.isOnline || h.paymentMethod === 'Online Portal';
                                                                 const bg = isPaid ? '#dcfce7' : (isPartial ? '#fef3c7' : '#fee2e2');
                                                                 const color = isPaid ? '#16a34a' : (isPartial ? '#d97706' : '#dc2626');
-                                                                const icon = isPaid ? '✓' : (isPartial ? '⚠' : '✗');
+                                                                const icon = isPaid ? (isOnline ? '🌐' : '✓') : (isPartial ? '⚠' : '✗');
                                                                 return (
                                                                 <button key={h.month} onClick={() => setSelectedFee({ student, record: h })}
                                                                     title="Click to view & edit detailed fee record"

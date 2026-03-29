@@ -15,7 +15,19 @@ const SettingsTab = ({ schoolData, schoolSettings, updateSchoolInfo, updateSchoo
         phone:    schoolData?.contact?.phone    || '',
         email:    schoolData?.contact?.email    || '',
         // logo_url lives in the `schools` table (schoolSettings), NOT school_info
-        logo_url: schoolSettings?.logo_url      || schoolData?.logo_url || '/logo.png'
+        logo_url: schoolSettings?.logo_url      || schoolData?.logo_url || '/logo.png',
+        // Payment Settings
+        bank_name: schoolSettings?.bank_name || '',
+        bank_account: schoolSettings?.bank_account || '',
+        easypaisa_number: schoolSettings?.easypaisa_number || '',
+        jazzcash_number: schoolSettings?.jazzcash_number || '',
+        payment_instructions: schoolSettings?.payment_instructions || '',
+        // WhatsApp Automation Settings
+        whatsapp_api_key: schoolSettings?.whatsapp_api_key || '',
+        whatsapp_phone_id: schoolSettings?.whatsapp_phone_id || '',
+        auto_attendance_alert: schoolSettings?.auto_attendance_alert ?? false,
+        auto_fee_alert: schoolSettings?.auto_fee_alert ?? false,
+        auto_admission_alert: schoolSettings?.auto_admission_alert ?? false
     });
 
     const handleSave = async () => {
@@ -24,8 +36,20 @@ const SettingsTab = ({ schoolData, schoolSettings, updateSchoolInfo, updateSchoo
         const { logo_url, ...infoData } = form;
         const { error: infoError } = await updateSchoolInfo(infoData);
         
-        // Save brand details (logo) to schools table
-        const { error: settingsError } = await updateSchoolSettings({ logo_url });
+        // Save brand details (logo) and payment settings to schools table
+        const { error: settingsError } = await updateSchoolSettings({ 
+            logo_url,
+            bank_name: form.bank_name,
+            bank_account: form.bank_account,
+            easypaisa_number: form.easypaisa_number,
+            jazzcash_number: form.jazzcash_number,
+            payment_instructions: form.payment_instructions,
+            whatsapp_api_key: form.whatsapp_api_key,
+            whatsapp_phone_id: form.whatsapp_phone_id,
+            auto_attendance_alert: form.auto_attendance_alert,
+            auto_fee_alert: form.auto_fee_alert,
+            auto_admission_alert: form.auto_admission_alert
+        });
 
         setLoading(false);
         if (infoError) alert('Error updating info: ' + infoError.message);
@@ -231,6 +255,139 @@ const SettingsTab = ({ schoolData, schoolSettings, updateSchoolInfo, updateSchoo
                             />
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* Payment & Billing Section */}
+            <div style={sectionStyle}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.8rem' }}>
+                    <div style={{ padding: '0.6rem', background: '#fef3c7', borderRadius: '12px' }}>
+                        <ImageIcon size={24} color="#d97706" />
+                    </div>
+                    <div>
+                        <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Payment & Billing Methods</h3>
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>Configure accounts where parents can send online payments.</p>
+                    </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.25rem' }}>
+                    <div>
+                        <label style={labelStyle}>Bank Name</label>
+                        <input 
+                            type="text" 
+                            placeholder="e.g. Meezan Bank, HBL"
+                            value={form.bank_name} 
+                            onChange={e => setForm({...form, bank_name: e.target.value})} 
+                            style={inputStyle} 
+                        />
+                    </div>
+                    <div>
+                        <label style={labelStyle}>Bank Account / IBAN</label>
+                        <input 
+                            type="text" 
+                            placeholder="Enter full account number"
+                            value={form.bank_account} 
+                            onChange={e => setForm({...form, bank_account: e.target.value})} 
+                            style={inputStyle} 
+                        />
+                    </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.25rem' }}>
+                    <div>
+                        <label style={labelStyle}>EasyPaisa Account Number</label>
+                        <input 
+                            type="text" 
+                            placeholder="03xxxxxxxxx"
+                            value={form.easypaisa_number} 
+                            onChange={e => setForm({...form, easypaisa_number: e.target.value})} 
+                            style={inputStyle} 
+                        />
+                    </div>
+                    <div>
+                        <label style={labelStyle}>JazzCash Account Number</label>
+                        <input 
+                            type="text" 
+                            placeholder="03xxxxxxxxx"
+                            value={form.jazzcash_number} 
+                            onChange={e => setForm({...form, jazzcash_number: e.target.value})} 
+                            style={inputStyle} 
+                        />
+                    </div>
+                </div>
+
+                <div>
+                    <label style={labelStyle}>Payment Instructions for Parents</label>
+                    <textarea 
+                        value={form.payment_instructions} 
+                        onChange={e => setForm({...form, payment_instructions: e.target.value})} 
+                        style={{ ...textareaStyle, minHeight: '80px' }} 
+                        placeholder="Instructions displayed on online billing (e.g. Please share screenshot after payment)"
+                    />
+                </div>
+            </div>
+
+            {/* WhatsApp Automation Section */}
+            <div style={sectionStyle}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.8rem' }}>
+                    <div style={{ padding: '0.6rem', background: '#dcfce7', borderRadius: '12px' }}>
+                        <MessageCircle size={24} color="#16a34a" />
+                    </div>
+                    <div>
+                        <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>WhatsApp Automation (API)</h3>
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>Configure professional automated alerts for parents.</p>
+                    </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                    <div>
+                        <label style={labelStyle}>WhatsApp Business API Key</label>
+                        <input 
+                            type="password" 
+                            placeholder="Enter Cloud API Token"
+                            value={form.whatsapp_api_key} 
+                            onChange={e => setForm({...form, whatsapp_api_key: e.target.value})} 
+                            style={inputStyle} 
+                        />
+                    </div>
+                    <div>
+                        <label style={labelStyle}>Phone Number ID</label>
+                        <input 
+                            type="text" 
+                            placeholder="Business Phone ID"
+                            value={form.whatsapp_phone_id} 
+                            onChange={e => setForm({...form, whatsapp_phone_id: e.target.value})} 
+                            style={inputStyle} 
+                        />
+                    </div>
+                </div>
+
+                <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#475569', marginBottom: '1rem', textTransform: 'uppercase' }}>Automation Triggers</h4>
+                
+                <div style={{ display: 'grid', gap: '1rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={form.auto_attendance_alert} onChange={e => setForm({...form, auto_attendance_alert: e.target.checked})} />
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Instant Attendance Alerts</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Send WhatsApp message to parents automatically when student is marked 'Absent'.</div>
+                        </div>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={form.auto_fee_alert} onChange={e => setForm({...form, auto_fee_alert: e.target.checked})} />
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Fee Payment Confirmations</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Send digital receipt link via WhatsApp as soon as fee is marked 'Paid'.</div>
+                        </div>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={form.auto_admission_alert} onChange={e => setForm({...form, auto_admission_alert: e.target.checked})} />
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Welcome & Registration Message</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Send onboarding details to new students when admission is finalized.</div>
+                        </div>
+                    </label>
                 </div>
             </div>
         </div>

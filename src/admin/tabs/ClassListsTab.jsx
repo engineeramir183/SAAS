@@ -147,6 +147,9 @@ const ClassListsTab = ({
                     <div><div class="label">B-Form / CNIC</div><div>${bForm}</div></div>
                     <div><div class="label">Gender</div><div>${gender}</div></div>
                 </div>
+                <div style="position: absolute; bottom: 25px; right: 15px;">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=45x45&data=${s.id}" alt="QR Code" style="border:1px solid #e2e8f0; border-radius: 4px; padding: 2px; background: white;" />
+                </div>
                 <div class="footer">STUDENT IDENTITY CARD</div>
             </div>`;
         });
