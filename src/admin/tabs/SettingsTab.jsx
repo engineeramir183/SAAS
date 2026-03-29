@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, Building2, Target, Eye, MapPin, Phone, Mail, Globe, Image as ImageIcon, Upload } from 'lucide-react';
+import { Save, Building2, Target, Eye, MapPin, Phone, Mail, Globe, Image as ImageIcon, Upload, MessageCircle } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 
 const SettingsTab = ({ schoolData, schoolSettings, updateSchoolInfo, updateSchoolSettings, showSaveMessage }) => {
