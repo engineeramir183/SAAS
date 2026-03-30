@@ -17,16 +17,27 @@ const SaaSLanding = ({ setCurrentPage }) => {
 
     return (
         <div style={{ fontFamily: "'Inter', sans-serif", background: '#f8fafc', color: '#0f172a', minHeight: '100vh', overflowX: 'hidden' }}>
-            
+            <style>{`
+                @media (max-width: 768px) {
+                    .saas-header { flex-direction: column !important; padding: 1rem !important; gap: 1rem; }
+                    .saas-nav { flex-wrap: wrap; justify-content: center; gap: 1rem !important; }
+                    .saas-nav a, .saas-nav button { font-size: 0.85rem; padding: 0.5rem 1rem !important; }
+                    .saas-title { font-size: 2.5rem !important; }
+                    .saas-subtitle { font-size: 1rem !important; padding: 0 1rem; }
+                    .saas-hero-btns { flex-direction: column; padding: 0 1rem; }
+                    .saas-hero-btns a { width: 100%; justify-content: center; }
+                }
+            `}</style>
+
             {/* Header */}
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem 5%', background: 'white', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 100 }}>
+            <header className="saas-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem 5%', background: 'white', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 100 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <div style={{ background: 'linear-gradient(135deg, #1e293b, #0f172a)', padding: '0.6rem', borderRadius: '10px', color: 'white' }}>
                         <MonitorSmartphone size={24} />
                     </div>
                     <span style={{ fontSize: '1.5rem', fontWeight: 900, letterSpacing: '-0.5px', color: '#1e293b' }}>{businessName.split(' ')[0]} <span style={{ color: '#0f172a', fontWeight: 400 }}>{businessName.split(' ').slice(1).join(' ')}</span></span>
                 </div>
-                <div style={{ display: 'flex', gap: '2rem', alignItems: 'center', fontWeight: 600, fontSize: '0.95rem', color: '#64748b' }}>
+                <div className="saas-nav" style={{ display: 'flex', gap: '2rem', alignItems: 'center', fontWeight: 600, fontSize: '0.95rem', color: '#64748b' }}>
                     <a href="#features" style={{ textDecoration: 'none', color: 'inherit', transition: 'color 0.2s' }}>Features</a>
                     <a href="#pricing" style={{ textDecoration: 'none', color: 'inherit', transition: 'color 0.2s' }}>Pricing</a>
                     <a href="#contact" style={{ textDecoration: 'none', color: 'inherit', transition: 'color 0.2s' }}>Contact</a>
@@ -40,7 +51,7 @@ const SaaSLanding = ({ setCurrentPage }) => {
                 <div style={{ position: 'absolute', top: '10%', left: '5%', width: '300px', height: '300px', background: 'rgba(59, 130, 246, 0.1)', filter: 'blur(100px)', borderRadius: '50%' }}></div>
                 <div style={{ position: 'absolute', top: '20%', right: '5%', width: '400px', height: '400px', background: 'rgba(99, 102, 241, 0.1)', filter: 'blur(120px)', borderRadius: '50%' }}></div>
                 
-                <h1 style={{ fontSize: '4.5rem', fontWeight: 900, lineHeight: 1.1, margin: '0 0 1.5rem', color: '#0f172a', textShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
+                <h1 className="saas-title" style={{ fontSize: '4.5rem', fontWeight: 900, lineHeight: 1.1, margin: '0 0 1.5rem', color: '#0f172a', textShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
                     {heroTitle.includes('for') ? (
                         <>
                             {heroTitle.split('for')[0]}for<br/>
@@ -48,10 +59,10 @@ const SaaSLanding = ({ setCurrentPage }) => {
                         </>
                     ) : heroTitle}
                 </h1>
-                <p style={{ fontSize: '1.25rem', color: '#475569', maxWidth: '750px', margin: '0 auto 3rem', lineHeight: 1.6 }}>
+                <p className="saas-subtitle" style={{ fontSize: '1.25rem', color: '#475569', maxWidth: '750px', margin: '0 auto 3rem', lineHeight: 1.6 }}>
                     {heroSubtitle}
                 </p>
-                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                <div className="saas-hero-btns" style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
                     <a href="#contact" style={{ textDecoration: 'none', background: '#0f172a', color: 'white', border: 'none', padding: '1rem 2.5rem', borderRadius: '12px', fontSize: '1.1rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 10px 25px -5px rgba(15,23,42,0.4)' }}>
                         Register Your School Today <ArrowRight size={20} />
                     </a>
