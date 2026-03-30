@@ -9,7 +9,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['favicon.ico', 'school-icon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['logo.png', 'apple-touch-icon.png'],
       manifest: {
         name: 'KHR Educo Platform',
         short_name: 'KHR Educo',
@@ -19,17 +19,20 @@ export default defineConfig({
         display: 'standalone',
         icons: [
           {
-            src: '/school-icon.svg',
+            src: '/logo.png',
             sizes: '192x192',
-            type: 'image/svg+xml'
+            type: 'image/png'
           },
           {
-            src: '/school-icon.svg',
+            src: '/logo.png',
             sizes: '512x512',
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'any maskable'
           }
         ]
+      },
+      devOptions: {
+        enabled: true
       }
     })
   ],
