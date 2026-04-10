@@ -51,7 +51,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     const students = schoolData?.students || [];
     const [activeTab, setActiveTab] = useState('dashboard');
     const [saveMessage, setSaveMessage] = useState('');
-    const isProPlan = schoolData?.plan === 'pro' || schoolData?.plan === 'premium';
+    const isProPlan = schoolSettings?.plan === 'pro' || schoolSettings?.plan === 'premium';
     const [upgradeModal, setUpgradeModal] = useState({ open: false, featureName: '' });
     const showSaveMessage = (msg) => {
         setSaveMessage(msg);

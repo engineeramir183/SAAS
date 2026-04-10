@@ -158,7 +158,8 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 about:         info?.about   || { mission: '', vision: '', values: [], history: '' },
                 contact:       info?.contact || { phone: '', email: '', address: '', hours: '' },
                 announcements: announcements || [],
-                students:      normalisedStudents
+                students:      normalisedStudents,
+                plan:          schoolRow?.plan
                 // Note: faculty, facilities, testimonials, blogs are loaded
                 // lazily via fetchPublicData() — only when public pages open
             }));
