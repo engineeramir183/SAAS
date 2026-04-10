@@ -29,10 +29,11 @@ const ExpensesTab = lazy(() => import('../admin/tabs/ExpensesTab'));
 const StudentEditModal = lazy(() => import('../admin/modals/StudentEditModal'));
 const SettingsTab = lazy(() => import('../admin/tabs/SettingsTab'));
 const DashboardTab = lazy(() => import('../admin/tabs/DashboardTab'));
+const PayrollTab = lazy(() => import('../admin/tabs/PayrollTab'));
 
 
 const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
-    const { schoolData, CLASSES, SUBJECTS, TERMS, SECTIONS, WEIGHTS, CLASS_SERIAL_STARTS, CLASS_FEE_DEFAULTS, EXPENSES, fetchData, setStudents, setFaculty, updateSchoolInfo, updateSchoolSettings, setAnnouncements, updateClasses, updateSubjects, updateTerms, updateSections, updateWeights, updateClassSerialStarts, updateClassFeeDefaults, updateExpenses, adminCredentials, changeAdminPassword, currencySymbol, schoolSettings, completeOnboarding, loading } = useSchoolData();
+    const { schoolData, CLASSES, SUBJECTS, TERMS, SECTIONS, WEIGHTS, CLASS_SERIAL_STARTS, CLASS_FEE_DEFAULTS, EXPENSES, fetchData, fetchPublicData, setStudents, setFaculty, updateSchoolInfo, updateSchoolSettings, setAnnouncements, updateClasses, updateSubjects, updateTerms, updateSections, updateWeights, updateClassSerialStarts, updateClassFeeDefaults, updateExpenses, adminCredentials, changeAdminPassword, currencySymbol, schoolSettings, completeOnboarding, loading } = useSchoolData();
     
     if (loading) {
         return (
@@ -2613,6 +2614,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         { id: 'attendance', label: 'Attendance', icon: Calendar, desc: 'Track daily attendance and absentees.', isPro: false },
         { id: 'fees', label: 'Fee Management', icon: DollarSign, desc: 'Record tuition fees and payments.', isPro: false },
         { id: 'expenses', label: 'Expense Tracker', icon: TrendingDown, desc: 'Log expenses and view net profit.', isPro: true },
+        { id: 'payroll', label: 'HR & Payroll', icon: BellPlus, desc: 'Process salaries, generate payslips, and track HR costs.', isPro: false },
         { id: 'reports', label: 'Report Cards', icon: FileText, desc: 'View analysis and print student report cards.', isPro: true },
         { id: 'faculty', label: 'Faculty & Teachers', icon: User, desc: 'Manage your teaching staff profiles.', isPro: false },
         { id: 'announcements', label: 'Noticeboard', icon: Megaphone, desc: 'Broadcast notices to portals.', isPro: false },
@@ -2968,8 +2970,17 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                 {/* Reports */}
                                 {activeTab === 'reports' && (
                                     <ReportsTab
-                                        students={students} reportSearch={reportSearch} setReportSearch={setReportSearch}
-                                        downloadStudentReport={downloadStudentReport}
+                                        students={students}
+                                        schoolData={schoolData}
+                                        SUBJECTS={SUBJECTS}
+                                        TERMS={TERMS}
+                                        WEIGHTS={WEIGHTS}
+                                        SECTIONS={SECTIONS}
+                                        selectedClass={selectedClass}
+                                        setSelectedClass={setSelectedClass}
+                                        sectionClasses={sectionClasses}
+                                        currencySymbol={currencySymbol}
+                                        schoolSettings={schoolSettings}
                                     />
                                 )}
 
@@ -2979,6 +2990,17 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         schoolData={schoolData}
                                         newAnnouncement={newAnnouncement} setNewAnnouncement={setNewAnnouncement}
                                         addAnnouncement={addAnnouncement} deleteAnnouncement={deleteAnnouncement}
+                                    />
+                                )}
+
+                                {/* Payroll */}
+                                {activeTab === 'payroll' && (
+                                    <PayrollTab
+                                        schoolData={schoolData}
+                                        fetchData={fetchData}
+                                        fetchPublicData={fetchPublicData}
+                                        showSaveMessage={showSaveMessage}
+                                        currencySymbol={currencySymbol}
                                     />
                                 )}
 

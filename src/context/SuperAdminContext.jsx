@@ -177,6 +177,44 @@ export const SuperAdminProvider = ({ children }) => {
         return { error: err };
     };
 
+    /**
+     * Update the subscription plan for a school (e.g., basic -> pro).
+     */
+    const updateSchoolPlan = async (schoolId, newPlan) => {
+        const { error: err } = await supabase
+            .from('schools')
+            .update({ plan: newPlan })
+            .eq('school_id', schoolId);
+
+        if (!err) await fetchAllSchools();
+        return { error: err };
+    };
+    /**
+     * Fetch platform-wide aggregated stats.
+     */
+    const fetchGlobalStats = async () => {
+        try {
+            const [
+                { count: studentCount },
+                { count: facultyCount },
+                { count: adminCount }
+            ] = await Promise.all([
+                supabase.from('students').select('*', { count: 'exact', head: true }),
+                supabase.from('faculty').select('*', { count: 'exact', head: true }),
+                supabase.from('admins').select('*', { count: 'exact', head: true })
+            ]);
+
+            return {
+                students: studentCount || 0,
+                faculty: facultyCount || 0,
+                admins: adminCount || 0
+            };
+        } catch (e) {
+            console.error('Error fetching global stats:', e);
+            return { students: 0, faculty: 0, admins: 0 };
+        }
+    };
+
     return (
         <SuperAdminContext.Provider value={{
             isSuperAdmin,
@@ -192,6 +230,8 @@ export const SuperAdminProvider = ({ children }) => {
             registerSchool,
             deactivateSchool,
             reactivateSchool,
+            updateSchoolPlan,
+            fetchGlobalStats,
         }}>
             {children}
         </SuperAdminContext.Provider>
