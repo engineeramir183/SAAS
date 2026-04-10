@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Save, Building2, Target, Eye, MapPin, Phone, Mail, Globe, Image as ImageIcon, Upload, MessageCircle } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 
-const SettingsTab = ({ schoolData, schoolSettings, updateSchoolInfo, updateSchoolSettings, showSaveMessage }) => {
+const SettingsTab = ({ schoolData, schoolSettings, currentSchoolId, updateSchoolInfo, updateSchoolSettings, showSaveMessage }) => {
     const [loading, setLoading] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
 
@@ -75,8 +75,9 @@ const SettingsTab = ({ schoolData, schoolSettings, updateSchoolInfo, updateSchoo
         setIsUploading(true);
         try {
             const fileExt = file.name.split('.').pop();
-            const fileName = `${schoolData?.id}-logo-${Date.now()}.${fileExt}`;
-            const { error: uploadError } = await supabase.storage.from('branding').upload(fileName, file);
+            // Use school_id (not schoolData.id which is undefined) and upsert to avoid duplicate errors
+            const fileName = `${currentSchoolId || schoolSettings?.school_id || 'school'}-logo.${fileExt}`;
+            const { error: uploadError } = await supabase.storage.from('branding').upload(fileName, file, { upsert: true });
             if (uploadError) throw uploadError;
 
             const { data: { publicUrl } } = supabase.storage.from('branding').getPublicUrl(fileName);

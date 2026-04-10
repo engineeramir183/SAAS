@@ -3071,6 +3071,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                     <SettingsTab
                                         schoolData={schoolData}
                                         schoolSettings={schoolSettings}
+                                        currentSchoolId={schoolSettings?.school_id}
                                         updateSchoolInfo={updateSchoolInfo}
                                         updateSchoolSettings={updateSchoolSettings}
                                         showSaveMessage={showSaveMessage}
