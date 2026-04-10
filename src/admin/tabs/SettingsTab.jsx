@@ -32,13 +32,22 @@ const SettingsTab = ({ schoolData, schoolSettings, updateSchoolInfo, updateSchoo
 
     const handleSave = async () => {
         setLoading(true);
-        // Save text details to school_info table
-        const { logo_url, ...infoData } = form;
+
+        // 1. Prepare data for 'school_info' table (public info)
+        const infoData = {
+            name: form.name,
+            tagline: form.tagline,
+            mission: form.mission,
+            vision: form.vision,
+            address: form.address,
+            phone: form.phone,
+            email: form.email
+        };
         const { error: infoError } = await updateSchoolInfo(infoData);
         
-        // Save brand details (logo) and payment settings to schools table
-        const { error: settingsError } = await updateSchoolSettings({ 
-            logo_url,
+        // 2. Prepare data for 'schools' table (private configuration/branding)
+        const settingsData = { 
+            logo_url: form.logo_url,
             bank_name: form.bank_name,
             bank_account: form.bank_account,
             easypaisa_number: form.easypaisa_number,
@@ -49,7 +58,8 @@ const SettingsTab = ({ schoolData, schoolSettings, updateSchoolInfo, updateSchoo
             auto_attendance_alert: form.auto_attendance_alert,
             auto_fee_alert: form.auto_fee_alert,
             auto_admission_alert: form.auto_admission_alert
-        });
+        };
+        const { error: settingsError } = await updateSchoolSettings(settingsData);
 
         setLoading(false);
         if (infoError) alert('Error updating info: ' + infoError.message);
