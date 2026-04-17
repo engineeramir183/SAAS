@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, DollarSign, Activity, TrendingUp, TrendingDown, Clock, ShieldCheck, GraduationCap, CheckCircle, ChevronDown, ChevronUp, Lock } from 'lucide-react';
+import { Users, DollarSign, Activity, TrendingUp, TrendingDown, Clock, ShieldCheck, GraduationCap, CheckCircle, ChevronDown, ChevronUp, Lock, Layout } from 'lucide-react';
 
 const DashboardTab = ({ students, schoolData, EXPENSES, adminTabs, setActiveTab, currencySymbol, isProPlan, setUpgradeModal }) => {
     const [revenueExpanded, setRevenueExpanded] = useState(false);
@@ -83,9 +83,11 @@ const DashboardTab = ({ students, schoolData, EXPENSES, adminTabs, setActiveTab,
             {/* Welcome Banner */}
             <div className="dashboard-banner" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)', color: 'white', borderRadius: '20px', padding: '2.5rem', position: 'relative', overflow: 'hidden', boxShadow: '0 10px 30px rgba(37, 99, 235, 0.2)' }}>
                 <div style={{ position: 'relative', zIndex: 10 }}>
-                    <h2 style={{ fontSize: '2rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>Data-Driven Insights</h2>
+                    <h2 style={{ fontSize: '2rem', fontWeight: 800, margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <Layout size={36} /> Overview
+                    </h2>
                     <p style={{ opacity: 0.9, fontSize: '1.05rem', margin: 0, maxWidth: '600px' }}>
-                        Monitor your school's performance metrics in real-time. Below is the business intelligence summary for {currentMonthLabel}.
+                        Welcome to your administration control center. Monitor your school's performance metrics in real-time.
                     </p>
                 </div>
                 {/* Decorative Elements */}

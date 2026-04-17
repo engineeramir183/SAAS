@@ -352,7 +352,7 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                                 <th style={{ padding: '1rem', fontWeight: 700 }}>School ID</th>
                                                 <th style={{ padding: '1rem', fontWeight: 700 }}>School Name</th>
                                                 <th style={{ padding: '1rem', fontWeight: 700 }}>Contact</th>
-                                                <th style={{ padding: '1rem', fontWeight: 700 }}>Region</th>
+                                                <th style={{ padding: '1rem', fontWeight: 700 }}>Reg. Date</th>
                                                 <th style={{ padding: '1rem', fontWeight: 700 }}>Plan</th>
                                                 <th style={{ padding: '1rem', fontWeight: 700 }}>Status</th>
                                                 <th style={{ padding: '1rem', fontWeight: 700, textAlign: 'right' }}>Actions</th>
@@ -380,7 +380,9 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                                             )}
                                                         </div>
                                                     </td>
-                                                    <td style={{ padding: '1rem', color: '#475569', fontSize: '0.9rem' }}>{s.country} ({s.currency_symbol})</td>
+                                                    <td style={{ padding: '1rem', color: '#475569', fontSize: '0.85rem', fontWeight: 500 }}>
+                                                        {new Date(s.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                                                    </td>
                                                     <td style={{ padding: '1rem' }}>
                                                         <span style={{ display: 'inline-block', padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700, background: s.plan === 'pro' ? '#fdf4ff' : '#f1f5f9', color: s.plan === 'pro' ? '#c026d3' : '#475569', textTransform: 'capitalize' }}>
                                                             {s.plan}
@@ -658,6 +660,10 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                             
                             <div style={{ padding: '2.5rem', maxHeight: '70vh', overflowY: 'auto' }}>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '2rem' }}>
+                                    <div>
+                                        <div style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Operational Region</div>
+                                        <div style={{ fontWeight: 600, color: '#1e293b' }}>{viewingSchool.country} ({viewingSchool.currency_symbol})</div>
+                                    </div>
                                     <div>
                                         <div style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Registration Date</div>
                                         <div style={{ fontWeight: 600, color: '#1e293b' }}>{new Date(viewingSchool.created_at).toLocaleDateString(undefined, { dateStyle: 'long' })}</div>

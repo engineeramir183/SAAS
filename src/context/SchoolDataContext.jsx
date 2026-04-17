@@ -343,15 +343,31 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
 
         const { error } = await supabase.from('students').upsert(dbStudents);
         if (!error) {
-            // Normalise and update local state directly — no full re-fetch needed
-            const normalisedStudents = studentsList.map(s => ({
+            // Normalise and update local state directly — merge instead of replace
+            const incomingNormalised = studentsList.map(s => ({
                 ...s,
                 photo:           s.image || s.photo,
                 feeHistory:      s.feeHistory      || s.fee_history      || [],
                 previousResults: s.previousResults || s.previous_results || [],
                 serialNumber:    s.serialNumber    !== undefined ? s.serialNumber : s.serial_number
             }));
-            setData(prev => ({ ...prev, students: normalisedStudents }));
+
+            setData(prev => {
+                const merged = [...(prev.students || [])];
+                incomingNormalised.forEach(ns => {
+                    const idx = merged.findIndex(s => s.id === ns.id);
+                    if (idx > -1) merged[idx] = ns;
+                    else merged.push(ns);
+                });
+                // Maintain sort order by serial number if possible
+                merged.sort((a, b) => {
+                    const snA = parseInt(a.serialNumber || a.serial_number, 10);
+                    const snB = parseInt(b.serialNumber || b.serial_number, 10);
+                    if (isNaN(snA) || isNaN(snB)) return 0;
+                    return snA - snB;
+                });
+                return { ...prev, students: merged };
+            });
         }
         return { error };
     };

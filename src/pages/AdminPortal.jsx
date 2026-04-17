@@ -33,7 +33,7 @@ const PayrollTab = lazy(() => import('../admin/tabs/PayrollTab'));
 
 
 const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
-    const { schoolData, CLASSES, SUBJECTS, TERMS, SECTIONS, WEIGHTS, CLASS_SERIAL_STARTS, CLASS_FEE_DEFAULTS, EXPENSES, fetchData, fetchPublicData, setStudents, setFaculty, updateSchoolInfo, updateSchoolSettings, setAnnouncements, updateClasses, updateSubjects, updateTerms, updateSections, updateWeights, updateClassSerialStarts, updateClassFeeDefaults, updateExpenses, adminCredentials, changeAdminPassword, currencySymbol, schoolSettings, completeOnboarding, loading } = useSchoolData();
+    const { schoolData, CLASSES, SUBJECTS, TERMS, SECTIONS, WEIGHTS, CLASS_SERIAL_STARTS, CLASS_FEE_DEFAULTS, EXPENSES, fetchData, fetchPublicData, setStudents, setFaculty, updateSchoolInfo, updateSchoolSettings, setAnnouncements, updateClasses, updateSubjects, updateTerms, updateSections, updateWeights, updateClassSerialStarts, updateClassFeeDefaults, updateExpenses, adminCredentials, changeAdminPassword, currencySymbol, schoolSettings, completeOnboarding, loading, currentSchoolId } = useSchoolData();
     
     if (loading) {
         return (
@@ -782,7 +782,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             if (editingFacultyId === 'new') {
                 setTempFacultyMember(prev => ({ ...prev, image: publicUrl }));
             } else {
-                const { error } = await supabase.from('faculty').update({ image: publicUrl }).eq('id', editingFacultyId);
+                const { error } = await supabase.from('faculty').update({ image: publicUrl }).eq('id', editingFacultyId).eq('school_id', currentSchoolId);
                 if (error) {
                     alert('Error updating database: ' + error.message);
                 } else {
@@ -804,7 +804,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             if (editingFacilityId === 'new') {
                 setTempFacility(prev => ({ ...prev, image: publicUrl }));
             } else {
-                const { error } = await supabase.from('facilities').update({ image: publicUrl }).eq('id', editingFacilityId);
+                const { error } = await supabase.from('facilities').update({ image: publicUrl }).eq('id', editingFacilityId).eq('school_id', currentSchoolId);
                 if (error) {
                     alert('Error updating database: ' + error.message);
                 } else {
@@ -928,7 +928,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 admissions: [d],
                 results: [],
                 attendance: { present: 0, absent: 0, total: 0, percentage: 0 },
-                previous_results: []
+                previous_results: [],
+                school_id: currentSchoolId
             };
 
             const { error } = await supabase.from('students').insert([newStudentRecord]);
@@ -1367,7 +1368,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             const { error } = await supabase
                 .from('students')
                 .update({ image: publicUrl }) // Update 'image' column in DB
-                .eq('id', selectedStudent);
+                .eq('id', selectedStudent)
+                .eq('school_id', currentSchoolId);
 
             if (error) {
                 alert('Error updating student: ' + error.message);
@@ -1407,7 +1409,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         const { error } = await supabase
             .from('students')
             .update({ results: [...tempMarks] })
-            .eq('id', selectedStudent);
+            .eq('id', selectedStudent)
+            .eq('school_id', currentSchoolId);
 
         if (!error) {
             fetchData();
@@ -1562,7 +1565,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         const { error } = await supabase
             .from('students')
             .update({ attendance: newAttendance })
-            .eq('id', studentId);
+            .eq('id', studentId)
+            .eq('school_id', currentSchoolId);
 
         if (!error) {
             fetchData();
@@ -1591,7 +1595,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         const total = records.length;
         const percentage = total > 0 ? parseFloat(((present / total) * 100).toFixed(1)) : 0;
         const newAttendance = { records, total, present, absent, percentage };
-        await supabase.from('students').update({ attendance: newAttendance }).eq('id', studentId);
+        await supabase.from('students').update({ attendance: newAttendance }).eq('id', studentId).eq('school_id', currentSchoolId);
         fetchData();
         showSaveMessage(`Record for ${dateStr} removed.`);
     };
@@ -2137,7 +2141,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             return;
         }
 
-        const { error } = await supabase.from('announcements').insert([newAnnouncement]);
+        const { error } = await supabase.from('announcements').insert([{ ...newAnnouncement, school_id: currentSchoolId }]);
         if (error) {
             alert('Error posting announcement: ' + error.message);
         } else {
@@ -2149,7 +2153,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
     const deleteAnnouncement = async (id) => {
         if (window.confirm('Are you sure you want to delete this announcement?')) {
-            const { error } = await supabase.from('announcements').delete().eq('id', id);
+            const { error } = await supabase.from('announcements').delete().eq('id', id).eq('school_id', currentSchoolId);
             if (error) {
                 alert('Error deleting announcement: ' + error.message);
             } else {
@@ -2173,7 +2177,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
     const saveFaculty = async () => {
         if (editingFacultyId === 'new') {
-            const { error } = await supabase.from('faculty').insert([tempFacultyMember]);
+            const { error } = await supabase.from('faculty').insert([{ ...tempFacultyMember, school_id: currentSchoolId }]);
             if (error) {
                 alert('Error adding faculty: ' + error.message);
                 return;
@@ -2182,7 +2186,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         } else {
             // Strip ID from payload for updates
             const { id, ...payload } = tempFacultyMember;
-            const { error } = await supabase.from('faculty').update(payload).eq('id', editingFacultyId);
+            const { error } = await supabase.from('faculty').update(payload).eq('id', editingFacultyId).eq('school_id', currentSchoolId);
             if (error) {
                 alert('Error updating faculty: ' + error.message);
                 return;
@@ -2196,7 +2200,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
     const deleteFaculty = async (id) => {
         if (window.confirm('Are you sure you want to remove this faculty member?')) {
-            const { error } = await supabase.from('faculty').delete().eq('id', id);
+            const { error } = await supabase.from('faculty').delete().eq('id', id).eq('school_id', currentSchoolId);
             if (error) {
                 alert('Error deleting faculty: ' + error.message);
             } else {
@@ -2219,7 +2223,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
     const saveFacility = async () => {
         if (editingFacilityId === 'new') {
-            const { error } = await supabase.from('facilities').insert([tempFacility]);
+            const { error } = await supabase.from('facilities').insert([{ ...tempFacility, school_id: currentSchoolId }]);
             if (error) {
                 alert('Error adding facility: ' + error.message);
                 return;
@@ -2228,7 +2232,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         } else {
             // Strip ID from payload for updates
             const { id, ...payload } = tempFacility;
-            const { error } = await supabase.from('facilities').update(payload).eq('id', editingFacilityId);
+            const { error } = await supabase.from('facilities').update(payload).eq('id', editingFacilityId).eq('school_id', currentSchoolId);
             if (error) {
                 alert('Error updating facility: ' + error.message);
                 return;
@@ -2242,7 +2246,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
     const deleteFacility = async (id) => {
         if (window.confirm('Are you sure you want to remove this facility?')) {
-            const { error } = await supabase.from('facilities').delete().eq('id', id);
+            const { error } = await supabase.from('facilities').delete().eq('id', id).eq('school_id', currentSchoolId);
             if (error) {
                 alert('Error deleting facility: ' + error.message);
             } else {
@@ -2274,7 +2278,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         }
 
         if (editingBlogId === 'new') {
-            const { error } = await supabase.from('blogs').insert([tempBlog]);
+            const { error } = await supabase.from('blogs').insert([{ ...tempBlog, school_id: currentSchoolId }]);
             if (error) {
                 alert('Error adding blog: ' + error.message);
                 return;
@@ -2282,7 +2286,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             showSaveMessage('Blog post added!');
         } else {
             const { id, created_at, updated_at, ...payload } = tempBlog;
-            const { error } = await supabase.from('blogs').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editingBlogId);
+            const { error } = await supabase.from('blogs').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editingBlogId).eq('school_id', currentSchoolId);
             if (error) {
                 alert('Error updating blog: ' + error.message);
                 return;
@@ -2296,7 +2300,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
     const deleteBlog = async (id) => {
         if (window.confirm('Are you sure you want to delete this blog post?')) {
-            const { error } = await supabase.from('blogs').delete().eq('id', id);
+            const { error } = await supabase.from('blogs').delete().eq('id', id).eq('school_id', currentSchoolId);
             if (error) {
                 alert('Error deleting blog: ' + error.message);
             } else {
@@ -2855,11 +2859,12 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                         </button>
                         <div>
                             <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                {activeTab === 'dashboard' ? <><Layout size={28} color="#2563eb" /> Overview</> :
-                                    <><span style={{ color: '#2563eb' }}>{adminTabs.find(t => t.id === activeTab)?.label}</span></>}
+                                {activeTab !== 'dashboard' && (
+                                    <span style={{ color: '#2563eb' }}>{adminTabs.find(t => t.id === activeTab)?.label}</span>
+                                )}
                             </h1>
                             <p style={{ color: '#64748b', margin: '0.25rem 0 0', fontSize: '0.95rem' }}>
-                                {activeTab === 'dashboard' ? 'Welcome to your administration control center.' : adminTabs.find(t => t.id === activeTab)?.desc}
+                                {activeTab !== 'dashboard' && adminTabs.find(t => t.id === activeTab)?.desc}
                             </p>
                         </div>
                     </div>
