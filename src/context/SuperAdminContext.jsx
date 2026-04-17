@@ -115,6 +115,7 @@ export const SuperAdminProvider = ({ children }) => {
                 country:         schoolPayload.country         || 'Pakistan',
                 currency_symbol: schoolPayload.currency_symbol || 'RS',
                 contact_email:   schoolPayload.contact_email   || null,
+                contact_phone:   schoolPayload.contact_phone   || null,
                 is_active:       true,
                 plan:            schoolPayload.plan            || 'basic',
             }]);

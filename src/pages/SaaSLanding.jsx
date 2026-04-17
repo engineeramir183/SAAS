@@ -124,7 +124,7 @@ const SaaSLanding = ({ setCurrentPage }) => {
                         <a key={href} href={href} className="nav-link" style={{ fontSize: '0.95rem' }}>{label}</a>
                     ))}
                     <button onClick={() => setCurrentPage('login')} style={{ background: '#f1f5f9', border: 'none', padding: '0.65rem 1.4rem', borderRadius: '8px', color: '#0f172a', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}>Client Login</button>
-                    <a href="#contact" style={{ textDecoration: 'none', background: 'linear-gradient(135deg, #2563eb, #7c3aed)', border: 'none', padding: '0.65rem 1.4rem', borderRadius: '8px', color: 'white', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(99,102,241,0.35)', fontSize: '0.9rem' }}>Start Free Trial</a>
+                    <button onClick={() => setCurrentPage('register')} style={{ textDecoration: 'none', background: 'linear-gradient(135deg, #2563eb, #7c3aed)', border: 'none', padding: '0.65rem 1.4rem', borderRadius: '8px', color: 'white', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(99,102,241,0.35)', fontSize: '0.9rem' }}>Register Your School</button>
                 </nav>
 
                 <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(p => !p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0f172a', alignItems: 'center' }}>
@@ -139,6 +139,7 @@ const SaaSLanding = ({ setCurrentPage }) => {
                         <a key={href} href={href} onClick={() => setMobileMenuOpen(false)} style={{ textDecoration: 'none', color: '#0f172a', fontWeight: 700, fontSize: '1.1rem' }}>{label}</a>
                     ))}
                     <button onClick={() => { setCurrentPage('login'); setMobileMenuOpen(false); }} style={{ background: '#f1f5f9', border: 'none', padding: '0.8rem', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', fontSize: '1rem', textAlign: 'left', color: '#0f172a' }}>Client Login</button>
+                    <button onClick={() => { setCurrentPage('register'); setMobileMenuOpen(false); }} style={{ background: 'linear-gradient(135deg, #2563eb, #7c3aed)', border: 'none', padding: '0.8rem', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', fontSize: '1rem', textAlign: 'left', color: 'white' }}>Register Your School</button>
                 </div>
             )}
 
@@ -163,9 +164,12 @@ const SaaSLanding = ({ setCurrentPage }) => {
                 <p style={{ fontSize: '1.2rem', color: '#475569', maxWidth: '700px', margin: '0 auto 3rem', lineHeight: 1.7 }}>{heroSubtitle}</p>
 
                 <div className="hero-btns" style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                    <a href="#contact" style={{ textDecoration: 'none', background: 'linear-gradient(135deg, #0f172a, #1e3a8a)', color: 'white', padding: '1rem 2.5rem', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 10px 30px rgba(15,23,42,0.35)' }}>
+                    <button
+                        onClick={() => setCurrentPage('register')}
+                        style={{ background: 'linear-gradient(135deg, #0f172a, #1e3a8a)', color: 'white', padding: '1rem 2.5rem', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 10px 30px rgba(15,23,42,0.35)', border: 'none', cursor: 'pointer' }}
+                    >
                         Register Your School <ArrowRight size={20} />
-                    </a>
+                    </button>
                     <a href="?school=acs-001" style={{ textDecoration: 'none', background: 'white', color: '#0f172a', border: '2px solid #e2e8f0', padding: '1rem 2.5rem', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
                         <Globe size={20} color="#64748b" /> Live Demo
                     </a>

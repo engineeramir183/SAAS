@@ -16,6 +16,7 @@ import Blog from './pages/Blog';
 import WhatsAppButton from './components/WhatsAppButton';
 import SuperAdminPortal from './pages/SuperAdminPortal';
 import SaaSLanding from './pages/SaaSLanding';
+import SchoolRegistrationForm from './pages/SchoolRegistrationForm';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // App — Multi-Tenant SaaS Edition
@@ -112,6 +113,12 @@ function App() {
                         setIsSuperAdminPage={setIsSuperAdminPage}
                     />
                 );
+            case 'register':
+                return (
+                    <SchoolRegistrationForm
+                        setCurrentPage={setCurrentPage}
+                    />
+                );
             default:
                 return <Home setCurrentPage={setCurrentPage} />;
         }
@@ -119,8 +126,8 @@ function App() {
 
     const isDashboard = ['portal', 'admin', 'developer', 'superadmin'].includes(currentPage);
 
-    // Don't render school navigation elements on the SaaS, SuperAdmin, or universal Login pages
-    const hideTenantFrame = currentPage === 'saas' || currentPage === 'superadmin' || currentPage === 'login';
+    // Don't render school navigation elements on the SaaS, SuperAdmin, Login, or Register pages
+    const hideTenantFrame = currentPage === 'saas' || currentPage === 'superadmin' || currentPage === 'login' || currentPage === 'register';
 
     return (
         // SuperAdminProvider wraps everything — it manages the school registry

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSuperAdmin } from '../context/SuperAdminContext';
-import { Building, ShieldCheck, PlusCircle, CheckCircle, XCircle, MoreVertical, LogOut, Users, Settings, Database, Info, BarChart, TrendingUp, DollarSign, Activity } from 'lucide-react';
+import { supabase } from '../supabaseClient';
+import { Building, ShieldCheck, PlusCircle, CheckCircle, XCircle, MoreVertical, LogOut, Users, Settings, Database, Info, BarChart, TrendingUp, DollarSign, Activity, Bell, Phone, Mail, ClipboardList } from 'lucide-react';
 
 const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
     const {
@@ -25,6 +26,9 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
     const [viewingSchool, setViewingSchool] = useState(null);
     const [statusMessage, setStatusMessage] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [requests, setRequests] = useState([]);
+    const [requestsLoading, setRequestsLoading] = useState(false);
+    const [pendingCount, setPendingCount] = useState(0);
 
     // SaaS Settings state
     const [saasForm, setSaasForm] = useState({
@@ -48,6 +52,56 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
 
     const [globalStats, setGlobalStats] = useState({ students: 0, faculty: 0, admins: 0 });
 
+    // ─── fetch pending registration requests ─────────────────────────────────
+    const fetchRequests = async () => {
+        setRequestsLoading(true);
+        const { data } = await supabase
+            .from('school_registration_requests')
+            .select('*')
+            .order('created_at', { ascending: false });
+        const list = data || [];
+        setRequests(list);
+        setPendingCount(list.filter(r => r.status === 'pending').length);
+        setRequestsLoading(false);
+    };
+
+    const approveRequest = async (req) => {
+        if (!window.confirm(`Approve and create school for "${req.school_name}"?`)) return;
+        setStatusMessage('Creating school...');
+        const schoolPayload = {
+            school_id:       req.requested_school_id,
+            school_name:     req.school_name,
+            country:         req.country || 'Pakistan',
+            currency_symbol: 'RS',
+            contact_email:   req.contact_email || null,
+            contact_phone:   req.contact_phone || null,
+            plan:            'basic'
+        };
+        const adminPayload = { username: req.admin_username, password: req.admin_password };
+        const res = await registerSchool(schoolPayload, adminPayload);
+        if (res.success) {
+            // Mark as approved
+            await supabase.from('school_registration_requests')
+                .update({ status: 'approved' })
+                .eq('id', req.id);
+            setStatusMessage(`✅ School "${req.school_name}" created and activated!`);
+            fetchRequests();
+            setTimeout(() => setStatusMessage(''), 4000);
+        } else {
+            setStatusMessage('Error: ' + (res.error?.message || 'Failed'));
+        }
+    };
+
+    const rejectRequest = async (req) => {
+        if (!window.confirm(`Reject request from "${req.school_name}"?`)) return;
+        await supabase.from('school_registration_requests')
+            .update({ status: 'rejected' })
+            .eq('id', req.id);
+        setStatusMessage(`Request from "${req.school_name}" rejected.`);
+        fetchRequests();
+        setTimeout(() => setStatusMessage(''), 3000);
+    };
+
     useEffect(() => {
         if (!isSuperAdmin) {
             setCurrentPage('login');
@@ -56,6 +110,7 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
             fetchAllSchools();
             fetchSaasInfo();
             fetchGlobalStats().then(setGlobalStats);
+            fetchRequests();
         }
     }, [isSuperAdmin]);
 
@@ -198,9 +253,15 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                 </div>
 
                 {/* Navigation Tabs */}
-                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
                     <button onClick={() => setActiveTab('schools')} style={{ background: activeTab === 'schools' ? '#1e293b' : 'white', color: activeTab === 'schools' ? 'white' : '#64748b', border: '1px solid #e2e8f0', padding: '0.6rem 1.2rem', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                         <Database size={18} /> Tenant Registry
+                    </button>
+                    <button onClick={() => { setActiveTab('requests'); fetchRequests(); }} style={{ background: activeTab === 'requests' ? '#1e293b' : 'white', color: activeTab === 'requests' ? 'white' : '#64748b', border: '1px solid #e2e8f0', padding: '0.6rem 1.2rem', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', position: 'relative' }}>
+                        <ClipboardList size={18} /> Registration Requests
+                        {pendingCount > 0 && (
+                            <span style={{ background: '#ef4444', color: 'white', borderRadius: '50%', width: '18px', height: '18px', fontSize: '0.65rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginLeft: '2px' }}>{pendingCount}</span>
+                        )}
                     </button>
                     <button onClick={() => setActiveTab('settings')} style={{ background: activeTab === 'settings' ? '#1e293b' : 'white', color: activeTab === 'settings' ? 'white' : '#64748b', border: '1px solid #e2e8f0', padding: '0.6rem 1.2rem', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                         <Settings size={18} /> Platform Settings
@@ -290,6 +351,7 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                             <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                                 <th style={{ padding: '1rem', fontWeight: 700 }}>School ID</th>
                                                 <th style={{ padding: '1rem', fontWeight: 700 }}>School Name</th>
+                                                <th style={{ padding: '1rem', fontWeight: 700 }}>Contact</th>
                                                 <th style={{ padding: '1rem', fontWeight: 700 }}>Region</th>
                                                 <th style={{ padding: '1rem', fontWeight: 700 }}>Plan</th>
                                                 <th style={{ padding: '1rem', fontWeight: 700 }}>Status</th>
@@ -299,8 +361,25 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                         <tbody>
                                             {schools.map(s => (
                                                 <tr key={s.school_id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                                    <td style={{ padding: '1rem', fontWeight: 600, color: '#0f172a', fontFamily: 'monospace' }}>{s.school_id}</td>
+                                                    <td style={{ padding: '1rem', fontWeight: 600, color: '#0f172a', fontFamily: 'monospace', fontSize: '0.85rem' }}>{s.school_id}</td>
                                                     <td style={{ padding: '1rem', fontWeight: 600, color: '#1e3a8a' }}>{s.school_name}</td>
+                                                    <td style={{ padding: '1rem' }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                                            {s.contact_phone && (
+                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: '#374151', fontWeight: 500 }}>
+                                                                    <Phone size={12} color="#6366f1" /> {s.contact_phone}
+                                                                </span>
+                                                            )}
+                                                            {s.contact_email && (
+                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: '#374151', fontWeight: 500 }}>
+                                                                    <Mail size={12} color="#10b981" /> {s.contact_email}
+                                                                </span>
+                                                            )}
+                                                            {!s.contact_phone && !s.contact_email && (
+                                                                <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>Not provided</span>
+                                                            )}
+                                                        </div>
+                                                    </td>
                                                     <td style={{ padding: '1rem', color: '#475569', fontSize: '0.9rem' }}>{s.country} ({s.currency_symbol})</td>
                                                     <td style={{ padding: '1rem' }}>
                                                         <span style={{ display: 'inline-block', padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700, background: s.plan === 'pro' ? '#fdf4ff' : '#f1f5f9', color: s.plan === 'pro' ? '#c026d3' : '#475569', textTransform: 'capitalize' }}>
@@ -336,6 +415,91 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                 )}
                             </div>
                         </>
+                    )}
+
+                    {/* ──── REGISTRATION REQUESTS ──── */}
+                    {activeTab === 'requests' && (
+                        <div className="animate-fade-in">
+                            <div style={{ padding: '1.5rem 2rem', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#1e293b' }}>School Registration Requests</h2>
+                                    <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: '#64748b' }}>Review and approve new school onboarding requests submitted via the landing page.</p>
+                                </div>
+                                <button onClick={fetchRequests} style={{ background: 'white', border: '1px solid #e2e8f0', padding: '0.5rem 1rem', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    🔄 Refresh
+                                </button>
+                            </div>
+                            <div style={{ padding: '1.5rem', overflowX: 'auto' }}>
+                                {requestsLoading ? (
+                                    <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>Loading requests...</div>
+                                ) : requests.length === 0 ? (
+                                    <div style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
+                                        <ClipboardList size={40} style={{ opacity: 0.3, marginBottom: '1rem' }} />
+                                        <p style={{ margin: 0, fontWeight: 600 }}>No registration requests yet.</p>
+                                        <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem' }}>When schools submit a registration form, they will appear here.</p>
+                                    </div>
+                                ) : (
+                                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#64748b', fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                <th style={{ padding: '0.8rem 1rem', fontWeight: 700, textAlign: 'left' }}>School Name</th>
+                                                <th style={{ padding: '0.8rem 1rem', fontWeight: 700, textAlign: 'left' }}>Requested ID</th>
+                                                <th style={{ padding: '0.8rem 1rem', fontWeight: 700, textAlign: 'left' }}>Contact</th>
+                                                <th style={{ padding: '0.8rem 1rem', fontWeight: 700, textAlign: 'left' }}>Admin Creds</th>
+                                                <th style={{ padding: '0.8rem 1rem', fontWeight: 700, textAlign: 'left' }}>Date</th>
+                                                <th style={{ padding: '0.8rem 1rem', fontWeight: 700, textAlign: 'left' }}>Status</th>
+                                                <th style={{ padding: '0.8rem 1rem', fontWeight: 700, textAlign: 'right' }}>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {requests.map(req => (
+                                                <tr key={req.id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                    <td style={{ padding: '1rem', fontWeight: 700, color: '#1e3a8a' }}>
+                                                        {req.school_name}
+                                                        {req.address && <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400, marginTop: '2px' }}>{req.address}</div>}
+                                                    </td>
+                                                    <td style={{ padding: '1rem', fontFamily: 'monospace', fontSize: '0.85rem', color: '#475569' }}>{req.requested_school_id || '—'}</td>
+                                                    <td style={{ padding: '1rem' }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                            {req.contact_phone && <span style={{ fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Phone size={12} color="#6366f1" />{req.contact_phone}</span>}
+                                                            {req.contact_email && <span style={{ fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Mail size={12} color="#10b981" />{req.contact_email}</span>}
+                                                        </div>
+                                                    </td>
+                                                    <td style={{ padding: '1rem' }}>
+                                                        <div style={{ fontSize: '0.82rem', color: '#475569' }}>
+                                                            <span style={{ fontWeight: 600 }}>User:</span> {req.admin_username}<br />
+                                                            <span style={{ fontWeight: 600 }}>Pass:</span> {req.admin_password}
+                                                        </div>
+                                                    </td>
+                                                    <td style={{ padding: '1rem', color: '#64748b', fontSize: '0.82rem' }}>{new Date(req.created_at).toLocaleDateString()}</td>
+                                                    <td style={{ padding: '1rem' }}>
+                                                        <span style={{ display: 'inline-block', padding: '0.25rem 0.6rem', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 700,
+                                                            background: req.status === 'pending' ? '#fef3c7' : req.status === 'approved' ? '#dcfce7' : '#fee2e2',
+                                                            color: req.status === 'pending' ? '#b45309' : req.status === 'approved' ? '#166534' : '#991b1b'
+                                                        }}>{req.status?.toUpperCase() || 'PENDING'}</span>
+                                                    </td>
+                                                    <td style={{ padding: '1rem', textAlign: 'right' }}>
+                                                        {req.status === 'pending' && (
+                                                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                                                                <button onClick={() => approveRequest(req)} style={{ background: '#dcfce7', border: '1px solid #86efac', color: '#166534', padding: '0.4rem 0.9rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                                                    <CheckCircle size={14} /> Approve
+                                                                </button>
+                                                                <button onClick={() => rejectRequest(req)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.4rem 0.9rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                                                    <XCircle size={14} /> Reject
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                        {req.status !== 'pending' && (
+                                                            <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>No action needed</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+                        </div>
                     )}
 
                     {/* ──── PLATFORM SETTINGS ──── */}
@@ -493,7 +657,7 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                             </div>
                             
                             <div style={{ padding: '2.5rem', maxHeight: '70vh', overflowY: 'auto' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '2.5rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '2rem' }}>
                                     <div>
                                         <div style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Registration Date</div>
                                         <div style={{ fontWeight: 600, color: '#1e293b' }}>{new Date(viewingSchool.created_at).toLocaleDateString(undefined, { dateStyle: 'long' })}</div>
@@ -503,6 +667,20 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: viewingSchool.is_onboarded ? '#10b981' : '#f59e0b', fontWeight: 700 }}>
                                             {viewingSchool.is_onboarded ? <CheckCircle size={16} /> : <Database size={16} />}
                                             {viewingSchool.is_onboarded ? 'Fully Onboarded' : 'Setup Pending'}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Mobile / Phone</div>
+                                        <div style={{ fontWeight: 600, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                            <Phone size={14} color="#6366f1" />
+                                            {viewingSchool.contact_phone || <span style={{ color: '#94a3b8', fontStyle: 'italic', fontWeight: 400 }}>Not provided</span>}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Email Address</div>
+                                        <div style={{ fontWeight: 600, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                            <Mail size={14} color="#10b981" />
+                                            {viewingSchool.contact_email || <span style={{ color: '#94a3b8', fontStyle: 'italic', fontWeight: 400 }}>Not provided</span>}
                                         </div>
                                     </div>
                                 </div>

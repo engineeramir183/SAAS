@@ -1,9 +1,90 @@
 import React, { useState } from 'react';
-import { LogIn, User, Lock, AlertCircle, School, ShieldCheck } from 'lucide-react';
+import { LogIn, User, Lock, AlertCircle, School, ShieldCheck, XCircle, MessageCircle, Ban } from 'lucide-react';
 import { developerCredentials } from '../data/schoolData';
 import { supabase } from '../supabaseClient';
 import { useSchoolData } from '../context/SchoolDataContext';
 import { useSuperAdmin } from '../context/SuperAdminContext';
+
+// ─── Suspension Modal ─────────────────────────────────────────────────────────
+const SuspensionModal = ({ schoolName, whatsappNumber, onClose }) => {
+    const waNumber = (whatsappNumber || '+923001333275').replace(/\+/g, '').replace(/\s/g, '');
+    const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent('Hello, my school account (' + (schoolName || '') + ') has been suspended. I would like to renew my subscription.')}`;
+    return (
+        <div style={{
+            position: 'fixed', inset: 0, zIndex: 99999,
+            background: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(12px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem'
+        }}>
+            <div style={{
+                background: 'white', borderRadius: '24px', maxWidth: '460px', width: '100%',
+                boxShadow: '0 25px 60px rgba(0,0,0,0.4)', overflow: 'hidden',
+                animation: 'fadeInScale 0.3s ease'
+            }}>
+                <style>{`
+                    @keyframes fadeInScale {
+                        from { opacity: 0; transform: scale(0.92); }
+                        to   { opacity: 1; transform: scale(1); }
+                    }
+                `}</style>
+                {/* Header */}
+                <div style={{
+                    background: 'linear-gradient(135deg, #dc2626, #991b1b)',
+                    padding: '2rem', textAlign: 'center', color: 'white'
+                }}>
+                    <div style={{
+                        width: '72px', height: '72px', background: 'rgba(255,255,255,0.15)',
+                        borderRadius: '50%', display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', margin: '0 auto 1rem'
+                    }}>
+                        <Ban size={36} />
+                    </div>
+                    <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>Account Suspended</h2>
+                    <p style={{ margin: '0.5rem 0 0', opacity: 0.85, fontSize: '0.9rem' }}>
+                        {schoolName || 'Your school'}
+                    </p>
+                </div>
+                {/* Body */}
+                <div style={{ padding: '2rem', textAlign: 'center' }}>
+                    <p style={{ color: '#374151', fontSize: '1rem', lineHeight: 1.7, marginBottom: '1.5rem' }}>
+                        ⚠️ Your school account has been <strong>suspended due to a payment issue</strong>.
+                        Please contact our support team to renew your subscription and restore access.
+                    </p>
+                    <a
+                        href={waLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '0.6rem',
+                            background: 'linear-gradient(135deg, #16a34a, #15803d)',
+                            color: 'white', textDecoration: 'none', padding: '0.85rem 2rem',
+                            borderRadius: '12px', fontWeight: 700, fontSize: '1rem',
+                            boxShadow: '0 4px 14px rgba(22,163,74,0.35)', marginBottom: '1rem',
+                            width: '100%', justifyContent: 'center', boxSizing: 'border-box'
+                        }}
+                    >
+                        <MessageCircle size={20} /> Contact Team on WhatsApp
+                    </a>
+                    <button
+                        onClick={onClose}
+                        style={{
+                            width: '100%', padding: '0.85rem 2rem', borderRadius: '12px',
+                            border: '2px solid #e5e7eb', background: 'white', color: '#6b7280',
+                            fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer',
+                            transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={e => { e.target.style.borderColor = '#9ca3af'; e.target.style.color = '#374151'; }}
+                        onMouseLeave={e => { e.target.style.borderColor = '#e5e7eb'; e.target.style.color = '#6b7280'; }}
+                    >
+                        ← Back to Login
+                    </button>
+                    <p style={{ marginTop: '1.25rem', fontSize: '0.8rem', color: '#9ca3af' }}>
+                        For payment inquiries, WhatsApp or email us — we respond within 2 hours.
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Login Page — Multi-Tenant Edition
@@ -33,6 +114,8 @@ const Login = ({
     const [credentials, setCredentials] = useState({ schoolCode: '', username: '', password: '' });
     const [error,        setError]       = useState('');
     const [isLoading,    setIsLoading]   = useState(false);
+    const [suspendedSchool, setSuspendedSchool] = useState(null); // { name, whatsappNumber }
+    const { saasInfo } = useSuperAdmin();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -81,6 +164,22 @@ const Login = ({
             // This prevents the "Race Condition" where the UI might use old data 
             // from a different school during the login transition.
             
+            // ── First, fetch the school record to check active status ──────────
+            const { data: schoolRecord } = await supabase
+                .from('schools')
+                .select('school_name, is_active, contact_phone')
+                .eq('school_id', sid)
+                .maybeSingle();
+
+            if (schoolRecord && !schoolRecord.is_active) {
+                setSuspendedSchool({
+                    name: schoolRecord.school_name,
+                    whatsappNumber: schoolRecord.contact_phone || saasInfo?.whatsapp_number || '+923001333275'
+                });
+                setIsLoading(false);
+                return;
+            }
+
             // First, try Admin login
             const { data: adminData } = await supabase
                 .from('admins')
@@ -140,6 +239,14 @@ const Login = ({
             padding: '2rem 1rem',
             position: 'relative'
         }}>
+            {/* Suspension Modal */}
+            {suspendedSchool && (
+                <SuspensionModal
+                    schoolName={suspendedSchool.name}
+                    whatsappNumber={suspendedSchool.whatsappNumber}
+                    onClose={() => setSuspendedSchool(null)}
+                />
+            )}
             {/* Conditional Back button */}
             <button 
                 onClick={() => {
