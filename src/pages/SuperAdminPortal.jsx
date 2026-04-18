@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSuperAdmin } from '../context/SuperAdminContext';
 import { supabase } from '../supabaseClient';
-import { Building, ShieldCheck, PlusCircle, CheckCircle, XCircle, MoreVertical, LogOut, Users, Settings, Database, Info, BarChart, TrendingUp, DollarSign, Activity, Bell, Phone, Mail, ClipboardList } from 'lucide-react';
+import { Building, ShieldCheck, PlusCircle, CheckCircle, XCircle, MoreVertical, LogOut, Users, Settings, Database, Info, BarChart, TrendingUp, DollarSign, Activity, Bell, Phone, Mail, ClipboardList, Trash2 } from 'lucide-react';
 import { sendWhatsAppMessage, WhatsAppTemplates } from '../services/WhatsAppService';
 import { sendEmail } from '../services/EmailService';
 
@@ -115,6 +115,16 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
             .update({ status: 'rejected' })
             .eq('id', req.id);
         setStatusMessage(`Request from "${req.school_name}" rejected.`);
+        fetchRequests();
+        setTimeout(() => setStatusMessage(''), 3000);
+    };
+
+    const deleteRequest = async (req) => {
+        if (!window.confirm(`Are you sure you want to permanently delete the rejected request from "${req.school_name}"?`)) return;
+        await supabase.from('school_registration_requests')
+            .delete()
+            .eq('id', req.id);
+        setStatusMessage(`Request from "${req.school_name}" deleted permanently.`);
         fetchRequests();
         setTimeout(() => setStatusMessage(''), 3000);
     };
@@ -511,8 +521,15 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                                                 </button>
                                                             </div>
                                                         )}
-                                                        {req.status !== 'pending' && (
-                                                            <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>No action needed</span>
+                                                        {req.status === 'rejected' && (
+                                                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                                                                <button onClick={() => deleteRequest(req)} style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#64748b', padding: '0.4rem 0.9rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                                                    <Trash2 size={14} /> Delete
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                        {req.status === 'approved' && (
+                                                            <span style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: 600 }}>Approved</span>
                                                         )}
                                                     </td>
                                                 </tr>
