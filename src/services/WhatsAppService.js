@@ -61,4 +61,10 @@ export const WhatsAppTemplates = {
     
     attendanceArrived: (studentName, time, schoolName) => 
         `Safe Arrival: Dear Parent, ${studentName} has arrived safely at school at ${time}. \n- Regards, ${schoolName}`,
+
+    registrationRequest: (schoolName, requestId) => 
+        `Hello! We have received your registration request for *${schoolName}*. \nRequest ID: ${requestId} \nOur team will review your application within 24 hours. You will receive another message once approved!`,
+
+    registrationApproval: (schoolName, dashboardUrl) => 
+        `Congratulations! Your school *${schoolName}* has been approved on our SaaS platform. \nYou can now login to your admin portal at: ${dashboardUrl} \nWelcome aboard!`,
 };

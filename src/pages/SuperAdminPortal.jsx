@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useSuperAdmin } from '../context/SuperAdminContext';
 import { supabase } from '../supabaseClient';
 import { Building, ShieldCheck, PlusCircle, CheckCircle, XCircle, MoreVertical, LogOut, Users, Settings, Database, Info, BarChart, TrendingUp, DollarSign, Activity, Bell, Phone, Mail, ClipboardList } from 'lucide-react';
+import { sendWhatsAppMessage, WhatsAppTemplates } from '../services/WhatsAppService';
+import { sendEmail } from '../services/EmailService';
 
 const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
     const {
@@ -36,7 +38,10 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
         support_email: '',
         whatsapp_number: '',
         hero_title: '',
-        hero_subtitle: ''
+        hero_subtitle: '',
+        whatsapp_api_key: '',
+        whatsapp_phone_id: '',
+        email_service_key: ''
     });
 
     const [formData, setFormData] = useState({
@@ -85,6 +90,18 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                 .update({ status: 'approved' })
                 .eq('id', req.id);
             setStatusMessage(`✅ School "${req.school_name}" created and activated!`);
+            
+            // ── Automated Notifications ──
+            if (saasInfo && req.contact_phone) {
+                const approvalMsg = WhatsAppTemplates.registrationApproval(req.school_name, window.location.origin);
+                await sendWhatsAppMessage(req.contact_phone, approvalMsg, saasInfo);
+            }
+            if (saasInfo && req.contact_email) {
+                const emailSub = `School Approved: ${req.school_name}`;
+                const emailMsg = `Congratulations! Your school ${req.school_name} has been approved. You can now login to your admin portal at ${window.location.origin}`;
+                await sendEmail(req.contact_email, emailSub, emailMsg, saasInfo);
+            }
+
             fetchRequests();
             setTimeout(() => setStatusMessage(''), 4000);
         } else {
@@ -121,7 +138,10 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                 support_email:   saasInfo.support_email   || '',
                 whatsapp_number: saasInfo.whatsapp_number || '',
                 hero_title:      saasInfo.hero_title      || '',
-                hero_subtitle:   saasInfo.hero_subtitle   || ''
+                hero_subtitle:   saasInfo.hero_subtitle   || '',
+                whatsapp_api_key: saasInfo.whatsapp_api_key || '',
+                whatsapp_phone_id: saasInfo.whatsapp_phone_id || '',
+                email_service_key: saasInfo.email_service_key || ''
             });
         }
     }, [saasInfo]);
@@ -523,6 +543,21 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                     <div>
                                         <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', color: '#475569', marginBottom: '0.4rem' }}>WhatsApp Number (with country code)</label>
                                         <input type="text" value={saasForm.whatsapp_number} onChange={e => setSaasForm({...saasForm, whatsapp_number: e.target.value})} placeholder="+923001234567" style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                    </div>
+                                    <div style={{ marginTop: '1rem', padding: '1.25rem', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #e2e8f0' }}>
+                                        <h4 style={{ margin: '0 0 1rem', fontSize: '0.9rem', color: '#0f172a' }}>Notification API Settings</h4>
+                                        <div style={{ marginBottom: '1rem' }}>
+                                            <label style={{ display: 'block', fontWeight: 600, fontSize: '0.75rem', color: '#64748b', marginBottom: '0.3rem' }}>WhatsApp API Key (Meta)</label>
+                                            <input type="password" value={saasForm.whatsapp_api_key} onChange={e => setSaasForm({...saasForm, whatsapp_api_key: e.target.value})} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                        </div>
+                                        <div style={{ marginBottom: '1rem' }}>
+                                            <label style={{ display: 'block', fontWeight: 600, fontSize: '0.75rem', color: '#64748b', marginBottom: '0.3rem' }}>WhatsApp Phone ID</label>
+                                            <input type="text" value={saasForm.whatsapp_phone_id} onChange={e => setSaasForm({...saasForm, whatsapp_phone_id: e.target.value})} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                        </div>
+                                        <div>
+                                            <label style={{ display: 'block', fontWeight: 600, fontSize: '0.75rem', color: '#64748b', marginBottom: '0.3rem' }}>Email Service Key (EmailJS)</label>
+                                            <input type="password" value={saasForm.email_service_key} onChange={e => setSaasForm({...saasForm, email_service_key: e.target.value})} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                        </div>
                                     </div>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

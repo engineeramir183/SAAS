@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useSuperAdmin } from '../context/SuperAdminContext';
+import { sendWhatsAppMessage, WhatsAppTemplates } from '../services/WhatsAppService';
+import { sendEmail } from '../services/EmailService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SchoolRegistrationForm
@@ -77,7 +79,8 @@ const SchoolRegistrationForm = ({ setCurrentPage }) => {
             if (!/^[a-z0-9-]+$/.test(form.requested_school_id)) return 'School ID must be lowercase letters, numbers and hyphens only.';
         }
         if (step === 1) {
-            if (!form.contact_phone.trim()) return 'Mobile number is required.';
+            if (!form.contact_phone.trim()) return 'A valid WhatsApp number is strictly required for registration updates.';
+            if (!/^\+?[0-9]{10,15}$/.test(form.contact_phone.replace(/\s/g, ''))) return 'Please enter a valid mobile number (e.g. +923001234567).';
             if (!form.contact_email.trim()) return 'Email is required.';
             if (!/\S+@\S+\.\S+/.test(form.contact_email)) return 'Please enter a valid email address.';
         }
@@ -123,6 +126,17 @@ const SchoolRegistrationForm = ({ setCurrentPage }) => {
                 : 'Failed to submit request: ' + dbErr.message);
             setSubmitting(false);
         } else {
+            // ── Automated Notifications (Submission) ──
+            if (saasInfo && form.contact_phone) {
+                const regMsg = WhatsAppTemplates.registrationRequest(form.school_name, form.requested_school_id);
+                await sendWhatsAppMessage(form.contact_phone, regMsg, saasInfo);
+            }
+            if (saasInfo && form.contact_email) {
+                const emailSub = `Registration Received: ${form.school_name}`;
+                const emailMsg = `Hello! We have received your registration request for ${form.school_name}. Our team will review it shortly.`;
+                await sendEmail(form.contact_email, emailSub, emailMsg, saasInfo);
+            }
+
             setSubmitted(true);
         }
     };
