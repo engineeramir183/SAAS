@@ -125,7 +125,7 @@ const getMonthOptions = () => {
 };
 
 // ─── Main Component ──────────────────────────────────────────────────────────
-const PayrollTab = ({ schoolData, fetchData, showSaveMessage, currencySymbol, fetchPublicData }) => {
+const PayrollTab = ({ schoolData, currentSchoolId, fetchData, showSaveMessage, currencySymbol, fetchPublicData }) => {
     const sym = currencySymbol || 'RS';
     const facultyList = schoolData?.faculty || [];
     const schoolName = schoolData?.name || 'School';
@@ -192,7 +192,7 @@ const PayrollTab = ({ schoolData, fetchData, showSaveMessage, currencySymbol, fe
         const { error } = await supabase.from('faculty').update({
             base_salary: baseSalary,
             payroll_history: history
-        }).eq('id', memberId);
+        }).eq('id', memberId).eq('school_id', currentSchoolId);
         setProcessingId(null);
 
         if (!error) {
@@ -214,7 +214,7 @@ const PayrollTab = ({ schoolData, fetchData, showSaveMessage, currencySymbol, fe
             const base = Number(member.base_salary || 0);
             const history = [...(member.payroll_history || [])];
             history.push({ month: selectedMonth, base_salary: base, allowance: 0, deduction: 0, net_paid: base, paid_on: new Date().toLocaleDateString('en-CA'), status: 'paid' });
-            await supabase.from('faculty').update({ payroll_history: history }).eq('id', member.id);
+            await supabase.from('faculty').update({ payroll_history: history }).eq('id', member.id).eq('school_id', currentSchoolId);
         }
         showSaveMessage(`✅ Processed payroll for ${unpaid.length} staff members!`);
         fetchData();

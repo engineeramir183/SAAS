@@ -88,8 +88,7 @@ export const SuperAdminProvider = ({ children }) => {
     const updateSaasInfo = async (updates) => {
         const { error: err } = await supabase
             .from('saas_info')
-            .update(updates)
-            .eq('id', 'global');
+            .upsert({ ...updates, id: 'global', updated_at: new Date().toISOString() });
         
         if (!err) await fetchSaasInfo();
         return { error: err };

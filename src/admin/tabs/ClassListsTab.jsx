@@ -21,6 +21,7 @@ const ClassListsTab = ({
     setActiveTab, setAdmissionData,
     showSaveMessage, openConfirm,
     CLASS_SERIAL_STARTS, updateClassSerialStarts,
+    deleteStudent,
     uploadImage,
     schoolName = 'School',
     schoolLogo = '',
@@ -390,17 +391,7 @@ const ClassListsTab = ({
                                                             className="btn icon-btn" style={{ color: '#2563eb', background: 'transparent' }} title="Edit Student">
                                                             <Edit3 size={16} />
                                                         </button>
-                                                        <button onClick={() => {
-                                                            openConfirm(
-                                                                '🗑 Delete Student',
-                                                                `Are you sure you want to permanently delete "${student.name}" (${student.id})? This cannot be undone.`,
-                                                                async () => {
-                                                                    const newStudents = students.filter(s => s.id !== student.id);
-                                                                    await setStudents(newStudents);
-                                                                    showSaveMessage(`${student.name} deleted.`);
-                                                                }
-                                                            );
-                                                        }} className="btn icon-btn" style={{ color: '#ef4444' }} title="Delete Student">
+                                                        <button onClick={() => deleteStudent(student.id, student.name)} className="btn icon-btn" style={{ color: '#ef4444' }} title="Delete Student">
                                                             <Trash2 size={16} />
                                                         </button>
                                                     </div>

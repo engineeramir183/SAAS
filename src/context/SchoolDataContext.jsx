@@ -74,7 +74,10 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
     // fetchPublicData() and only when the public-facing pages need them.
     const fetchData = async (sid = currentSchoolId) => {
         try {
-            setLoading(true);
+            // Only show full loading screen on initial load or tenant switch
+            if (sid !== currentSchoolId || !data?.name) {
+                setLoading(true);
+            }
 
             // Fire only the 6 critical queries in parallel
             const [

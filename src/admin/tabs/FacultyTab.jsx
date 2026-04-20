@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Save, Edit3, Trash2, Camera, PlusCircle, Users, DollarSign, Download, Printer, CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 
@@ -85,8 +85,13 @@ const FacultyTab = ({
     schoolData, editingFacultyId, setEditingFacultyId,
     tempFacultyMember, setTempFacultyMember,
     addFaculty, saveFaculty, deleteFaculty, facultyFileRef,
-    fetchData, showSaveMessage
+    fetchData, fetchPublicData, showSaveMessage
 }) => {
+    useEffect(() => {
+        if (!schoolData?.faculty?.length) fetchPublicData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const [subTab, setSubTab] = useState('directory'); // directory, payroll
     
     // Payroll state

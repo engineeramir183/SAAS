@@ -1,11 +1,19 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Save, Edit3, Trash2, Camera, PlusCircle } from 'lucide-react';
 
 const FacilitiesTab = ({
     schoolData, editingFacilityId, setEditingFacilityId,
     tempFacility, setTempFacility,
-    addFacility, saveFacility, deleteFacility, facilityFileRef,
-}) => (
+    addFacility, saveFacility, deleteFacility, facilityFileRef, fetchPublicData
+}) => {
+    useEffect(() => {
+        if (!schoolData?.facilities?.length && fetchPublicData) fetchPublicData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const facilities = schoolData?.facilities || [];
+
+    return (
     <div className="animate-fade-in">
         <div className="flex-between" style={{ marginBottom: '1.5rem' }}>
             <h2 style={{ fontSize: '1.75rem', fontWeight: 'var(--font-weight-bold)' }}>Manage Facilities</h2>
@@ -39,10 +47,10 @@ const FacilitiesTab = ({
                         </div>
                         <div>
                             <label className="form-label">Description</label>
-                            <textarea className="form-input" style={{ height: '100px' }} value={tempFacility.description || ''} onChange={e => setTempFacility({ ...tempFacility, description: e.target.value })} />
+                            <textarea className="form-input" style={{ minHeight: '80px', resize: 'vertical' }} value={tempFacility.description || ''} onChange={e => setTempFacility({ ...tempFacility, description: e.target.value })} />
                         </div>
-                        <div className="flex gap-2" style={{ marginTop: '1rem' }}>
-                            <button onClick={saveFacility} className="btn btn-success" style={{ flex: 1 }}><Save size={18} /> Save Facility</button>
+                        <div className="flex gap-2" style={{ marginTop: '0.5rem' }}>
+                            <button onClick={saveFacility} className="btn btn-primary" style={{ flex: 1 }}><Save size={18} /> Save Facility</button>
                             <button onClick={() => { setEditingFacilityId(null); setTempFacility(null); }} className="btn" style={{ background: '#f1f5f9', color: '#64748b' }}>Cancel</button>
                         </div>
                     </div>
@@ -51,10 +59,10 @@ const FacilitiesTab = ({
         )}
 
         <div className="grid grid-cols-3" style={{ gap: '1.5rem' }}>
-            {(schoolData.facilities || []).map(fac => (
+            {facilities.map(fac => (
                 <div key={fac.id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
                     <div style={{ height: '160px', width: '100%', position: 'relative' }}>
-                        <img src={fac.image} alt={fac.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        {fac.image ? <img src={fac.image} alt={fac.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', background: '#f1f5f9' }}>No Image</div>}
                         <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', gap: '5px' }}>
                             <button onClick={() => { setEditingFacilityId(fac.id); setTempFacility(fac); }} className="btn btn-sm btn-icon" style={{ background: 'white', color: '#2563eb', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}><Edit3 size={14} /></button>
                             <button onClick={() => deleteFacility(fac.id)} className="btn btn-sm btn-icon" style={{ background: 'white', color: '#dc2626', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}><Trash2 size={14} /></button>
@@ -69,6 +77,7 @@ const FacilitiesTab = ({
             ))}
         </div>
     </div>
-);
+    );
+};
 
 export default FacilitiesTab;

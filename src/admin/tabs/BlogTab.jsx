@@ -1,11 +1,19 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Save, Edit3, Trash2, Camera, PlusCircle, FileText } from 'lucide-react';
 
 const BlogTab = ({
     schoolData, editingBlogId, setEditingBlogId,
     tempBlog, setTempBlog,
-    addBlog, saveBlog, deleteBlog, blogImageRef,
-}) => (
+    addBlog, saveBlog, deleteBlog, blogImageRef, fetchPublicData
+}) => {
+    useEffect(() => {
+        if (!schoolData?.blogs?.length && fetchPublicData) fetchPublicData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const blogs = schoolData?.blogs || [];
+
+    return (
     <div className="animate-fade-in">
         <div className="flex-between" style={{ marginBottom: '1.5rem' }}>
             <h2 style={{ fontSize: '1.75rem', fontWeight: 'var(--font-weight-bold)' }}>Manage Blog Posts</h2>
@@ -118,6 +126,7 @@ const BlogTab = ({
             </div>
         )}
     </div>
-);
+    );
+};
 
 export default BlogTab;

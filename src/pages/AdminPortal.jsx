@@ -1809,9 +1809,12 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = (evt) => {
+        const currentMonth = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+        
+        reader.onload = async (evt) => {
             try {
-                const wb = XLSX.read(evt.target.result, { type: 'binary' });
+                const arrayBuffer = evt.target.result;
+                const wb = XLSX.read(arrayBuffer, { type: 'array' });
                 const ws = wb.Sheets[wb.SheetNames[0]];
                 const data = XLSX.utils.sheet_to_json(ws);
 
@@ -1819,24 +1822,42 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 const updatedStudents = students.map(s => {
                     const row = data.find(r => r['Student ID'] === s.id);
                     if (row && row['Fee Status (Paid/Unpaid)']) {
-                        const status = row['Fee Status (Paid/Unpaid)'].toString().toLowerCase().trim();
-                        if (status === 'paid' || status === 'p') {
+                        const statusInput = row['Fee Status (Paid/Unpaid)'].toString().toLowerCase().trim();
+                        const isPaid = statusInput === 'paid' || statusInput === 'p';
+                        const isUnpaid = statusInput === 'unpaid' || statusInput === 'u';
+                        
+                        if (isPaid || isUnpaid) {
+                            const newStatus = isPaid ? 'paid' : 'unpaid';
+                            const history = [...(s.feeHistory || [])];
+                            const idx = history.findIndex(h => h.month === currentMonth);
+                            
+                            if (idx > -1) {
+                                history[idx] = { 
+                                    ...history[idx], 
+                                    status: newStatus, 
+                                    paidOn: isPaid ? (history[idx].paidOn || new Date().toLocaleDateString()) : null 
+                                };
+                            } else {
+                                history.push({ 
+                                    month: currentMonth, 
+                                    status: newStatus, 
+                                    paidOn: isPaid ? new Date().toLocaleDateString() : null 
+                                });
+                            }
                             updateCount++;
-                            return { ...s, feeStatus: 'paid' };
-                        } else if (status === 'unpaid' || status === 'u') {
-                            updateCount++;
-                            return { ...s, feeStatus: 'unpaid' };
+                            return { ...s, feeHistory: history };
                         }
                     }
                     return s;
                 });
-                setStudents(updatedStudents);
-                showSaveMessage(`Fee status imported for ${updateCount} students!`);
+                await setStudents(updatedStudents);
+                showSaveMessage(`Fee status for ${currentMonth} imported for ${updateCount} students!`);
             } catch (err) {
-                showSaveMessage('Error reading file. Please check the format.');
+                console.error(err);
+                alert('Error reading file. Please check the format and headers.');
             }
         };
-        reader.readAsBinaryString(file);
+        reader.readAsArrayBuffer(file);
         e.target.value = '';
     };
 
@@ -2195,7 +2216,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         }
         setEditingFacultyId(null);
         setTempFacultyMember(null);
-        await fetchData();
+        await fetchPublicData();
     };
 
     const deleteFaculty = async (id) => {
@@ -2204,7 +2225,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             if (error) {
                 alert('Error deleting faculty: ' + error.message);
             } else {
-                await fetchData();
+                await fetchPublicData();
                 showSaveMessage('Faculty member removed');
             }
         }
@@ -2241,7 +2262,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         }
         setEditingFacilityId(null);
         setTempFacility(null);
-        await fetchData();
+        await fetchPublicData();
     };
 
     const deleteFacility = async (id) => {
@@ -2250,7 +2271,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             if (error) {
                 alert('Error deleting facility: ' + error.message);
             } else {
-                await fetchData();
+                await fetchPublicData();
                 showSaveMessage('Facility removed');
             }
         }
@@ -2295,7 +2316,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         }
         setEditingBlogId(null);
         setTempBlog(null);
-        await fetchData();
+        await fetchPublicData();
     };
 
     const deleteBlog = async (id) => {
@@ -2304,7 +2325,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             if (error) {
                 alert('Error deleting blog: ' + error.message);
             } else {
-                await fetchData();
+                await fetchPublicData();
                 showSaveMessage('Blog post deleted!');
             }
         }
@@ -2388,9 +2409,9 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                     const rowNum = index + 2; // Excel row (1-header)
 
                     // Flexible Header Matching
-                    const name = row['Student Name'] || row['Name'] || row['name'] || row['Student Name*'];
-                    const serial = row['Serial No'] || row['Serial Number'] || row['Serial'] || row['S.No'];
-                    const providedId = row['Student ID'] || row['Member ID'] || row['ID'];
+                    const name = (row['Student Name'] || row['Name'] || row['name'] || row['Student Name*'] || '').toString().trim();
+                    const serial = (row['Serial No'] || row['Serial Number'] || row['Serial'] || row['S.No'] || '').toString().trim();
+                    const providedId = (row['Student ID'] || row['Member ID'] || row['ID'] || '').toString().trim();
                     const grade = row['Class'] || row['Grade'] || selectedClassForList || '';
                     const password = row['Password'] || '';
 
@@ -2398,7 +2419,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                     if (!name) {
                         // Only log error if row has *some* content (avoid processing empty trailing rows)
                         if (Object.keys(row).length > 0) {
-                            errors.push(`Row ${rowNum}: Missing 'Student Name' column. Found columns: ${Object.keys(row).join(', ')}`);
+                            errors.push(`Row ${rowNum}: Missing 'Student Name' column.`);
                         }
                         return;
                     }
@@ -2406,9 +2427,10 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                     // Check if this row refers to an existing student
                     let existingStudent = null;
                     if (providedId) {
-                        existingStudent = students.find(s => s.id === providedId);
+                        const targetId = providedId.toUpperCase();
+                        existingStudent = students.find(s => s.id && s.id.toString().trim().toUpperCase() === targetId);
                     } else if (serial) {
-                        const existingId = existingSerialsMap.get(String(serial).trim().toLowerCase());
+                        const existingId = existingSerialsMap.get(serial.toLowerCase());
                         if (existingId) existingStudent = students.find(s => s.id === existingId);
                     }
 
@@ -2421,7 +2443,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
                         // Check serial conflict if they are changing serial
                         if (serial) {
-                            const newSerial = String(serial).trim().toLowerCase();
+                            const newSerial = serial.toLowerCase();
                             const conflictId = existingSerialsMap.get(newSerial);
                             if (conflictId && conflictId !== existingStudent.id) {
                                 errors.push(`Row ${rowNum}: Serial Number '${serial}' belongs to another student.`);
@@ -2436,8 +2458,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
                         processedIds.add(existingStudent.id);
 
-                        // Merge admissions info safely
-                        let admissions = [...(existingStudent.admissions || [])];
+                        // Clone admissions array and the first object (deep clone first object only as it's the primary)
+                        let admissions = existingStudent.admissions ? JSON.parse(JSON.stringify(existingStudent.admissions)) : [{}];
                         if (admissions.length === 0) admissions.push({});
 
                         // update provided fields
@@ -2457,7 +2479,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                             name: name,
                             grade: grade || existingStudent.grade,
                             password: password || existingStudent.password,
-                            serialNumber: serial ? String(serial).trim() : existingStudent.serialNumber,
+                            serialNumber: serial || existingStudent.serialNumber,
                             admissions: admissions
                         };
 
@@ -2467,16 +2489,15 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                         // CREATE PATH
                         // 2. Validate Serial Number for new
                         if (serial) {
-                            const serialStr = String(serial).trim();
-                            if (existingSerialsMap.has(serialStr.toLowerCase())) {
+                            if (existingSerialsMap.has(serial.toLowerCase())) {
                                 errors.push(`Row ${rowNum}: Serial Number '${serial}' already exists in system.`);
                                 return;
                             }
-                            if (processedSerials.has(serialStr.toLowerCase())) {
+                            if (processedSerials.has(serial.toLowerCase())) {
                                 errors.push(`Row ${rowNum}: Duplicate Serial Number '${serial}' in strictly this import file.`);
                                 return;
                             }
-                            processedSerials.add(serialStr.toLowerCase());
+                            processedSerials.add(serial.toLowerCase());
                         }
 
                         // 3. Generate or Validate ID
@@ -2496,7 +2517,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                             const seq = String(maxNum + 1).padStart(3, '0');
                             studentId = `${prefix}-${year}-${seq}`;
                         } else {
-                            if (students.some(s => s.id === studentId) || newStudents.some(s => s.id === studentId)) {
+                            const targetId = studentId.toUpperCase();
+                            if (students.some(s => s.id && s.id.toString().trim().toUpperCase() === targetId) || newStudents.some(s => s.id.toUpperCase() === targetId)) {
                                 errors.push(`Row ${rowNum}: Student ID '${studentId}' already exists.`);
                                 return;
                             }
@@ -2608,6 +2630,23 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         gap: '0.4rem',
         cursor: 'pointer',
         transition: 'all var(--transition-base)'
+    };
+
+    const deleteStudent = async (studentId, studentName) => {
+        if (window.confirm(`Are you sure you want to permanently delete "${studentName}" (${studentId})? This cannot be undone.`)) {
+            const { error } = await supabase
+                .from('students')
+                .delete()
+                .eq('id', studentId)
+                .eq('school_id', currentSchoolId);
+            
+            if (error) {
+                alert('Error deleting student: ' + error.message);
+            } else {
+                await fetchData();
+                showSaveMessage(`${studentName} deleted successfully.`);
+            }
+        }
     };
 
     const adminTabs = [
@@ -3002,6 +3041,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                 {activeTab === 'payroll' && (
                                     <PayrollTab
                                         schoolData={schoolData}
+                                        currentSchoolId={currentSchoolId}
                                         fetchData={fetchData}
                                         fetchPublicData={fetchPublicData}
                                         showSaveMessage={showSaveMessage}
@@ -3017,7 +3057,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         tempFacultyMember={tempFacultyMember} setTempFacultyMember={setTempFacultyMember}
                                         addFaculty={addFaculty} saveFaculty={saveFaculty} deleteFaculty={deleteFaculty}
                                         facultyFileRef={facultyFileRef}
-                                        fetchData={fetchData} showSaveMessage={showSaveMessage}
+                                        fetchData={fetchData} fetchPublicData={fetchPublicData} showSaveMessage={showSaveMessage}
                                     />
                                 )}
 
@@ -3029,6 +3069,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         tempFacility={tempFacility} setTempFacility={setTempFacility}
                                         addFacility={addFacility} saveFacility={saveFacility} deleteFacility={deleteFacility}
                                         facilityFileRef={facilityFileRef}
+                                        fetchPublicData={fetchPublicData}
                                     />
                                 )}
 
@@ -3040,6 +3081,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         tempBlog={tempBlog} setTempBlog={setTempBlog}
                                         addBlog={addBlog} saveBlog={saveBlog} deleteBlog={deleteBlog}
                                         blogImageRef={blogImageRef}
+                                        fetchPublicData={fetchPublicData}
                                     />
                                 )}
 
@@ -3064,6 +3106,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         exportClassRoster={exportClassRoster} exportPasswordsPDF={exportPasswordsPDF}
                                         setActiveTab={setActiveTab} setAdmissionData={setAdmissionData}
                                         showSaveMessage={showSaveMessage} openConfirm={openConfirm}
+                                        deleteStudent={deleteStudent}
                                         CLASS_SERIAL_STARTS={CLASS_SERIAL_STARTS} updateClassSerialStarts={updateClassSerialStarts}
                                         uploadImage={uploadImage}
                                         schoolName={schoolName}
