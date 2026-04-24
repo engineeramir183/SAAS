@@ -19,6 +19,7 @@ export const sendWhatsAppMessage = async (to, message, settings) => {
 
         // To bypass Meta's strict browser CORS policy, we use a proxy for frontend API calls.
         // For absolute production security, this call should eventually be moved to a Supabase Edge Function.
+        try {
         const targetUrl = encodeURIComponent(`https://graph.facebook.com/v17.0/${whatsapp_phone_id}/messages`);
         const response = await fetch(`https://corsproxy.io/?${targetUrl}`, {
             method: 'POST',

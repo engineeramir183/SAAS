@@ -35,17 +35,7 @@ const PayrollTab = lazy(() => import('../admin/tabs/PayrollTab'));
 const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     const { schoolData, CLASSES, SUBJECTS, TERMS, SECTIONS, WEIGHTS, CLASS_SERIAL_STARTS, CLASS_FEE_DEFAULTS, EXPENSES, fetchData, fetchPublicData, setStudents, setFaculty, updateSchoolInfo, updateSchoolSettings, setAnnouncements, updateClasses, updateSubjects, updateTerms, updateSections, updateWeights, updateClassSerialStarts, updateClassFeeDefaults, updateExpenses, adminCredentials, changeAdminPassword, currencySymbol, schoolSettings, completeOnboarding, loading, currentSchoolId } = useSchoolData();
     
-    if (loading) {
-        return (
-            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: 'white', fontFamily: "'Inter', sans-serif" }}>
-                <div style={{ textAlign: 'center' }}>
-                    <div className="animate-spin" style={{ width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.1)', borderTopColor: '#3b82f6', borderRadius: '50%', margin: '0 auto 1.5rem' }}></div>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>Loading Institution Data</h2>
-                    <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>Fetching secure environment for {schoolData?.name || 'your school'}...</p>
-                </div>
-            </div>
-        );
-    }
+    // NOTE: loading check moved below all hooks to comply with React Rules of Hooks
 
     const schoolName = schoolData?.name || 'School Name';
     const students = schoolData?.students || [];
@@ -2681,6 +2671,16 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
     return (
         <div className="dashboard-container" style={{ overflowX: 'hidden' }}>
+            {/* ── Loading Overlay (non-blocking — preserves tab state) ── */}
+            {loading && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.65)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(3px)' }}>
+                    <div style={{ textAlign: 'center', color: 'white' }}>
+                        <div className="animate-spin" style={{ width: '44px', height: '44px', border: '4px solid rgba(255,255,255,0.15)', borderTopColor: '#3b82f6', borderRadius: '50%', margin: '0 auto 1rem' }} />
+                        <p style={{ fontSize: '0.95rem', fontWeight: 600, opacity: 0.85 }}>Saving…</p>
+                    </div>
+                </div>
+            )}
+
             {/* ── Confirm Modal ── */}
             {confirmModal.open && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>

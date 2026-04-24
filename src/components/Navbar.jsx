@@ -114,6 +114,29 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, isAdmin, isDeveloper 
                         </button>
                     </div>
 
+                    {/* Mobile Login Button — always visible on mobile */}
+                    <button
+                        className="md:hidden"
+                        onClick={() => setCurrentPage(isLoggedIn ? 'portal' : isAdmin ? 'admin' : isDeveloper ? 'developer' : 'login')}
+                        style={{
+                            background: 'linear-gradient(90deg, #3b82f6, #2563eb)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '50px',
+                            padding: '0.45rem 1rem',
+                            fontSize: '0.82rem',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(37,99,235,0.4)'
+                        }}
+                    >
+                        <LogIn size={15} />
+                        {isLoggedIn ? 'Portal' : isAdmin ? 'Admin' : 'Login'}
+                    </button>
+
                     {/* Mobile Menu Button */}
                     <button
                         className="md:hidden"
