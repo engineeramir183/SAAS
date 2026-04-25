@@ -610,25 +610,29 @@ const AdmissionsTab = ({
                                 <thead>
                                     <tr>
                                         <th>Date</th>
+                                        <th>Inq #</th>
                                         <th>Student Name</th>
                                         <th>Parent Name</th>
                                         <th>Contact</th>
                                         <th>Class</th>
+                                        <th>Fee</th>
                                         <th>Status</th>
                                         <th style={{ textAlign: 'right' }}>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {safeInquiries.length === 0 ? (
-                                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>No inquiries found.</td></tr>
+                                        <tr><td colSpan="9" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>No inquiries found.</td></tr>
                                     ) : (
                                         [...safeInquiries].reverse().map(inq => (
                                             <tr key={inq.id}>
                                                 <td>{new Date(inq.date).toLocaleDateString()}</td>
+                                                <td style={{ color: '#64748b', fontSize: '0.85rem' }}>{inq.inquiryNumber || '-'}</td>
                                                 <td style={{ fontWeight: 600 }}>{inq.studentName}</td>
                                                 <td>{inq.fatherName}</td>
                                                 <td>{inq.contact}</td>
                                                 <td><span className="badge badge-info">{inq.applyingFor}</span></td>
+                                                <td style={{ fontWeight: 600 }}>{inq.feeQuoted ? `Rs. ${Number(inq.feeQuoted).toLocaleString()}` : '-'}</td>
                                                 <td>
                                                     <span className={`badge ${inq.status === 'confirmed' ? 'badge-success' : 'badge-warning'}`}>
                                                         {inq.status.toUpperCase()}
