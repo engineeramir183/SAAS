@@ -533,6 +533,14 @@ const AdmissionsTab = ({
                     <div className="card" style={{ padding: '2rem' }}>
                         <div className="grid grid-cols-2" style={{ gap: '1.5rem' }}>
                             <div>
+                                <label className="form-label">Inquiry #</label>
+                                <input type="text" className="form-input" value={inquiryData.inquiryNumber || 'Auto-generated on save'} readOnly disabled style={{ background: '#f8fafc', color: '#64748b' }} />
+                            </div>
+                            <div>
+                                <label className="form-label">Quoted Fee (Rs)</label>
+                                <input type="number" className="form-input" value={inquiryData.feeQuoted} onChange={e => setInquiryData(prev => ({ ...prev, feeQuoted: e.target.value }))} placeholder="e.g. 5000" />
+                            </div>
+                            <div>
                                 <label className="form-label">Student Name *</label>
                                 <input type="text" className="form-input" value={inquiryData.studentName} onChange={e => setInquiryData(prev => ({ ...prev, studentName: e.target.value }))} placeholder="Enter student's name" />
                             </div>
