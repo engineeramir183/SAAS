@@ -1277,6 +1277,37 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         </div>`;
     };
 
+    const printBlankAdmissionForm = (d) => {
+        const sharedCSS = `
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+            * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
+            body { margin: 0; padding: 0; background: #f0f0f0; }
+            .page { width:210mm; min-height:297mm; margin:0 auto; background:#fff; padding:12mm 15mm; position:relative; box-shadow:0 0 10px rgba(0,0,0,0.1); page-break-after:always; }
+            .header-container { display:flex; align-items:center; border:2.5px solid #1e3a8a; padding:15px 25px; border-radius:12px; margin-bottom:15px; position:relative; background:linear-gradient(135deg,#ffffff,#f8fafc); }
+            .header-logo { width:100px; height:auto; margin-right:25px; }
+            .header-text { flex:1; text-align:center; }
+            .header-text h1 { margin:0; font-size:32px; color:#1e3a8a; font-weight:800; letter-spacing:1px; text-transform:uppercase; }
+            .header-text p { margin:4px 0; font-size:13px; color:#1e40af; font-weight:600; }
+            .header-contact { font-size:16px; font-weight:800; color:#1e3a8a; margin-top:5px; }
+            .section-title { background:#f97316; color:#fff; display:inline-block; padding:4px 15px; font-weight:800; border-radius:4px; margin:15px 0 8px; font-size:14px; text-transform:uppercase; }
+            .field-row { display:flex; align-items:center; margin-bottom:11px; font-size:12px; }
+            .field-label { width:130px; font-weight:700; font-size:10px; text-transform:uppercase; color:#334155; }
+            .boxed-row { display:flex; gap:1px; }
+            .photo-box { position:absolute; top:175px; right:15mm; width:35mm; height:44mm; border:2px dashed #64748b; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:5px; background:#f8fafc; }
+            .photo-box b { font-size:12px; color:#64748b; } .photo-box span { font-size:9px; color:#94a3b8; }
+            .checkbox-group { display:flex; gap:12px; }
+            .checkbox { display:flex; align-items:center; gap:4px; font-weight:600; }
+            .box { width:13px; height:13px; border:1.5px solid #000; }
+            .underline { border-bottom:1.5px solid #e2e8f0; flex:1; padding:0 5px; min-height:18px; font-weight:700; color:#1e293b; }
+            .meta-header { display:flex; justify-content:space-between; font-size:12px; font-weight:700; color:#475569; margin-bottom:20px; }
+            @media print { @page { size:A4; margin:0; } body { background:#fff; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; } .page { border:none; box-shadow:none; width:100%; padding:10mm 15mm; } .no-print { display:none!important; } }
+        `;
+        const html = buildAdmissionFormHTML(d);
+        const printWin = window.open('', '_blank');
+        printWin.document.write(`<!DOCTYPE html><html><head><title>Admission Form — ${d.studentName || 'New'}</title><style>${sharedCSS}</style></head><body onload="setTimeout(()=>{window.print();},600)"><div class="no-print" style="text-align:center;padding:16px 20px;background:#1e3a8a;border-bottom:3px solid #1e40af;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;"><span style="color:white;font-weight:700;font-size:14px;">📄 To save as PDF: change <strong>Destination</strong> to <em>"Save as PDF"</em> in the dialog → click Save</span><button onclick="window.print()" style="padding:10px 24px;background:white;color:#1e3a8a;border:none;border-radius:8px;cursor:pointer;font-weight:800;font-size:14px;">🖨️ Print / Save as PDF</button></div>${html}</body></html>`);
+        printWin.document.close();
+    };
+
     // ── Bulk Admission Form Printing ──
     // mode: 'student' (by ID) | 'class' (by class name) | 'college' (all)
     const printAdmissionFormBulk = (mode, value) => {
@@ -3005,6 +3036,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         admissionInitialState={admissionInitialState}
                                         printAdmissionForm={printAdmissionForm}
                                         printAdmissionFormBulk={printAdmissionFormBulk}
+                                        printBlankAdmissionForm={printBlankAdmissionForm}
                                         handleAdmissionPhotoUpload={handleAdmissionPhotoUpload}
                                         photoFileRef={photoFileRef} sectionClasses={sectionClasses}
                                         students={students}

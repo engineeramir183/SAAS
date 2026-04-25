@@ -105,11 +105,11 @@ function buildDailyClassHTML(students, className, date, schoolName, genderFilter
             if (genderFilter === 'girls') return s.admissions?.[0]?.gender === 'Female';
             return true;
         })
+        .filter(s => (s.attendance?.records || []).some(r => r.date === date))
         .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
 
     const presentList = filtered.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === 'present'));
     const absentList = filtered.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === 'absent'));
-    const unmarkedList = filtered.filter(s => !(s.attendance?.records || []).some(r => r.date === date));
 
     const rows = filtered.map((s, i) => {
         const rec = (s.attendance?.records || []).find(r => r.date === date);
@@ -120,7 +120,7 @@ function buildDailyClassHTML(students, className, date, schoolName, genderFilter
           <td style="color:#64748b">${s.id}</td>
           <td>${s.admissions?.[0]?.gender || '—'}</td>
           <td>${s.admissions?.[0]?.fatherName || '—'}</td>
-          <td><span class="badge ${status}">${status === 'present' ? '✓ Present' : status === 'absent' ? '✗ Absent' : '— Unmarked'}</span></td>
+          <td><span class="badge ${status}">${status === 'present' ? '✓ Present' : status === 'absent' ? '✗ Absent' : status === 'leave' ? '📋 Leave' : status === 'late' ? '⏰ Late' : '— Unmarked'}</span></td>
           <td>${pctBar(s.attendance?.percentage || 0)}</td>
         </tr>`;
     }).join('');
@@ -131,7 +131,7 @@ ${schoolHeader(schoolName, 'Daily Attendance Report', `Class: ${className} | Dat
   <div class="meta-card"><div class="val">${filtered.length}</div><div class="lbl">Total Students</div></div>
   <div class="meta-card green"><div class="val">${presentList.length}</div><div class="lbl">Present</div></div>
   <div class="meta-card red"><div class="val">${absentList.length}</div><div class="lbl">Absent</div></div>
-  <div class="meta-card amber"><div class="val">${unmarkedList.length}</div><div class="lbl">Unmarked</div></div>
+  <div class="meta-card amber"><div class="val">${filtered.length > 0 ? Math.round((presentList.length / filtered.length) * 100) : 0}%</div><div class="lbl">Attendance Rate</div></div>
 </div>
 <table>
   <thead><tr><th>#</th><th>Student Name</th><th>ID</th><th>Gender</th><th>Father Name</th><th>Status</th><th>Overall %</th></tr></thead>
@@ -155,6 +155,7 @@ function buildMonthlyClassHTML(students, className, year, month, schoolName, gen
             if (genderFilter === 'girls') return s.admissions?.[0]?.gender === 'Female';
             return true;
         })
+        .filter(s => (s.attendance?.records || []).some(r => r.date.startsWith(prefix)))
         .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
 
     // All days recorded in this month across entire class
@@ -315,6 +316,7 @@ function buildStatusClassHTML(students, className, date, schoolName, statusType)
     const label = statusType === 'absent' ? 'Absent' : 'Present';
     const classStudents = students
         .filter(s => s.grade === className)
+        .filter(s => (s.attendance?.records || []).some(r => r.date === date))
         .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
     const filtered = classStudents.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === statusType));
     const rate = classStudents.length > 0 ? Math.round(((statusType === 'absent' ? classStudents.length - filtered.length : filtered.length) / classStudents.length) * 100) : 0;
@@ -335,12 +337,12 @@ ${statusTable(filtered, statusType)}`;
 function buildStatusSectionHTML(students, sections, date, schoolName, statusType) {
     const label = statusType === 'absent' ? 'Absent' : 'Present';
     const allFiltered = students.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === statusType));
-    const totalStudents = students.length;
+    const totalStudents = students.filter(s => (s.attendance?.records || []).some(r => r.date === date)).length;
     const totalPresent = students.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === 'present')).length;
 
     let sectionBlocks = '';
     (sections || []).forEach(sec => {
-        const secStudents = students.filter(s => (sec.classes || []).includes(s.grade));
+        const secStudents = students.filter(s => (sec.classes || []).includes(s.grade)).filter(s => (s.attendance?.records || []).some(r => r.date === date));
         const secFiltered = secStudents.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === statusType))
             .sort((a, b) => classSort(a.grade, b.grade) || a.id.localeCompare(b.id, undefined, { numeric: true }));
         const secPresent = secStudents.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === 'present')).length;
@@ -387,7 +389,7 @@ function buildStatusCollegeHTML(students, date, schoolName, statusType) {
     const allFiltered = students
         .filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === statusType))
         .sort((a, b) => classSort(a.grade, b.grade) || a.id.localeCompare(b.id, undefined, { numeric: true }));
-    const totalStudents = students.length;
+    const totalStudents = students.filter(s => (s.attendance?.records || []).some(r => r.date === date)).length;
     const totalPresent = students.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === 'present')).length;
 
     // Group by class
@@ -401,7 +403,7 @@ function buildStatusCollegeHTML(students, date, schoolName, statusType) {
     let classSections = '';
     Object.keys(grouped).sort(classSort).forEach(cls => {
         const list = grouped[cls];
-        const classTotal = students.filter(s => s.grade === cls).length;
+        const classTotal = students.filter(s => s.grade === cls && (s.attendance?.records || []).some(r => r.date === date)).length;
         classSections += `<div class="section-title">${cls} — ${list.length} ${label.toLowerCase()} out of ${classTotal}</div>`;
         classSections += statusTable(list, statusType);
     });

@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { Save, Trash2, Camera, User, Users, Award, CheckCircle, Printer, ChevronDown, X, ClipboardList, Clipboard, CheckCircle2 } from 'lucide-react';
+import { Save, Trash2, Camera, User, Users, Award, CheckCircle, Printer, ChevronDown, X, ClipboardList, Clipboard, CheckCircle2, FileText } from 'lucide-react';
+import { useSchoolData } from '../../context/SchoolDataContext';
 
 const AdmissionsTab = ({
     admissionData, setAdmissionData, admissionInitialState,
-    printAdmissionForm, printAdmissionFormBulk,
+    printAdmissionForm, printAdmissionFormBulk, printBlankAdmissionForm,
     handleAdmissionPhotoUpload, photoFileRef,
     sectionClasses, students,
     INQUIRIES, updateInquiries
 }) => {
+    const { schoolData } = useSchoolData();
     const update = (key, value) => setAdmissionData(prev => ({ ...prev, [key]: value }));
 
     const [activeView, setActiveView] = useState('admission'); // 'admission', 'inquiry', 'inquiries_list'
@@ -24,6 +26,210 @@ const AdmissionsTab = ({
     };
     const [inquiryData, setInquiryData] = useState(initialInquiryState);
     const safeInquiries = INQUIRIES || [];
+
+    const [voucherModal, setVoucherModal] = useState(false);
+    const [voucherFees, setVoucherFees] = useState({ admission: '', paperFund: '', monthly: '' });
+    const [inquiryPrintModal, setInquiryPrintModal] = useState(false);
+    const [inqPrintType, setInqPrintType] = useState('pending'); // 'pending', 'date', 'month'
+    const [inqPrintDate, setInqPrintDate] = useState(new Date().toISOString().split('T')[0]);
+    const [inqPrintMonth, setInqPrintMonth] = useState(new Date().toISOString().slice(0,7));
+
+    // -- Inquiry Print Functions --
+    const printInquiryForm = (inquiry) => {
+        const printWindow = window.open('', '', 'width=800,height=800');
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Inquiry Form - ${inquiry.studentName}</title>
+                    <style>
+                        body { font-family: sans-serif; padding: 2rem; color: #1e293b; line-height: 1.6; }
+                        .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 1rem; margin-bottom: 2rem; }
+                        .school-name { font-size: 1.5rem; font-weight: bold; margin-bottom: 0.25rem; }
+                        .title { font-size: 1.1rem; color: #475569; text-transform: uppercase; letter-spacing: 1px; }
+                        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+                        .box { border: 1px solid #e2e8f0; padding: 1rem; border-radius: 8px; }
+                        .label { font-size: 0.8rem; color: #64748b; text-transform: uppercase; margin-bottom: 0.2rem; }
+                        .val { font-size: 1.1rem; font-weight: 600; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div class="school-name">${schoolData?.name || 'School Name'}</div>
+                        <div class="title">Student Inquiry Record</div>
+                    </div>
+                    <div class="grid">
+                        <div class="box"><div class="label">Inquiry Date</div><div class="val">${new Date(inquiry.date).toLocaleDateString()}</div></div>
+                        <div class="box"><div class="label">Applying For Class</div><div class="val">${inquiry.applyingFor}</div></div>
+                        <div class="box"><div class="label">Student Name</div><div class="val">${inquiry.studentName}</div></div>
+                        <div class="box"><div class="label">Parent / Guardian Name</div><div class="val">${inquiry.fatherName || '-'}</div></div>
+                        <div class="box"><div class="label">Contact Number</div><div class="val">${inquiry.contact}</div></div>
+                        <div class="box"><div class="label">Status</div><div class="val">${inquiry.status.toUpperCase()}</div></div>
+                        <div class="box" style="grid-column: span 2;"><div class="label">Additional Notes</div><div class="val" style="font-weight: 400;">${inquiry.notes || '-'}</div></div>
+                    </div>
+                    <div style="margin-top: 5rem; display: flex; justify-content: space-between; padding: 0 2rem;">
+                        <div style="border-top: 1px solid #000; padding-top: 0.5rem; width: 200px; text-align: center;">Parent/Guardian Signature</div>
+                        <div style="border-top: 1px solid #000; padding-top: 0.5rem; width: 200px; text-align: center;">Authorized Officer</div>
+                    </div>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => { printWindow.print(); printWindow.close(); }, 250);
+    };
+
+    const handleSaveAndPrintInquiry = () => {
+        if (!inquiryData.studentName.trim() || !inquiryData.contact.trim()) {
+            alert("Student Name and Contact are required.");
+            return;
+        }
+        const newId = inquiryData.id || `INQ-${Date.now()}`;
+        const newInquiry = { ...inquiryData, id: newId };
+        let newList = [...safeInquiries];
+        if (inquiryData.id) newList = newList.map(i => i.id === inquiryData.id ? newInquiry : i);
+        else newList.push(newInquiry);
+        updateInquiries(newList);
+        
+        printInquiryForm(newInquiry);
+        setInquiryData(initialInquiryState);
+        setActiveView('inquiries_list');
+    };
+
+    const handleSaveAndPrintBlankForm = () => {
+        if (!inquiryData.studentName.trim() || !inquiryData.contact.trim()) {
+            alert("Student Name and Contact are required.");
+            return;
+        }
+        const newId = inquiryData.id || `INQ-${Date.now()}`;
+        const newInquiry = { ...inquiryData, id: newId };
+        let newList = [...safeInquiries];
+        if (inquiryData.id) newList = newList.map(i => i.id === inquiryData.id ? newInquiry : i);
+        else newList.push(newInquiry);
+        updateInquiries(newList);
+        
+        if (printBlankAdmissionForm) {
+            printBlankAdmissionForm(newInquiry);
+        }
+        setInquiryData(initialInquiryState);
+        setActiveView('inquiries_list');
+    };
+
+    const handleSaveAndGenerateVoucher = () => {
+        if (!inquiryData.studentName.trim() || !inquiryData.contact.trim()) {
+            alert("Student Name and Contact are required.");
+            return;
+        }
+        setVoucherModal(true);
+    };
+
+    const printVoucher = () => {
+        const total = Number(voucherFees.admission) + Number(voucherFees.paperFund) + Number(voucherFees.monthly);
+        const newId = inquiryData.id || `INQ-${Date.now()}`;
+        const newInquiry = { ...inquiryData, id: newId };
+        let newList = [...safeInquiries];
+        if (inquiryData.id) newList = newList.map(i => i.id === inquiryData.id ? newInquiry : i);
+        else newList.push(newInquiry);
+        updateInquiries(newList);
+
+        const sections = ['Bank Copy', 'Office Copy', 'Student Copy'];
+        let html = `<html><head><style>
+            body { font-family: sans-serif; margin: 0; padding: 1rem; font-size: 12px; }
+            .wrapper { display: flex; justify-content: space-between; gap: 1rem; }
+            .slip { flex: 1; border: 1px dashed #000; padding: 1rem; border-radius: 8px; }
+            .school { text-align: center; font-weight: bold; font-size: 16px; margin-bottom: 5px; }
+            .copy { text-align: center; font-weight: bold; text-decoration: underline; margin-bottom: 15px; }
+            .row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px dotted #ccc; padding-bottom: 4px;}
+            .total { font-weight: bold; font-size: 14px; border-top: 2px solid #000; border-bottom: none; padding-top: 8px; margin-top: 15px;}
+        </style></head><body><div class="wrapper">`;
+        
+        sections.forEach(copy => {
+            html += `<div class="slip">
+                <div class="school">${schoolData?.name || 'School Name'}</div>
+                <div class="copy">${copy}</div>
+                <div class="row"><span>Date:</span><span>${new Date().toLocaleDateString()}</span></div>
+                <div class="row"><span>Name:</span><span>${newInquiry.studentName}</span></div>
+                <div class="row"><span>Class:</span><span>${newInquiry.applyingFor}</span></div>
+                <div class="row"><span>Status:</span><span>Inquiry / Admission</span></div>
+                <br/>
+                <div class="row"><span>Admission Fee:</span><span>Rs. ${voucherFees.admission || 0}</span></div>
+                <div class="row"><span>Paper Fund:</span><span>Rs. ${voucherFees.paperFund || 0}</span></div>
+                <div class="row"><span>Monthly Fee:</span><span>Rs. ${voucherFees.monthly || 0}</span></div>
+                <div class="row total"><span>Total Payable:</span><span>Rs. ${total}</span></div>
+                <div style="margin-top:40px; border-top: 1px solid #000; text-align: center; padding-top: 5px;">Cashier Signature</div>
+            </div>`;
+        });
+        
+        html += `</div></body></html>`;
+        
+        const printWindow = window.open('', '', 'width=1000,height=500');
+        printWindow.document.write(html);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => { printWindow.print(); printWindow.close(); }, 250);
+        
+        setVoucherModal(false);
+        setVoucherFees({ admission: '', paperFund: '', monthly: '' });
+        setInquiryData(initialInquiryState);
+        setActiveView('inquiries_list');
+    };
+
+    const printInquiriesList = () => {
+        let filtered = safeInquiries;
+        let title = "Inquiries List";
+        if (inqPrintType === 'pending') {
+            filtered = safeInquiries.filter(i => i.status === 'pending');
+            title = "All Pending Inquiries";
+        } else if (inqPrintType === 'date') {
+            filtered = safeInquiries.filter(i => i.date === inqPrintDate);
+            title = `Inquiries on ${new Date(inqPrintDate).toLocaleDateString()}`;
+        } else if (inqPrintType === 'month') {
+            filtered = safeInquiries.filter(i => i.date.startsWith(inqPrintMonth));
+            const monthName = new Date(inqPrintMonth + '-01').toLocaleString('default', { month: 'long', year: 'numeric' });
+            title = `Inquiries for ${monthName}`;
+        }
+
+        const printWindow = window.open('', '', 'width=900,height=600');
+        let tableRows = filtered.slice().reverse().map(i => `
+            <tr>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${new Date(i.date).toLocaleDateString()}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">${i.studentName}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${i.contact}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${i.applyingFor}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${i.status.toUpperCase()}</td>
+            </tr>
+        `).join('');
+
+        if (filtered.length === 0) tableRows = '<tr><td colspan="5" style="text-align:center; padding: 1rem;">No inquiries found for this filter.</td></tr>';
+
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>${title}</title>
+                    <style>body { font-family: sans-serif; padding: 2rem; }</style>
+                </head>
+                <body>
+                    <h2 style="text-align:center; margin-bottom: 0;">${schoolData?.name || 'School Name'}</h2>
+                    <h3 style="text-align:center; color: #475569; margin-top: 5px;">${title} (Total: ${filtered.length})</h3>
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 2rem; text-align: left;">
+                        <thead>
+                            <tr style="background: #f8fafc;">
+                                <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Date</th>
+                                <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Student Name</th>
+                                <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Contact</th>
+                                <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Class</th>
+                                <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>${tableRows}</tbody>
+                    </table>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => { printWindow.print(); printWindow.close(); }, 250);
+        setInquiryPrintModal(false);
+    };
 
     const handleSaveInquiry = () => {
         if (!inquiryData.studentName.trim() || !inquiryData.contact.trim()) {
@@ -334,12 +540,21 @@ const AdmissionsTab = ({
                 <>
                     <div className="flex-between" style={{ marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                         <h2 style={{ fontSize: '1.75rem', fontWeight: 'var(--font-weight-bold)' }}>Inquiry Form</h2>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                             <button onClick={() => setInquiryData(initialInquiryState)} className="btn" style={{ background: 'white', border: '1px solid var(--color-gray-300)', color: 'var(--color-gray-600)' }}>
                                 <Trash2 size={16} /> Reset
                             </button>
                             <button onClick={handleSaveInquiry} className="btn btn-primary" style={{ background: '#2563eb', borderColor: '#2563eb' }}>
-                                <Save size={18} /> Save Inquiry
+                                <Save size={18} /> Save
+                            </button>
+                            <button onClick={handleSaveAndPrintInquiry} className="btn" style={{ background: '#eff6ff', color: '#1e3a8a', border: '1px solid #bfdbfe', fontWeight: 600 }}>
+                                <Printer size={16} /> Save & Print Inquiry
+                            </button>
+                            <button onClick={handleSaveAndPrintBlankForm} className="btn" style={{ background: '#f8fafc', color: '#0f172a', border: '1px solid #cbd5e1', fontWeight: 600 }}>
+                                <Clipboard size={16} /> Save & Print Form
+                            </button>
+                            <button onClick={handleSaveAndGenerateVoucher} className="btn" style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', fontWeight: 600 }}>
+                                <FileText size={16} /> Save & Generate Voucher
                             </button>
                         </div>
                     </div>
@@ -381,6 +596,9 @@ const AdmissionsTab = ({
                 <>
                     <div className="flex-between" style={{ marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                         <h2 style={{ fontSize: '1.75rem', fontWeight: 'var(--font-weight-bold)' }}>Inquiries List</h2>
+                        <button onClick={() => setInquiryPrintModal(true)} className="btn" style={{ background: '#eff6ff', color: '#1e3a8a', border: '1px solid #bfdbfe', fontWeight: 600 }}>
+                            <Printer size={16} /> Print Inquiries
+                        </button>
                     </div>
 
                     <div className="grid grid-cols-3" style={{ gap: '1.5rem', marginBottom: '2rem' }}>
@@ -460,6 +678,70 @@ const AdmissionsTab = ({
                         </div>
                     </div>
                 </>
+            )}
+
+            {/* --- Modals for Inquiries --- */}
+            {voucherModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                    <div className="card animate-fade-in" style={{ maxWidth: 400, width: '100%', padding: '1.75rem', position: 'relative' }}>
+                        <button onClick={() => setVoucherModal(false)} style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={20} /></button>
+                        <h3 style={{ marginTop: 0, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><FileText size={20} /> Generate Fee Voucher</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div>
+                                <label className="form-label">Admission Fee (Rs)</label>
+                                <input type="number" className="form-input" value={voucherFees.admission} onChange={e => setVoucherFees({...voucherFees, admission: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="form-label">Paper Fund (Rs)</label>
+                                <input type="number" className="form-input" value={voucherFees.paperFund} onChange={e => setVoucherFees({...voucherFees, paperFund: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="form-label">Monthly Fee (Rs)</label>
+                                <input type="number" className="form-input" value={voucherFees.monthly} onChange={e => setVoucherFees({...voucherFees, monthly: e.target.value})} />
+                            </div>
+                            <button onClick={printVoucher} className="btn btn-primary" style={{ marginTop: '0.5rem', width: '100%' }}>
+                                <Printer size={18} /> Print Voucher
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {inquiryPrintModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                    <div className="card animate-fade-in" style={{ maxWidth: 450, width: '100%', padding: '1.75rem', position: 'relative' }}>
+                        <button onClick={() => setInquiryPrintModal(false)} style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={20} /></button>
+                        <h3 style={{ marginTop: 0, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Printer size={20} /> Print Inquiries List</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                            <div>
+                                <label className="form-label">Filter By</label>
+                                <select className="form-input" value={inqPrintType} onChange={e => setInqPrintType(e.target.value)}>
+                                    <option value="pending">All Pending Inquiries</option>
+                                    <option value="date">By Specific Date</option>
+                                    <option value="month">By Specific Month</option>
+                                </select>
+                            </div>
+                            
+                            {inqPrintType === 'date' && (
+                                <div>
+                                    <label className="form-label">Select Date</label>
+                                    <input type="date" className="form-input" value={inqPrintDate} onChange={e => setInqPrintDate(e.target.value)} />
+                                </div>
+                            )}
+
+                            {inqPrintType === 'month' && (
+                                <div>
+                                    <label className="form-label">Select Month</label>
+                                    <input type="month" className="form-input" value={inqPrintMonth} onChange={e => setInqPrintMonth(e.target.value)} />
+                                </div>
+                            )}
+
+                            <button onClick={printInquiriesList} className="btn btn-primary" style={{ marginTop: '0.5rem', width: '100%' }}>
+                                <Printer size={18} /> Print Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
