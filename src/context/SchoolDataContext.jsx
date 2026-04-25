@@ -65,6 +65,7 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
     const [classSerialStarts, setClassSerialStarts] = useState(DEFAULT_CLASS_SERIAL_STARTS);
     const [classFeeDefaults,  setClassFeeDefaults]  = useState(DEFAULT_CLASS_FEE_DEFAULTS);
     const [expenses,          setExpenses]          = useState([]);
+    const [inquiries,         setInquiries]         = useState([]);
     const [loading,           setLoading]           = useState(true);
     const [adminCredentials,  setAdminCredentials]  = useState({ username: '', password: '' });
 
@@ -198,6 +199,7 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
             if (metaMap['CLASS_SERIAL_STARTS']) setClassSerialStarts(metaMap['CLASS_SERIAL_STARTS']);
             if (metaMap['CLASS_FEE_DEFAULTS'])  setClassFeeDefaults(metaMap['CLASS_FEE_DEFAULTS']);
             if (metaMap['EXPENSES'])            setExpenses(metaMap['EXPENSES']);
+            if (metaMap['INQUIRIES'])           setInquiries(metaMap['INQUIRIES']);
 
         } catch (error) {
             console.error('Error fetching school data:', error);
@@ -443,6 +445,12 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
         return { error };
     };
 
+    const updateInquiries = async (newList) => {
+        const { error } = await _upsertMeta('INQUIRIES', newList);
+        if (!error) setInquiries(newList);
+        return { error };
+    };
+
     const changeAdminPassword = async (newUsername, newPassword) => {
         const { error } = await supabase
             .from('admins')
@@ -468,6 +476,7 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
             CLASS_SERIAL_STARTS: classSerialStarts,
             CLASS_FEE_DEFAULTS:  classFeeDefaults,
             EXPENSES:         expenses,
+            INQUIRIES:        inquiries,
             adminCredentials,
 
             // ── Multi-tenant context ─────────────────────────────────────────
@@ -500,6 +509,7 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
             updateClassSerialStarts,
             updateClassFeeDefaults,
             updateExpenses,
+            updateInquiries,
             changeAdminPassword
         }}>
             {children}

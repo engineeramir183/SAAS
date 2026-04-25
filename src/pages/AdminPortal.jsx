@@ -33,7 +33,7 @@ const PayrollTab = lazy(() => import('../admin/tabs/PayrollTab'));
 
 
 const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
-    const { schoolData, CLASSES, SUBJECTS, TERMS, SECTIONS, WEIGHTS, CLASS_SERIAL_STARTS, CLASS_FEE_DEFAULTS, EXPENSES, fetchData, fetchPublicData, setStudents, setFaculty, updateSchoolInfo, updateSchoolSettings, setAnnouncements, updateClasses, updateSubjects, updateTerms, updateSections, updateWeights, updateClassSerialStarts, updateClassFeeDefaults, updateExpenses, adminCredentials, changeAdminPassword, currencySymbol, schoolSettings, completeOnboarding, loading, currentSchoolId } = useSchoolData();
+    const { schoolData, CLASSES, SUBJECTS, TERMS, SECTIONS, WEIGHTS, CLASS_SERIAL_STARTS, CLASS_FEE_DEFAULTS, EXPENSES, INQUIRIES, fetchData, fetchPublicData, setStudents, setFaculty, updateSchoolInfo, updateSchoolSettings, setAnnouncements, updateClasses, updateSubjects, updateTerms, updateSections, updateWeights, updateClassSerialStarts, updateClassFeeDefaults, updateExpenses, updateInquiries, adminCredentials, changeAdminPassword, currencySymbol, schoolSettings, completeOnboarding, loading, currentSchoolId } = useSchoolData();
     
     // NOTE: loading check moved below all hooks to comply with React Rules of Hooks
 
@@ -3008,6 +3008,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         handleAdmissionPhotoUpload={handleAdmissionPhotoUpload}
                                         photoFileRef={photoFileRef} sectionClasses={sectionClasses}
                                         students={students}
+                                        INQUIRIES={INQUIRIES}
+                                        updateInquiries={updateInquiries}
                                     />
                                 )}
 
