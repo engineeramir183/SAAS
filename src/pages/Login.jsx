@@ -106,7 +106,8 @@ const Login = ({
     setIsSuperAdminPage,
     setCurrentPage,
     setLoggedInStudent,
-    setActiveSchoolId,   // ← new: tells App which school to load
+    setActiveSchoolId,
+    onClose, // ← new: allows rendering as a modal
 }) => {
     const { schoolData, adminCredentials } = useSchoolData();
     const { loginSuperAdmin }              = useSuperAdmin();
@@ -229,16 +230,33 @@ const Login = ({
         setError('');
     };
 
+    const containerStyle = onClose ? {
+        position: 'fixed', inset: 0, zIndex: 99999,
+        background: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(12px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
+        animation: 'fadeIn 0.3s ease'
+    } : {
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '2rem 1rem',
+        position: 'relative'
+    };
+
     return (
-        <div style={{
-            minHeight: '100vh',
-            background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '2rem 1rem',
-            position: 'relative'
-        }}>
+        <div style={containerStyle}>
+            <style>{`
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to   { opacity: 1; }
+                }
+                @keyframes scaleUp {
+                    from { opacity: 0; transform: scale(0.95); }
+                    to   { opacity: 1; transform: scale(1); }
+                }
+            `}</style>
             {/* Suspension Modal */}
             {suspendedSchool && (
                 <SuspensionModal
@@ -247,42 +265,54 @@ const Login = ({
                     onClose={() => setSuspendedSchool(null)}
                 />
             )}
-            {/* Conditional Back button */}
-            <button 
-                onClick={() => {
-                    const params = new URLSearchParams(window.location.search);
-                    if (params.get('school')) {
-                        setCurrentPage('home');
-                    } else {
-                        setCurrentPage('saas');
-                    }
-                }}
-                style={{
-                    position: 'absolute',
-                    top: '2rem',
-                    left: '2rem',
-                    background: 'rgba(255,255,255,0.1)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    color: 'white',
-                    padding: '0.6rem 1.2rem',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                    fontSize: '0.85rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem'
-                }}
-            >
-                {new URLSearchParams(window.location.search).get('school') ? `← Back to ${schoolData?.name || 'Home'}` : '← Back to KHR Digital Labs'}
-            </button>
+            {/* Conditional Back / Close button */}
+            {onClose ? (
+                <button
+                    onClick={onClose}
+                    style={{
+                        position: 'absolute', top: '1.5rem', right: '1.5rem',
+                        background: 'rgba(255,255,255,0.1)', border: 'none',
+                        color: 'white', padding: '0.6rem', borderRadius: '50%',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'background 0.2s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                >
+                    <XCircle size={28} />
+                </button>
+            ) : (
+                <button 
+                    onClick={() => {
+                        const params = new URLSearchParams(window.location.search);
+                        if (params.get('school')) {
+                            setCurrentPage('home');
+                        } else {
+                            setCurrentPage('saas');
+                        }
+                    }}
+                    style={{
+                        position: 'absolute', top: '2rem', left: '2rem',
+                        background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
+                        color: 'white', padding: '0.6rem 1.2rem', borderRadius: '8px',
+                        cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem',
+                        display: 'flex', alignItems: 'center', gap: '0.5rem'
+                    }}
+                >
+                    {new URLSearchParams(window.location.search).get('school') ? `← Back to ${schoolData?.name || 'Home'}` : '← Back to KHR Digital Labs'}
+                </button>
+            )}
+
             <div
-                className="card animate-fade-in"
+                className="card"
                 style={{
                     width: '100%',
                     maxWidth: '460px',
                     background: 'white',
-                    padding: '3rem'
+                    padding: '3rem',
+                    animation: onClose ? 'scaleUp 0.3s ease' : 'none',
+                    position: 'relative',
+                    zIndex: 10
                 }}
             >
                 {/* Icon */}
