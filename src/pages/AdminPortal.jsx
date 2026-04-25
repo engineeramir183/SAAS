@@ -1237,6 +1237,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             </div>
             <div class="meta-header">
                 <div>APPLYING FOR: <span style="color:#1e3a8a;border-bottom:1px solid #1e3a8a;min-width:80px;display:inline-block">${applyingFor}</span></div>
+                ${d.inquiryNumber ? `<div>INQUIRY #: <span style="color:#e11d48;font-weight:900">${d.inquiryNumber}</span></div>` : ''}
                 ${serialNumber ? `<div>SERIAL #: <span style="color:#7c3aed;font-weight:900">${serialNumber}</span></div>` : ''}
                 <div>DATE: <span style="color:#1e3a8a;border-bottom:1px solid #1e3a8a;min-width:80px;display:inline-block">${applicationDate}</span></div>
             </div>

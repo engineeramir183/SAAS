@@ -35,65 +35,6 @@ const AdmissionsTab = ({
     const [inqPrintMonth, setInqPrintMonth] = useState(new Date().toISOString().slice(0,7));
 
     // -- Inquiry Print Functions --
-    const printInquiryForm = (inquiry) => {
-        const printWindow = window.open('', '', 'width=800,height=800');
-        printWindow.document.write(`
-            <html>
-                <head>
-                    <title>Inquiry Form - ${inquiry.studentName}</title>
-                    <style>
-                        body { font-family: sans-serif; padding: 2rem; color: #1e293b; line-height: 1.6; }
-                        .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 1rem; margin-bottom: 2rem; }
-                        .school-name { font-size: 1.5rem; font-weight: bold; margin-bottom: 0.25rem; }
-                        .title { font-size: 1.1rem; color: #475569; text-transform: uppercase; letter-spacing: 1px; }
-                        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-                        .box { border: 1px solid #e2e8f0; padding: 1rem; border-radius: 8px; }
-                        .label { font-size: 0.8rem; color: #64748b; text-transform: uppercase; margin-bottom: 0.2rem; }
-                        .val { font-size: 1.1rem; font-weight: 600; }
-                    </style>
-                </head>
-                <body>
-                    <div class="header">
-                        <div class="school-name">${schoolData?.name || 'School Name'}</div>
-                        <div class="title">Student Inquiry Record</div>
-                    </div>
-                    <div class="grid">
-                        <div class="box"><div class="label">Inquiry Date</div><div class="val">${new Date(inquiry.date).toLocaleDateString()}</div></div>
-                        <div class="box"><div class="label">Applying For Class</div><div class="val">${inquiry.applyingFor}</div></div>
-                        <div class="box"><div class="label">Student Name</div><div class="val">${inquiry.studentName}</div></div>
-                        <div class="box"><div class="label">Parent / Guardian Name</div><div class="val">${inquiry.fatherName || '-'}</div></div>
-                        <div class="box"><div class="label">Contact Number</div><div class="val">${inquiry.contact}</div></div>
-                        <div class="box"><div class="label">Status</div><div class="val">${inquiry.status.toUpperCase()}</div></div>
-                        <div class="box" style="grid-column: span 2;"><div class="label">Additional Notes</div><div class="val" style="font-weight: 400;">${inquiry.notes || '-'}</div></div>
-                    </div>
-                    <div style="margin-top: 5rem; display: flex; justify-content: space-between; padding: 0 2rem;">
-                        <div style="border-top: 1px solid #000; padding-top: 0.5rem; width: 200px; text-align: center;">Parent/Guardian Signature</div>
-                        <div style="border-top: 1px solid #000; padding-top: 0.5rem; width: 200px; text-align: center;">Authorized Officer</div>
-                    </div>
-                </body>
-            </html>
-        `);
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => { printWindow.print(); printWindow.close(); }, 250);
-    };
-
-    const handleSaveAndPrintInquiry = () => {
-        if (!inquiryData.studentName.trim() || !inquiryData.contact.trim()) {
-            alert("Student Name and Contact are required.");
-            return;
-        }
-        const newId = inquiryData.id || `INQ-${Date.now()}`;
-        const newInquiry = { ...inquiryData, id: newId };
-        let newList = [...safeInquiries];
-        if (inquiryData.id) newList = newList.map(i => i.id === inquiryData.id ? newInquiry : i);
-        else newList.push(newInquiry);
-        updateInquiries(newList);
-        
-        printInquiryForm(newInquiry);
-        setInquiryData(initialInquiryState);
-        setActiveView('inquiries_list');
-    };
 
     const handleSaveAndPrintBlankForm = () => {
         if (!inquiryData.studentName.trim() || !inquiryData.contact.trim()) {
@@ -110,8 +51,6 @@ const AdmissionsTab = ({
         if (printBlankAdmissionForm) {
             printBlankAdmissionForm(newInquiry);
         }
-        setInquiryData(initialInquiryState);
-        setActiveView('inquiries_list');
     };
 
     const handleSaveAndGenerateVoucher = () => {
@@ -133,29 +72,61 @@ const AdmissionsTab = ({
 
         const sections = ['Bank Copy', 'Office Copy', 'Student Copy'];
         let html = `<html><head><style>
-            body { font-family: sans-serif; margin: 0; padding: 1rem; font-size: 12px; }
-            .wrapper { display: flex; justify-content: space-between; gap: 1rem; }
-            .slip { flex: 1; border: 1px dashed #000; padding: 1rem; border-radius: 8px; }
-            .school { text-align: center; font-weight: bold; font-size: 16px; margin-bottom: 5px; }
-            .copy { text-align: center; font-weight: bold; text-decoration: underline; margin-bottom: 15px; }
-            .row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px dotted #ccc; padding-bottom: 4px;}
-            .total { font-weight: bold; font-size: 14px; border-top: 2px solid #000; border-bottom: none; padding-top: 8px; margin-top: 15px;}
-        </style></head><body><div class="wrapper">`;
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+            body { font-family: 'Inter', sans-serif; margin: 0; padding: 1.5rem; font-size: 13px; color: #1e293b; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            .wrapper { display: flex; justify-content: space-between; gap: 1.5rem; }
+            .slip { flex: 1; border: 2px dashed #94a3b8; padding: 1.5rem; border-radius: 12px; background: #ffffff; position: relative; }
+            .header-banner { background: #1e3a8a; color: white; padding: 10px; text-align: center; border-radius: 6px; margin-bottom: 12px; }
+            .school { font-weight: 800; font-size: 16px; letter-spacing: 0.5px; margin-bottom: 2px; }
+            .copy-badge { display: inline-block; background: #fef08a; color: #854d0e; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 99px; text-transform: uppercase; margin-top: 4px; border: 1px solid #facc15; }
+            .info-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin-bottom: 15px; background: #f8fafc; }
+            .row { display: flex; justify-content: space-between; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px dotted #cbd5e1; }
+            .row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+            .label { color: #64748b; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+            .val { font-weight: 700; color: #0f172a; font-size: 12px; }
+            .fees-box { margin-bottom: 20px; }
+            .fee-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f1f5f9; }
+            .fee-label { font-weight: 600; color: #334155; }
+            .fee-val { font-weight: 700; color: #1e293b; }
+            .total-row { display: flex; justify-content: space-between; padding: 10px 12px; background: #f1f5f9; border-radius: 6px; margin-top: 10px; border: 1px solid #cbd5e1; }
+            .total-label { font-weight: 800; font-size: 14px; color: #1e3a8a; }
+            .total-val { font-weight: 800; font-size: 16px; color: #1e3a8a; }
+            .signatures { display: flex; justify-content: space-between; margin-top: 40px; font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; }
+            .sig-line { border-top: 1px solid #94a3b8; width: 45%; text-align: center; padding-top: 5px; }
+        </style></head><body onload="setTimeout(()=>{window.print();},600)"><div class="wrapper">`;
         
         sections.forEach(copy => {
             html += `<div class="slip">
-                <div class="school">${schoolData?.name || 'School Name'}</div>
-                <div class="copy">${copy}</div>
-                <div class="row"><span>Date:</span><span>${new Date().toLocaleDateString()}</span></div>
-                <div class="row"><span>Name:</span><span>${newInquiry.studentName}</span></div>
-                <div class="row"><span>Class:</span><span>${newInquiry.applyingFor}</span></div>
-                <div class="row"><span>Status:</span><span>Inquiry / Admission</span></div>
-                <br/>
-                <div class="row"><span>Admission Fee:</span><span>Rs. ${voucherFees.admission || 0}</span></div>
-                <div class="row"><span>Paper Fund:</span><span>Rs. ${voucherFees.paperFund || 0}</span></div>
-                <div class="row"><span>Monthly Fee:</span><span>Rs. ${voucherFees.monthly || 0}</span></div>
-                <div class="row total"><span>Total Payable:</span><span>Rs. ${total}</span></div>
-                <div style="margin-top:40px; border-top: 1px solid #000; text-align: center; padding-top: 5px;">Cashier Signature</div>
+                <div class="header-banner">
+                    <div class="school">${schoolData?.name || 'School Name'}</div>
+                    <div style="font-size:10px; opacity:0.9">ADMISSION VOUCHER</div>
+                </div>
+                <div style="text-align:center; margin-bottom: 15px;">
+                    <span class="copy-badge">${copy}</span>
+                </div>
+                <div class="info-box">
+                    <div class="row"><span class="label">Date:</span><span class="val">${new Date().toLocaleDateString()}</span></div>
+                    <div class="row"><span class="label">Voucher #:</span><span class="val">${newId}</span></div>
+                    <div class="row"><span class="label">Student Name:</span><span class="val">${newInquiry.studentName}</span></div>
+                    <div class="row"><span class="label">Class:</span><span class="val">${newInquiry.applyingFor}</span></div>
+                </div>
+                
+                <div class="fees-box">
+                    <div style="font-size:10px; font-weight:800; color:#94a3b8; text-transform:uppercase; margin-bottom:8px;">Fee Particulars</div>
+                    <div class="fee-row"><span class="fee-label">Admission Fee</span><span class="fee-val">Rs. ${Number(voucherFees.admission || 0).toLocaleString()}</span></div>
+                    <div class="fee-row"><span class="fee-label">Paper Fund</span><span class="fee-val">Rs. ${Number(voucherFees.paperFund || 0).toLocaleString()}</span></div>
+                    <div class="fee-row"><span class="fee-label">Monthly Fee</span><span class="fee-val">Rs. ${Number(voucherFees.monthly || 0).toLocaleString()}</span></div>
+                </div>
+                
+                <div class="total-row">
+                    <span class="total-label">Total Payable:</span>
+                    <span class="total-val">Rs. ${total.toLocaleString()}</span>
+                </div>
+                
+                <div class="signatures">
+                    <div class="sig-line">Cashier</div>
+                    <div class="sig-line">Depositor</div>
+                </div>
             </div>`;
         });
         
@@ -169,8 +140,6 @@ const AdmissionsTab = ({
         
         setVoucherModal(false);
         setVoucherFees({ admission: '', paperFund: '', monthly: '' });
-        setInquiryData(initialInquiryState);
-        setActiveView('inquiries_list');
     };
 
     const printInquiriesList = () => {
@@ -192,14 +161,16 @@ const AdmissionsTab = ({
         let tableRows = filtered.slice().reverse().map(i => `
             <tr>
                 <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${new Date(i.date).toLocaleDateString()}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #475569;">${i.inquiryNumber || '-'}</td>
                 <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">${i.studentName}</td>
                 <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${i.contact}</td>
                 <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${i.applyingFor}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">${i.feeQuoted ? 'Rs. ' + Number(i.feeQuoted).toLocaleString() : '-'}</td>
                 <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${i.status.toUpperCase()}</td>
             </tr>
         `).join('');
 
-        if (filtered.length === 0) tableRows = '<tr><td colspan="5" style="text-align:center; padding: 1rem;">No inquiries found for this filter.</td></tr>';
+        if (filtered.length === 0) tableRows = '<tr><td colspan="7" style="text-align:center; padding: 1rem;">No inquiries found for this filter.</td></tr>';
 
         printWindow.document.write(`
             <html>
@@ -214,9 +185,11 @@ const AdmissionsTab = ({
                         <thead>
                             <tr style="background: #f8fafc;">
                                 <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Date</th>
+                                <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Inq #</th>
                                 <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Student Name</th>
                                 <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Contact</th>
                                 <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Class</th>
+                                <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Fee</th>
                                 <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Status</th>
                             </tr>
                         </thead>
@@ -238,7 +211,8 @@ const AdmissionsTab = ({
         }
 
         const newId = inquiryData.id || `INQ-${Date.now()}`;
-        const newInquiry = { ...inquiryData, id: newId };
+        const newInqNumber = inquiryData.inquiryNumber || getNextInquiryNumber();
+        const newInquiry = { ...inquiryData, id: newId, inquiryNumber: newInqNumber };
         
         let newList = [...safeInquiries];
         if (inquiryData.id) {
@@ -546,9 +520,6 @@ const AdmissionsTab = ({
                             </button>
                             <button onClick={handleSaveInquiry} className="btn btn-primary" style={{ background: '#2563eb', borderColor: '#2563eb' }}>
                                 <Save size={18} /> Save
-                            </button>
-                            <button onClick={handleSaveAndPrintInquiry} className="btn" style={{ background: '#eff6ff', color: '#1e3a8a', border: '1px solid #bfdbfe', fontWeight: 600 }}>
-                                <Printer size={16} /> Save & Print Inquiry
                             </button>
                             <button onClick={handleSaveAndPrintBlankForm} className="btn" style={{ background: '#f8fafc', color: '#0f172a', border: '1px solid #cbd5e1', fontWeight: 600 }}>
                                 <Clipboard size={16} /> Save & Print Form
