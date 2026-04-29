@@ -170,7 +170,7 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
 
             // ── Apply metadata ────────────────────────────────────────────────
             const currentClasses = metaMap['CLASSES'] || LOCAL_CLASSES;
-            if (metaMap['CLASSES']) setClasses(metaMap['CLASSES']);
+            setClasses(currentClasses);
 
             if (metaMap['SUBJECTS']) {
                 const loaded = metaMap['SUBJECTS'];
@@ -181,6 +181,8 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 } else {
                     setSubjects(loaded);
                 }
+            } else {
+                setSubjects(DEFAULT_SUBJECTS);
             }
 
             if (metaMap['TERMS']) {
@@ -192,14 +194,16 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 } else {
                     setTerms(loadedTerms);
                 }
+            } else {
+                setTerms(DEFAULT_TERMS);
             }
 
-            if (metaMap['SECTIONS'])           setSections(metaMap['SECTIONS']);
-            if (metaMap['WEIGHTS'])            setWeights(metaMap['WEIGHTS']);
-            if (metaMap['CLASS_SERIAL_STARTS']) setClassSerialStarts(metaMap['CLASS_SERIAL_STARTS']);
-            if (metaMap['CLASS_FEE_DEFAULTS'])  setClassFeeDefaults(metaMap['CLASS_FEE_DEFAULTS']);
-            if (metaMap['EXPENSES'])            setExpenses(metaMap['EXPENSES']);
-            if (metaMap['INQUIRIES'])           setInquiries(metaMap['INQUIRIES']);
+            setSections(metaMap['SECTIONS'] || []);
+            setWeights(metaMap['WEIGHTS'] || DEFAULT_WEIGHTS);
+            setClassSerialStarts(metaMap['CLASS_SERIAL_STARTS'] || DEFAULT_CLASS_SERIAL_STARTS);
+            setClassFeeDefaults(metaMap['CLASS_FEE_DEFAULTS'] || DEFAULT_CLASS_FEE_DEFAULTS);
+            setExpenses(metaMap['EXPENSES'] || []);
+            setInquiries(metaMap['INQUIRIES'] || []);
 
         } catch (error) {
             console.error('Error fetching school data:', error);
