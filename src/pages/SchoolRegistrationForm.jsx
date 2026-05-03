@@ -96,10 +96,13 @@ const SchoolRegistrationForm = ({ setCurrentPage }) => {
         setSubmitting(true);
         setError('');
 
+        const temporaryId = `pending-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
         const { error: dbErr } = await supabase
             .from('school_registration_requests')
             .insert([{
                 school_name:    form.school_name.trim(),
+                requested_school_id: temporaryId,
                 address:        form.address.trim() || null,
                 country:        form.country.trim() || 'Pakistan',
                 contact_phone:  form.contact_phone.trim(),
