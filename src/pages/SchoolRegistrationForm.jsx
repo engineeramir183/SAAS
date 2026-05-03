@@ -49,7 +49,6 @@ const SchoolRegistrationForm = ({ setCurrentPage }) => {
 
     const [form, setForm] = useState({
         school_name: '',
-        requested_school_id: '',
         address: '',
         country: 'Pakistan',
         contact_phone: '',
@@ -64,19 +63,10 @@ const SchoolRegistrationForm = ({ setCurrentPage }) => {
         setError('');
     };
 
-    // Auto-generate school ID from name
-    const autoId = (name) => {
-        return name.toLowerCase().trim()
-            .replace(/[^a-z0-9\s]/g, '')
-            .replace(/\s+/g, '-')
-            .slice(0, 20);
-    };
 
     const validateStep = () => {
         if (step === 0) {
             if (!form.school_name.trim()) return 'School name is required.';
-            if (!form.requested_school_id.trim()) return 'School ID is required.';
-            if (!/^[a-z0-9-]+$/.test(form.requested_school_id)) return 'School ID must be lowercase letters, numbers and hyphens only.';
         }
         if (step === 1) {
             if (!form.contact_phone.trim()) return 'A valid WhatsApp number is strictly required for registration updates.';
@@ -109,15 +99,14 @@ const SchoolRegistrationForm = ({ setCurrentPage }) => {
         const { error: dbErr } = await supabase
             .from('school_registration_requests')
             .insert([{
-                school_name:          form.school_name.trim(),
-                requested_school_id:  form.requested_school_id.trim().toLowerCase(),
-                address:              form.address.trim() || null,
-                country:              form.country.trim() || 'Pakistan',
-                contact_phone:        form.contact_phone.trim(),
-                contact_email:        form.contact_email.trim().toLowerCase(),
-                admin_username:       form.admin_username.trim(),
-                admin_password:       form.admin_password,
-                status:               'pending'
+                school_name:    form.school_name.trim(),
+                address:        form.address.trim() || null,
+                country:        form.country.trim() || 'Pakistan',
+                contact_phone:  form.contact_phone.trim(),
+                contact_email:  form.contact_email.trim().toLowerCase(),
+                admin_username: form.admin_username.trim(),
+                admin_password: form.admin_password,
+                status:         'pending'
             }]);
 
         if (dbErr) {
@@ -128,7 +117,7 @@ const SchoolRegistrationForm = ({ setCurrentPage }) => {
         } else {
             // ── Automated Notifications (Submission) ──
             if (saasInfo && form.contact_phone) {
-                const regMsg = WhatsAppTemplates.registrationRequest(form.school_name, form.requested_school_id);
+                const regMsg = WhatsAppTemplates.registrationRequest(form.school_name, '');
                 await sendWhatsAppMessage(form.contact_phone, regMsg, saasInfo);
             }
             if (saasInfo && form.contact_email) {
@@ -311,29 +300,9 @@ const SchoolRegistrationForm = ({ setCurrentPage }) => {
                                     type="text"
                                     placeholder="e.g. Sunshine Public School & College"
                                     value={form.school_name}
-                                    onChange={e => {
-                                        set('school_name', e.target.value);
-                                        if (!form.requested_school_id || form.requested_school_id === autoId(form.school_name)) {
-                                            set('requested_school_id', autoId(e.target.value));
-                                        }
-                                    }}
+                                    onChange={e => set('school_name', e.target.value)}
                                     required
                                     autoFocus
-                                />
-                            </FieldGroup>
-                            <FieldGroup
-                                label="Preferred School ID (Login Code)"
-                                icon={Building}
-                                hint="This will be the School Code your teachers and students use to log in. Only lowercase letters, numbers, and hyphens."
-                            >
-                                <input
-                                    className="reg-input"
-                                    style={inputStyle}
-                                    type="text"
-                                    placeholder="e.g. sunshine-school"
-                                    value={form.requested_school_id}
-                                    onChange={e => set('requested_school_id', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                                    required
                                 />
                             </FieldGroup>
                             <FieldGroup label="Country" icon={Globe}>
@@ -346,6 +315,13 @@ const SchoolRegistrationForm = ({ setCurrentPage }) => {
                                     placeholder="Pakistan"
                                 />
                             </FieldGroup>
+                            <div style={{
+                                background: '#eff6ff', border: '1px solid #bfdbfe',
+                                borderRadius: '10px', padding: '1rem',
+                                fontSize: '0.85rem', color: '#1e40af', lineHeight: 1.6
+                            }}>
+                                ℹ️ Your unique <strong>School Login Code</strong> will be assigned by our team after your request is reviewed and approved.
+                            </div>
                         </div>
                     )}
 

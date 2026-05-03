@@ -31,6 +31,8 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
     const [requests, setRequests] = useState([]);
     const [requestsLoading, setRequestsLoading] = useState(false);
     const [pendingCount, setPendingCount] = useState(0);
+    const [approvingReq, setApprovingReq] = useState(null);  // request being approved
+    const [assignedSchoolId, setAssignedSchoolId] = useState(''); // code typed by super admin
 
     // SaaS Settings state
     const [saasForm, setSaasForm] = useState({
@@ -71,10 +73,18 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
     };
 
     const approveRequest = async (req) => {
-        if (!window.confirm(`Approve and create school for "${req.school_name}"?`)) return;
+        if (!assignedSchoolId.trim()) {
+            setStatusMessage('Error: Please enter a School Code before approving.');
+            return;
+        }
+        if (!/^[a-z0-9-]+$/.test(assignedSchoolId.trim())) {
+            setStatusMessage('Error: School Code must be lowercase letters, numbers and hyphens only.');
+            return;
+        }
+        if (!window.confirm(`Create school "${req.school_name}" with code "${assignedSchoolId.trim()}"?`)) return;
         setStatusMessage('Creating school...');
         const schoolPayload = {
-            school_id:       req.requested_school_id,
+            school_id:       assignedSchoolId.trim().toLowerCase(),
             school_name:     req.school_name,
             country:         req.country || 'Pakistan',
             currency_symbol: 'RS',
@@ -85,11 +95,12 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
         const adminPayload = { username: req.admin_username, password: req.admin_password };
         const res = await registerSchool(schoolPayload, adminPayload);
         if (res.success) {
-            // Mark as approved
             await supabase.from('school_registration_requests')
-                .update({ status: 'approved' })
+                .update({ status: 'approved', assigned_school_id: assignedSchoolId.trim().toLowerCase() })
                 .eq('id', req.id);
-            setStatusMessage(`✅ School "${req.school_name}" created and activated!`);
+            setStatusMessage(`✅ School "${req.school_name}" created with code "${assignedSchoolId.trim()}"!`);
+            setApprovingReq(null);
+            setAssignedSchoolId('');
             
             // ── Automated Notifications ──
             if (saasInfo && req.contact_phone) {
@@ -98,14 +109,14 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
             }
             if (saasInfo && req.contact_email) {
                 const emailSub = `School Approved: ${req.school_name}`;
-                const emailMsg = `Congratulations! Your school ${req.school_name} has been approved. You can now login to your admin portal at ${window.location.origin}`;
+                const emailMsg = `Congratulations! Your school ${req.school_name} has been approved. Your School Login Code is: ${assignedSchoolId.trim()}. You can now login at ${window.location.origin}`;
                 await sendEmail(req.contact_email, emailSub, emailMsg, saasInfo);
             }
 
             fetchRequests();
             setTimeout(() => setStatusMessage(''), 4000);
         } else {
-            setStatusMessage('Error: ' + (res.error?.message || 'Failed'));
+            setStatusMessage('Error: ' + (res.error?.message || 'Failed. The school code may already be taken.'));
         }
     };
 
@@ -512,14 +523,40 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                                     </td>
                                                     <td style={{ padding: '1rem', textAlign: 'right' }}>
                                                         {req.status === 'pending' && (
-                                                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                                                                <button onClick={() => approveRequest(req)} style={{ background: '#dcfce7', border: '1px solid #86efac', color: '#166534', padding: '0.4rem 0.9rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                                                    <CheckCircle size={14} /> Approve
-                                                                </button>
-                                                                <button onClick={() => rejectRequest(req)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.4rem 0.9rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                                                    <XCircle size={14} /> Reject
-                                                                </button>
-                                                            </div>
+                                                            approvingReq?.id === req.id ? (
+                                                                // ── Inline approval panel ──
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end', minWidth: '220px' }}>
+                                                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#374151', alignSelf: 'flex-start' }}>
+                                                                        Assign School Code:
+                                                                    </label>
+                                                                    <input
+                                                                        type="text"
+                                                                        autoFocus
+                                                                        placeholder="e.g. sunshine-001"
+                                                                        value={assignedSchoolId}
+                                                                        onChange={e => setAssignedSchoolId(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                                                                        style={{ width: '100%', padding: '0.4rem 0.6rem', borderRadius: '6px', border: '1.5px solid #6366f1', fontSize: '0.85rem', fontFamily: 'monospace', outline: 'none' }}
+                                                                        onKeyDown={e => { if (e.key === 'Enter') approveRequest(req); if (e.key === 'Escape') { setApprovingReq(null); setAssignedSchoolId(''); } }}
+                                                                    />
+                                                                    <div style={{ display: 'flex', gap: '0.4rem', width: '100%' }}>
+                                                                        <button onClick={() => approveRequest(req)} style={{ flex: 1, background: '#dcfce7', border: '1px solid #86efac', color: '#166534', padding: '0.4rem 0.6rem', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
+                                                                            <CheckCircle size={13} /> Confirm
+                                                                        </button>
+                                                                        <button onClick={() => { setApprovingReq(null); setAssignedSchoolId(''); }} style={{ flex: 1, background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#64748b', padding: '0.4rem 0.6rem', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}>
+                                                                            Cancel
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                                                                    <button onClick={() => { setApprovingReq(req); setAssignedSchoolId(''); }} style={{ background: '#dcfce7', border: '1px solid #86efac', color: '#166534', padding: '0.4rem 0.9rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                                                        <CheckCircle size={14} /> Approve & Assign Code
+                                                                    </button>
+                                                                    <button onClick={() => rejectRequest(req)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.4rem 0.9rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                                                        <XCircle size={14} /> Reject
+                                                                    </button>
+                                                                </div>
+                                                            )
                                                         )}
                                                         {req.status === 'rejected' && (
                                                             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
