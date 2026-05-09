@@ -75,6 +75,19 @@ function classSort(a, b) {
     return numA !== numB ? numA - numB : (a || '').localeCompare(b || '');
 }
 
+const excelBtnStyle = {
+    padding: '0.5rem 1rem',
+    fontSize: '0.85rem',
+    borderRadius: 'var(--radius-md)',
+    fontWeight: 'var(--font-weight-semibold)',
+    border: '2px solid',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.4rem',
+    cursor: 'pointer',
+    transition: 'all var(--transition-base)'
+};
+
 /* ─────────────────────────────────────────────
    BUILD REPORT HTML HELPERS
 ───────────────────────────────────────────── */
@@ -414,212 +427,15 @@ function buildStatusCollegeHTML(students, date, schoolName, statusType) {
         ? '✓ No absentees across the entire college today!'
         : 'No students marked present for this date.';
 
-<div class="meta-grid">
-  <div class="meta-card"><div class="val">${student.grade || '—'}</div><div class="lbl">Class</div></div>
-  <div class="meta-card ${status === 'present' ? 'green' : status === 'absent' ? 'red' : 'amber'}">
-    <div class="val">${status === 'present' ? '✓' : status === 'absent' ? '✗' : '—'}</div>
-    <div class="lbl">${status.toUpperCase()}</div>
-  </div>
-  <div class="meta-card ${pct >= 75 ? 'green' : 'red'}"><div class="val">${pct}%</div><div class="lbl">Overall %</div></div>
-  <div class="meta-card"><div class="val">${student.attendance?.total || 0}</div><div class="lbl">Total Days</div></div>
-</div>
-<table>
-  <thead><tr><th>Field</th><th>Value</th></tr></thead>
-  <tbody>
-    <tr><td>Full Name</td><td><strong>${student.name}</strong></td></tr>
-    <tr><td>Student ID</td><td>${student.id}</td></tr>
-    <tr><td>Class</td><td>${student.grade || '—'}</td></tr>
-    <tr><td>Gender</td><td>${adm.gender || '—'}</td></tr>
-    <tr><td>Father Name</td><td>${adm.fatherName || '—'}</td></tr>
-    <tr><td>Contact</td><td>${adm.contact || '—'}</td></tr>
-    <tr><td>Status on ${date}</td><td><span class="badge ${status}">${status === 'present' ? '✓ Present' : status === 'absent' ? '✗ Absent' : '— Not Marked'}</span></td></tr>
-    <tr><td>Overall Attendance</td><td>${pctBar(pct)} (${student.attendance?.present || 0} Present / ${student.attendance?.absent || 0} Absent / ${student.attendance?.total || 0} Days)</td></tr>
-  </tbody>
-</table>`;
-}
-
-/* ── Individual student — monthly ─────────── */
-function buildStudentMonthlyHTML(student, year, month, schoolName) {
-    const prefix = `${year}-${String(month).padStart(2, '0')}`;
-    const monthLabel = new Date(year, month - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-    const adm = student.admissions?.[0] || {};
-    const monthRecs = (student.attendance?.records || [])
-        .filter(r => r.date.startsWith(prefix))
-        .sort((a, b) => a.date.localeCompare(b.date));
-    const present = monthRecs.filter(r => r.status === 'present').length;
-    const absent = monthRecs.filter(r => r.status === 'absent').length;
-    const pct = monthRecs.length > 0 ? parseFloat(((present / monthRecs.length) * 100).toFixed(1)) : 0;
-
-    const recRows = monthRecs.map((r, i) =>
-        `<tr><td>${i + 1}</td><td>${r.date}</td><td>${new Date(r.date).toLocaleDateString('default', { weekday: 'long' })}</td><td><span class="badge ${r.status}">${r.status === 'present' ? '✓ Present' : '✗ Absent'}</span></td></tr>`
-    ).join('');
-
     return `
-${schoolHeader(schoolName, 'Student Monthly Attendance Report', `${student.name} (${student.id}) | Month: ${monthLabel}`)}
-<div class="meta-grid">
-  <div class="meta-card green"><div class="val">${present}</div><div class="lbl">Days Present</div></div>
-  <div class="meta-card red"><div class="val">${absent}</div><div class="lbl">Days Absent</div></div>
-  <div class="meta-card"><div class="val">${monthRecs.length}</div><div class="lbl">Days Recorded</div></div>
-  <div class="meta-card ${pct >= 75 ? 'green' : 'red'}"><div class="val">${pct}%</div><div class="lbl">Month Attendance</div></div>
-</div>
-<table>
-  <thead><tr><th>Field</th><th>Value</th></tr></thead>
-  <tbody>
-    <tr><td>Full Name</td><td><strong>${student.name}</strong></td></tr>
-    <tr><td>Student ID</td><td>${student.id}</td></tr>
-    <tr><td>Class</td><td>${student.grade || '—'}</td></tr>
-    <tr><td>Father Name</td><td>${adm.fatherName || '—'}</td></tr>
-  </tbody>
-</table>
-<div class="section-title">Day-by-Day Record — ${monthLabel}</div>
-${monthRecs.length === 0
-            ? '<p style="color:#94a3b8;font-style:italic;font-size:12px">No attendance records found for this month.</p>'
-            : `<table><thead><tr><th>#</th><th>Date</th><th>Day</th><th>Status</th></tr></thead><tbody>${recRows}</tbody></table>`}`;
-}
-
-/* ── Generalized status report (present OR absent) ── */
-function studentRow(s, i, statusType) {
-    const pct = s.attendance?.percentage || 0;
-    const badgeClass = statusType === 'absent' ? 'absent' : 'present';
-    return `<tr>
-      <td>${i + 1}</td>
-      <td><strong>${s.name}</strong></td>
-      <td style="color:#64748b">${s.id}</td>
-      <td>${s.grade || '—'}</td>
-      <td>${s.admissions?.[0]?.gender || '—'}</td>
-      <td>${s.admissions?.[0]?.fatherName || '—'}</td>
-      <td>${s.admissions?.[0]?.contact || '—'}</td>
-      <td><span class="badge ${badgeClass}">${pct}%</span></td>
-    </tr>`;
-}
-
-function statusTable(list, statusType) {
-    if (list.length === 0) {
-        const msg = statusType === 'absent'
-            ? '✓ All students are present today!'
-            : 'No students marked present for this date.';
-        const color = statusType === 'absent' ? '#16a34a' : '#b45309';
-        return `<p style="color:${color};font-weight:700;font-size:14px;text-align:center;padding:20px">${msg}</p>`;
-    }
-    const rows = list.map((s, i) => studentRow(s, i, statusType)).join('');
-    return `<table>
-  <thead><tr><th>#</th><th>Student Name</th><th>ID</th><th>Class</th><th>Gender</th><th>Father Name</th><th>Contact</th><th>Overall %</th></tr></thead>
-  <tbody>${rows}</tbody>
-</table>`;
-}
-
-/* ── Status report — single class ────── */
-function buildStatusClassHTML(students, className, date, schoolName, statusType) {
-    const label = statusType === 'absent' ? 'Absent' : 'Present';
-    const classStudents = students
-        .filter(s => s.grade === className)
-        .filter(s => (s.attendance?.records || []).some(r => r.date === date))
-        .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
-    const filtered = classStudents.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === statusType));
-    const rate = classStudents.length > 0 ? Math.round(((statusType === 'absent' ? classStudents.length - filtered.length : filtered.length) / classStudents.length) * 100) : 0;
-
-    return `
-${schoolHeader(schoolName, `${label} Students Report`, `Class: ${className} | Date: ${date}`)}
-<div class="meta-grid">
-  <div class="meta-card"><div class="val">${classStudents.length}</div><div class="lbl">Total Students</div></div>
-  <div class="meta-card green"><div class="val">${statusType === 'absent' ? classStudents.length - filtered.length : filtered.length}</div><div class="lbl">Present</div></div>
-  <div class="meta-card red"><div class="val">${statusType === 'absent' ? filtered.length : classStudents.length - filtered.length}</div><div class="lbl">Absent</div></div>
-  <div class="meta-card ${rate >= 75 ? 'green' : 'red'}"><div class="val">${rate}%</div><div class="lbl">Attendance Rate</div></div>
-</div>
-<div class="section-title">${statusType === 'absent' ? '⚠' : '✓'} ${label} Students — ${className} (${date})</div>
-${statusTable(filtered, statusType)}`;
-}
-
-/* ── Status report — section-wise ────── */
-function buildStatusSectionHTML(students, sections, date, schoolName, statusType) {
-    const label = statusType === 'absent' ? 'Absent' : 'Present';
-    const allFiltered = students.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === statusType));
-    const totalStudents = students.filter(s => (s.attendance?.records || []).some(r => r.date === date)).length;
-    const totalPresent = students.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === 'present')).length;
-
-    let sectionBlocks = '';
-    (sections || []).forEach(sec => {
-        const secStudents = students.filter(s => (sec.classes || []).includes(s.grade)).filter(s => (s.attendance?.records || []).some(r => r.date === date));
-        const secFiltered = secStudents.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === statusType))
-            .sort((a, b) => classSort(a.grade, b.grade) || a.id.localeCompare(b.id, undefined, { numeric: true }));
-        const secPresent = secStudents.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === 'present')).length;
-        const secRate = secStudents.length > 0 ? Math.round((secPresent / secStudents.length) * 100) : 0;
-
-        sectionBlocks += `
-<div class="section-title">📚 ${sec.name || 'Section'} — ${secFiltered.length} ${label.toLowerCase()} out of ${secStudents.length} (${secRate}% attendance)</div>`;
-
-        if (secFiltered.length === 0) {
-            sectionBlocks += statusType === 'absent'
-                ? '<p style="color:#16a34a;font-weight:600;font-size:12px;padding:8px 14px">✓ No absentees in this section</p>'
-                : '<p style="color:#b45309;font-weight:600;font-size:12px;padding:8px 14px">No students marked present in this section</p>';
-        } else {
-            // Sub-group by class within section
-            const byClass = {};
-            secFiltered.forEach(s => {
-                const cls = s.grade || 'Unassigned';
-                if (!byClass[cls]) byClass[cls] = [];
-                byClass[cls].push(s);
-            });
-            Object.keys(byClass).sort(classSort).forEach(cls => {
-                const list = byClass[cls];
-                const classTotal = secStudents.filter(s => s.grade === cls).length;
-                sectionBlocks += `<p style="font-size:11px;font-weight:700;color:#475569;margin:10px 0 4px;padding-left:14px">${cls} — ${list.length} ${label.toLowerCase()} / ${classTotal} total</p>`;
-                sectionBlocks += statusTable(list, statusType);
-            });
-        }
-    });
-
-    return `
-${schoolHeader(schoolName, `Section-Wise ${label} Report`, `Date: ${date} | All Sections`)}
+${schoolHeader(schoolName, `College-Wide ${label} Report`, `Date: ${date}`)}
 <div class="meta-grid">
   <div class="meta-card"><div class="val">${totalStudents}</div><div class="lbl">Total Enrolled</div></div>
   <div class="meta-card green"><div class="val">${totalPresent}</div><div class="lbl">Present</div></div>
   <div class="meta-card red"><div class="val">${totalStudents - totalPresent}</div><div class="lbl">Absent</div></div>
-  <div class="meta-card ${totalStudents > 0 && ((totalPresent / totalStudents) * 100) >= 75 ? 'green' : 'red'}"><div class="val">${totalStudents > 0 ? Math.round((totalPresent / totalStudents) * 100) : 0}%</div><div class="lbl">College Attendance</div></div>
+  <div class="meta-card ${totalStudents > 0 && ((totalPresent / totalStudents) * 100) >= 75 ? 'green' : 'red'}"><div class="val">${totalStudents > 0 ? Math.round((totalPresent / totalStudents) * 100) : 0}%</div><div class="lbl">Attendance Rate</div></div>
 </div>
-${sectionBlocks}`;
-}
-
-/* ── Status report — whole college ────── */
-function buildStatusCollegeHTML(students, date, schoolName, statusType) {
-    const label = statusType === 'absent' ? 'Absent' : 'Present';
-    const allFiltered = students
-        .filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === statusType))
-        .sort((a, b) => classSort(a.grade, b.grade) || a.id.localeCompare(b.id, undefined, { numeric: true }));
-    const totalStudents = students.filter(s => (s.attendance?.records || []).some(r => r.date === date)).length;
-    const totalPresent = students.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === 'present')).length;
-
-    // Group by class
-    const grouped = {};
-    allFiltered.forEach(s => {
-        const cls = s.grade || 'Unassigned';
-        if (!grouped[cls]) grouped[cls] = [];
-        grouped[cls].push(s);
-    });
-
-    let classSections = '';
-    Object.keys(grouped).sort(classSort).forEach(cls => {
-        const list = grouped[cls];
-        const classTotal = students.filter(s => s.grade === cls && (s.attendance?.records || []).some(r => r.date === date)).length;
-        classSections += `<div class="section-title">${cls} — ${list.length} ${label.toLowerCase()} out of ${classTotal}</div>`;
-        classSections += statusTable(list, statusType);
-    });
-
-    const emptyMsg = statusType === 'absent'
-        ? '✓ No absentees across the entire college today!'
-        : 'No students marked present for this date.';
-
-    return `
-${schoolHeader(schoolName, `College-Wide ${label} Report`, `Date: ${date} | All Classes`)}
-<div class="meta-grid">
-  <div class="meta-card"><div class="val">${totalStudents}</div><div class="lbl">Total Enrolled</div></div>
-  <div class="meta-card green"><div class="val">${totalPresent}</div><div class="lbl">Present Today</div></div>
-  <div class="meta-card red"><div class="val">${totalStudents - totalPresent}</div><div class="lbl">Absent Today</div></div>
-  <div class="meta-card ${totalStudents > 0 && ((totalPresent / totalStudents) * 100) >= 75 ? 'green' : 'red'}"><div class="val">${totalStudents > 0 ? Math.round((totalPresent / totalStudents) * 100) : 0}%</div><div class="lbl">College Attendance</div></div>
-</div>
-${allFiltered.length === 0
-            ? `<p style="color:${statusType === 'absent' ? '#16a34a' : '#b45309'};font-weight:700;font-size:14px;text-align:center;padding:20px">${emptyMsg}</p>`
-            : classSections}`;
+${allFiltered.length === 0 ? `<p style="color:#16a34a;font-weight:600;font-size:13px;padding:12px">${emptyMsg}</p>` : classSections}`;
 }
 
 /* ══════════════════════════════════════════ */
@@ -697,6 +513,7 @@ const AttendanceTab = ({
             });
         }
     };
+    const [mainSearchQuery, setMainSearchQuery] = useState('');
     const [showPrintMenu, setShowPrintMenu] = useState(false);
     const [printMode, setPrintMode] = useState(null); // 'daily-class'|'monthly-class'|'student-daily'|'student-monthly'
     const [printMonth, setPrintMonth] = useState(() => {
@@ -759,8 +576,15 @@ const AttendanceTab = ({
                 const holiday = records.filter(r => r.status === 'holiday').length;
                 const late = records.filter(r => r.status === 'late').length;
                 const activeRecords = records.filter(r => r.status !== 'holiday');
-            }).eq('id', s.id);
-        });
+                const presentForPct = activeRecords.filter(r => r.status === 'present' || r.status === 'leave' || r.status === 'late').length;
+                const percentage = activeRecords.length > 0 ? parseFloat(((presentForPct / activeRecords.length) * 100).toFixed(1)) : 0;
+                const newAttendance = { records, total: records.length, present, absent, leave, late, holiday, percentage };
+
+                return supabase
+                    .from('students')
+                    .update({ attendance: newAttendance })
+                    .eq('id', s.id);
+            });
         await Promise.all(updates);
         fetchData();
         showSaveMessage(`All ${classStudents.length} students unmarked for ${filterDate}!`);
@@ -800,7 +624,6 @@ const AttendanceTab = ({
         setPrintMode(null);
     };
 
-    const [mainSearchQuery, setMainSearchQuery] = useState('');
     const filteredStudentsForSearch = allClassStudents.filter(s =>
         s.name.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
         s.id.toLowerCase().includes(studentSearchQuery.toLowerCase())
