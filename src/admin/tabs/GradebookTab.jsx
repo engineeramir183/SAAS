@@ -489,7 +489,7 @@ const GradebookTab = ({
                                                                             style={{ width: '70px', padding: '0.4rem', textAlign: 'center', borderRadius: '8px', border: isDirty ? '2px solid #3b82f6' : '1px solid #cbd5e1', background: gc.bg, color: gc.text, fontWeight: 700, fontSize: '0.95rem', outline: 'none', transition: 'all 0.2s' }} />
                                                                         {pct !== null && (
                                                                             <div style={{ fontSize: '0.7rem', color: gc.text, fontWeight: 700, marginTop: '4px' }}>
-                                                                                {isAbsent ? 'Absent' : `${pct}%`} · {isAbsent ? 'F' : calcGrade(pct)}
+                                                                                {isAbsent ? 'Absent' : `${pct}%`} · {isAbsent ? 'Absent' : calcGrade(pct)}
                                                                             </div>
                                                                         )}
                                                                     </div>
@@ -511,8 +511,8 @@ const GradebookTab = ({
                                 </div>
                                 <div style={{ padding: '1rem', borderTop: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
                                     <span style={{ fontSize: '0.85rem', color: '#475569', fontWeight: 800 }}>Grading Scale:</span>
-                                    {[['A+', '≥90', '#dcfce7', '#15803d'], ['A', '≥80', '#dcfce7', '#15803d'], ['B+', '≥70', '#dbeafe', '#1d4ed8'], ['B', '≥60', '#dbeafe', '#1d4ed8'], ['C', '≥50', '#fef9c3', '#a16207'], ['D', '≥40', '#ffedd5', '#c2410c'], ['F', '<40', '#fee2e2', '#dc2626']].map(([g, r, bg, col]) => (
-                                        <span key={g} style={{ background: bg, color: col, border: `1px solid ${col}33`, borderRadius: '6px', padding: '0.2rem 0.6rem', fontSize: '0.8rem', fontWeight: 700 }}>{g} {r}%</span>
+                                    {[['A++', '≥95%', '#f5f3ff', '#6d28d9'], ['A+', '≥90%', '#f3e8ff', '#7c3aed'], ['A', '≥85%', '#ecfdf5', '#059669'], ['B++', '≥80%', '#f0fdf4', '#16a34a'], ['B+', '≥75%', '#f0fdfa', '#0d9488'], ['B', '≥70%', '#eff6ff', '#2563eb'], ['C', '≥60%', '#fef3c7', '#b45309'], ['D', '≥50%', '#fffbeb', '#d97706'], ['E', '≥40%', '#fff7ed', '#ea580c'], ['U', '<40%', '#fee2e2', '#dc2626']].map(([g, r, bg, col]) => (
+                                        <span key={g} style={{ background: bg, color: col, border: `1px solid ${col}33`, borderRadius: '6px', padding: '0.2rem 0.6rem', fontSize: '0.8rem', fontWeight: 700 }}>{g} {r}</span>
                                     ))}
                                 </div>
                             </div>

@@ -12,6 +12,7 @@ import { useSchoolData } from '../context/SchoolDataContext';
 import { supabase } from '../supabaseClient';
 import OnboardingWizard from '../components/OnboardingWizard';
 import { sendWhatsAppMessage, WhatsAppTemplates } from '../services/WhatsAppService';
+import { ActivityLogService } from '../services/ActivityLogService';
 
 // ── Lazily-loaded tab components (module-level so references are stable) ──
 const GradebookTab = lazy(() => import('../admin/tabs/GradebookTab'));
@@ -30,6 +31,7 @@ const StudentEditModal = lazy(() => import('../admin/modals/StudentEditModal'));
 const SettingsTab = lazy(() => import('../admin/tabs/SettingsTab'));
 const DashboardTab = lazy(() => import('../admin/tabs/DashboardTab'));
 const PayrollTab = lazy(() => import('../admin/tabs/PayrollTab'));
+const LogsTab = lazy(() => import('../admin/tabs/LogsTab'));
 
 
 const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
@@ -195,21 +197,54 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
     // ── Grade Calculation (Pakistani Scale) ──
     const calcGrade = (pct) => {
-        if (pct >= 90) return 'A+';
-        if (pct >= 80) return 'A';
-        if (pct >= 70) return 'B+';
-        if (pct >= 60) return 'B';
-        if (pct >= 50) return 'C';
-        if (pct >= 40) return 'D';
-        return 'F';
+        if (pct === 'Absent' || pct === 'ABS' || pct === 'A') return 'Absent';
+        if (pct === null || pct === undefined || pct === '') return '—';
+        const num = Number(pct);
+        if (isNaN(num)) return '—';
+        if (num >= 95) return 'A++';
+        if (num >= 90) return 'A+';
+        if (num >= 85) return 'A';
+        if (num >= 80) return 'B++';
+        if (num >= 75) return 'B+';
+        if (num >= 70) return 'B';
+        if (num >= 60) return 'C';
+        if (num >= 50) return 'D';
+        if (num >= 40) return 'E';
+        return 'U';
     };
 
     const gradeColor = (pct) => {
-        if (pct >= 80) return { bg: '#dcfce7', text: '#15803d' };
-        if (pct >= 60) return { bg: '#dbeafe', text: '#1d4ed8' };
-        if (pct >= 50) return { bg: '#fef9c3', text: '#a16207' };
-        if (pct >= 40) return { bg: '#ffedd5', text: '#c2410c' };
-        return { bg: '#fee2e2', text: '#dc2626' };
+        if (pct === 'Absent' || pct === 'ABS' || pct === 'A') return { bg: '#f3f4f6', text: '#4b5563', border: '#cbd5e1' };
+        if (pct === null || pct === undefined || pct === '') return { bg: '#f8fafc', text: '#64748b', border: '#cbd5e1' };
+        const num = Number(pct);
+        if (isNaN(num)) return { bg: '#f8fafc', text: '#64748b', border: '#cbd5e1' };
+        if (num >= 95) return { bg: '#f5f3ff', text: '#6d28d9', border: '#1e293b' }; // A++ (Violet)
+        if (num >= 90) return { bg: '#f3e8ff', text: '#7c3aed', border: '#1e293b' }; // A+ (Purple)
+        if (num >= 85) return { bg: '#ecfdf5', text: '#059669', border: '#1e293b' }; // A (Emerald)
+        if (num >= 80) return { bg: '#f0fdf4', text: '#16a34a', border: '#1e293b' }; // B++ (Green)
+        if (num >= 75) return { bg: '#f0fdfa', text: '#0d9488', border: '#1e293b' }; // B+ (Teal)
+        if (num >= 70) return { bg: '#eff6ff', text: '#2563eb', border: '#1e293b' }; // B (Blue)
+        if (num >= 60) return { bg: '#fef3c7', text: '#b45309', border: '#1e293b' }; // C (Amber)
+        if (num >= 50) return { bg: '#fffbeb', text: '#d97706', border: '#1e293b' }; // D (Yellow)
+        if (num >= 40) return { bg: '#fff7ed', text: '#ea580c', border: '#1e293b' }; // E (Orange)
+        return { bg: '#fee2e2', text: '#dc2626', border: '#1e293b' }; // U (Red)
+    };
+
+    const getGradeRemark = (grade) => {
+        switch (grade) {
+            case 'A++': return 'Absolutely Outstanding! Your dedication and hard work truly paid off. Keep up the amazing effort! Incredible achievement! ';
+            case 'A+': return 'Excellent work! Fantastic results';
+            case 'A': return 'Adorable!';
+            case 'B++': return 'Great job';
+            case 'B+': return 'Well done!';
+            case 'B': return 'Good progress. Keep it up! You have potential to do even better!';
+            case 'C': return 'Satisfactory! Don’t be discouraged! DO More';
+            case 'D': return 'Don’t give up! We’re here to help you';
+            case 'E': return 'Performance needs serious improvement. Strong effort and consistent support are urgently needed. We believe in your potential—let’s work together to improve.!';
+            case 'U': return 'Unsatisfactory!';
+            case 'Absent': return 'Absent';
+            default: return '';
+        }
     };
 
     // Helper: get results for a specific term from a student's results array
@@ -268,7 +303,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 }
                 const numObtained = obtained === 'A' ? 0 : Number(obtained);
                 const pct = Math.round((numObtained / subTotal) * 100);
-                const grade = obtained === 'A' ? 'F' : calcGrade(pct);
+                const grade = obtained === 'A' ? 'Absent' : calcGrade(pct);
                 const existing = getTermResults(s, termLabel).find(r => r.subject === subject);
                 return { subject, total: subTotal, obtained, percentage: pct, grade, remarks: existing?.remarks || '', term: termLabel };
             });
@@ -280,6 +315,14 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         await setStudents(allStudents);
         setGbEdits({});
         setGbSaving(false);
+        ActivityLogService.logActivity({
+            schoolId: currentSchoolId,
+            username: adminCredentials.username || 'admin',
+            role: 'admin',
+            action: 'Save Gradebook',
+            targetName: `Class: ${selectedClass} - Term: ${termLabel}`,
+            details: { students_count: Object.keys(gbEdits).length, term: termLabel }
+        });
         showSaveMessage(`Gradebook saved for ${termLabel}!`);
     };
 
@@ -490,13 +533,20 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         const genderLabel = gbGenderTab === 'all' ? 'All Students' : (gbGenderTab === 'boys' ? 'Boys' : 'Girls');
 
         const gradeColors = (pct) => {
-            if (pct >= 90) return { bg: '#d1fae5', text: '#065f46', border: '#1e293b' };
-            if (pct >= 80) return { bg: '#dcfce7', text: '#15803d', border: '#1e293b' };
-            if (pct >= 70) return { bg: '#dbeafe', text: '#1d4ed8', border: '#1e293b' };
-            if (pct >= 60) return { bg: '#ede9fe', text: '#6d28d9', border: '#1e293b' };
-            if (pct >= 50) return { bg: '#fef9c3', text: '#a16207', border: '#1e293b' };
-            if (pct >= 40) return { bg: '#ffedd5', text: '#c2410c', border: '#1e293b' };
-            return { bg: '#fee2e2', text: '#dc2626', border: '#1e293b' };
+            if (pct === 'Absent' || pct === 'ABS' || pct === 'A') return { bg: '#f3f4f6', text: '#4b5563', border: '#1e293b' };
+            if (pct === null || pct === undefined || pct === '') return { bg: '#f8fafc', text: '#64748b', border: '#1e293b' };
+            const num = Number(pct);
+            if (isNaN(num)) return { bg: '#f8fafc', text: '#64748b', border: '#1e293b' };
+            if (num >= 95) return { bg: '#f5f3ff', text: '#6d28d9', border: '#1e293b' }; // A++ (Violet)
+            if (num >= 90) return { bg: '#f3e8ff', text: '#7c3aed', border: '#1e293b' }; // A+ (Purple)
+            if (num >= 85) return { bg: '#ecfdf5', text: '#059669', border: '#1e293b' }; // A (Emerald)
+            if (num >= 80) return { bg: '#f0fdf4', text: '#16a34a', border: '#1e293b' }; // B++ (Green)
+            if (num >= 75) return { bg: '#f0fdfa', text: '#0d9488', border: '#1e293b' }; // B+ (Teal)
+            if (num >= 70) return { bg: '#eff6ff', text: '#2563eb', border: '#1e293b' }; // B (Blue)
+            if (num >= 60) return { bg: '#fef3c7', text: '#b45309', border: '#1e293b' }; // C (Amber)
+            if (num >= 50) return { bg: '#fffbeb', text: '#d97706', border: '#1e293b' }; // D (Yellow)
+            if (num >= 40) return { bg: '#fff7ed', text: '#ea580c', border: '#1e293b' }; // E (Orange)
+            return { bg: '#fee2e2', text: '#dc2626', border: '#1e293b' }; // U (Red)
         };
 
         // Build rows
@@ -512,7 +562,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 const pct = numOb !== null ? Math.round((numOb / total) * 100) : null;
                 const sc = pct !== null ? gradeColors(pct) : { bg: '#f8fafc', text: '#1e293b', border: '#1e293b' };
                 const displayOb = ob === 'A' ? 'Absent' : ob;
-                const displayGrade = ob === 'A' ? 'F' : (pct !== null ? calcGrade(pct) : '');
+                const displayGrade = ob === 'A' ? 'Absent' : (pct !== null ? calcGrade(pct) : '');
                 return `<td style="text-align:center; padding:6px 4px; border:2px solid #1e293b; background:${sc.bg}; color:${sc.text}; font-weight:600; font-size:12px;">${ob !== null ? `${displayOb}<br/><span style='font-size:10px;font-weight:400'>${displayGrade}</span>` : '—'}</td>`;
             }).join('');
             return `
@@ -927,6 +977,14 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             if (error) throw error;
 
             await fetchData(); // Refresh local state
+            ActivityLogService.logActivity({
+                schoolId: currentSchoolId,
+                username: adminCredentials.username || 'admin',
+                role: 'admin',
+                action: 'Register Student',
+                targetName: `${d.studentName} (ID: ${studentId})`,
+                details: { class: d.applyingFor, serial: autoSerial }
+            });
             showSaveMessage(`Student ${d.studentName} saved with ID: ${studentId}${autoSerial ? ` (Serial: ${autoSerial})` : ''}`);
 
             // WhatsApp Automation: Welcome Message
@@ -1437,6 +1495,14 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         if (!error) {
             fetchData();
             setEditingMarks(false);
+            ActivityLogService.logActivity({
+                schoolId: currentSchoolId,
+                username: adminCredentials.username || 'admin',
+                role: 'admin',
+                action: 'Edit Student Marks',
+                targetName: `${student.name} (ID: ${student.id})`,
+                details: { marks_count: tempMarks.length }
+            });
             showSaveMessage('Marks saved successfully!');
         }
     };
@@ -1572,17 +1638,18 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             records.push({ date: today, status });
         }
 
-        // Recompute totals — 'leave' and 'late' count as present for percentage
+        // Recompute totals — 'leave' and 'late' count as present for percentage. 'holiday' is excluded entirely from calculations.
         const present = records.filter(r => r.status === 'present').length;
         const absent = records.filter(r => r.status === 'absent').length;
         const leave = records.filter(r => r.status === 'leave').length;
         const late = records.filter(r => r.status === 'late').length;
-        const total = records.length;
-        // Leave and Late count as present days for attendance %
-        const presentForPct = present + leave + late;
-        const percentage = total > 0 ? parseFloat(((presentForPct / total) * 100).toFixed(1)) : 0;
+        const holiday = records.filter(r => r.status === 'holiday').length;
+        
+        const activeRecords = records.filter(r => r.status !== 'holiday');
+        const presentForPct = activeRecords.filter(r => r.status === 'present' || r.status === 'leave' || r.status === 'late').length;
+        const percentage = activeRecords.length > 0 ? parseFloat(((presentForPct / activeRecords.length) * 100).toFixed(1)) : 0;
 
-        const newAttendance = { records, total, present, absent, leave, late, percentage };
+        const newAttendance = { records, total: records.length, present, absent, leave, late, holiday, percentage };
 
         const { error } = await supabase
             .from('students')
@@ -1592,7 +1659,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
         if (!error) {
             fetchData();
-            const statusLabel = status === 'present' ? '✓ Present' : status === 'absent' ? '✗ Absent' : status === 'leave' ? '📋 Leave' : '⏰ Late';
+            const statusLabel = status === 'present' ? '✓ Present' : status === 'absent' ? '✗ Absent' : status === 'leave' ? '📋 Leave' : status === 'holiday' ? '🌴 Holiday' : '⏰ Late';
             showSaveMessage(`${statusLabel} marked for ${student.name} on ${today}!`);
 
             // WhatsApp Automation: Attendance Alert
@@ -1612,11 +1679,18 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         if (!student) return;
         const oldAtt = student.attendance || {};
         const records = (oldAtt.records || []).filter(r => r.date !== dateStr);
+        
         const present = records.filter(r => r.status === 'present').length;
         const absent = records.filter(r => r.status === 'absent').length;
-        const total = records.length;
-        const percentage = total > 0 ? parseFloat(((present / total) * 100).toFixed(1)) : 0;
-        const newAttendance = { records, total, present, absent, percentage };
+        const leave = records.filter(r => r.status === 'leave').length;
+        const late = records.filter(r => r.status === 'late').length;
+        const holiday = records.filter(r => r.status === 'holiday').length;
+        
+        const activeRecords = records.filter(r => r.status !== 'holiday');
+        const presentForPct = activeRecords.filter(r => r.status === 'present' || r.status === 'leave' || r.status === 'late').length;
+        const percentage = activeRecords.length > 0 ? parseFloat(((presentForPct / activeRecords.length) * 100).toFixed(1)) : 0;
+
+        const newAttendance = { records, total: records.length, present, absent, leave, late, holiday, percentage };
         await supabase.from('students').update({ attendance: newAttendance }).eq('id', studentId).eq('school_id', currentSchoolId);
         fetchData();
         showSaveMessage(`Record for ${dateStr} removed.`);
@@ -2685,7 +2759,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         { id: 'announcements', label: 'Noticeboard', icon: Megaphone, desc: 'Broadcast notices to portals.', isPro: false },
         { id: 'facilities', label: 'School Facilities', icon: Building, desc: 'List and update school infrastructure.', isPro: false },
         { id: 'blog', label: 'Website Blog', icon: Layout, desc: 'Post stories and news to the public website.', isPro: true },
-        { id: 'settings', label: 'School Settings', icon: Building2, desc: 'Update school name, logo, mission, and vision.', isPro: false }
+        { id: 'settings', label: 'School Settings', icon: Building2, desc: 'Update school name, logo, mission, and vision.', isPro: false },
+        { id: 'logs', label: 'Activity Logs', icon: FileText, desc: 'Monitor administrative audit trails and security logs.', isPro: false }
     ];
 
     // ── Onboarding Guard ─────────────────────────────────────────────────────
@@ -3050,6 +3125,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                 {activeTab === 'reports' && (
                                     <ReportsTab
                                         students={students}
+                                        setStudents={setStudents}
                                         schoolData={schoolData}
                                         SUBJECTS={SUBJECTS}
                                         TERMS={TERMS}
@@ -3160,6 +3236,13 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         showSaveMessage={showSaveMessage}
                                     />
 
+                                )}
+
+                                {/* Logs */}
+                                {activeTab === 'logs' && (
+                                    <LogsTab
+                                        currentSchoolId={currentSchoolId}
+                                    />
                                 )}
                             </Suspense>
                         </div>

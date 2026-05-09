@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { Download, Printer, X, ChevronDown, Edit3, Save, Check } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Search, Download, Printer, X, ChevronDown, ChevronUp, ChevronRight, Edit3, Save, Check, Users, Filter } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
+import { useSchoolData } from '../../context/SchoolDataContext';
+import { ActivityLogService } from '../../services/ActivityLogService';
 
 /* ─────────────────────────────────────────────
    PRINT HELPER  – opens a new window with a
@@ -120,7 +122,7 @@ function buildDailyClassHTML(students, className, date, schoolName, genderFilter
           <td style="color:#64748b">${s.id}</td>
           <td>${s.admissions?.[0]?.gender || '—'}</td>
           <td>${s.admissions?.[0]?.fatherName || '—'}</td>
-          <td><span class="badge ${status}">${status === 'present' ? '✓ Present' : status === 'absent' ? '✗ Absent' : status === 'leave' ? '📋 Leave' : status === 'late' ? '⏰ Late' : '— Unmarked'}</span></td>
+          <td><span class="badge ${status}">${status === 'present' ? '✓ Present' : status === 'absent' ? '✗ Absent' : status === 'leave' ? '📋 Leave' : status === 'late' ? '⏰ Late' : status === 'holiday' ? '🌴 Holiday' : '— Unmarked'}</span></td>
           <td>${pctBar(s.attendance?.percentage || 0)}</td>
         </tr>`;
     }).join('');
@@ -412,6 +414,201 @@ function buildStatusCollegeHTML(students, date, schoolName, statusType) {
         ? '✓ No absentees across the entire college today!'
         : 'No students marked present for this date.';
 
+<div class="meta-grid">
+  <div class="meta-card"><div class="val">${student.grade || '—'}</div><div class="lbl">Class</div></div>
+  <div class="meta-card ${status === 'present' ? 'green' : status === 'absent' ? 'red' : 'amber'}">
+    <div class="val">${status === 'present' ? '✓' : status === 'absent' ? '✗' : '—'}</div>
+    <div class="lbl">${status.toUpperCase()}</div>
+  </div>
+  <div class="meta-card ${pct >= 75 ? 'green' : 'red'}"><div class="val">${pct}%</div><div class="lbl">Overall %</div></div>
+  <div class="meta-card"><div class="val">${student.attendance?.total || 0}</div><div class="lbl">Total Days</div></div>
+</div>
+<table>
+  <thead><tr><th>Field</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>Full Name</td><td><strong>${student.name}</strong></td></tr>
+    <tr><td>Student ID</td><td>${student.id}</td></tr>
+    <tr><td>Class</td><td>${student.grade || '—'}</td></tr>
+    <tr><td>Gender</td><td>${adm.gender || '—'}</td></tr>
+    <tr><td>Father Name</td><td>${adm.fatherName || '—'}</td></tr>
+    <tr><td>Contact</td><td>${adm.contact || '—'}</td></tr>
+    <tr><td>Status on ${date}</td><td><span class="badge ${status}">${status === 'present' ? '✓ Present' : status === 'absent' ? '✗ Absent' : '— Not Marked'}</span></td></tr>
+    <tr><td>Overall Attendance</td><td>${pctBar(pct)} (${student.attendance?.present || 0} Present / ${student.attendance?.absent || 0} Absent / ${student.attendance?.total || 0} Days)</td></tr>
+  </tbody>
+</table>`;
+}
+
+/* ── Individual student — monthly ─────────── */
+function buildStudentMonthlyHTML(student, year, month, schoolName) {
+    const prefix = `${year}-${String(month).padStart(2, '0')}`;
+    const monthLabel = new Date(year, month - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+    const adm = student.admissions?.[0] || {};
+    const monthRecs = (student.attendance?.records || [])
+        .filter(r => r.date.startsWith(prefix))
+        .sort((a, b) => a.date.localeCompare(b.date));
+    const present = monthRecs.filter(r => r.status === 'present').length;
+    const absent = monthRecs.filter(r => r.status === 'absent').length;
+    const pct = monthRecs.length > 0 ? parseFloat(((present / monthRecs.length) * 100).toFixed(1)) : 0;
+
+    const recRows = monthRecs.map((r, i) =>
+        `<tr><td>${i + 1}</td><td>${r.date}</td><td>${new Date(r.date).toLocaleDateString('default', { weekday: 'long' })}</td><td><span class="badge ${r.status}">${r.status === 'present' ? '✓ Present' : '✗ Absent'}</span></td></tr>`
+    ).join('');
+
+    return `
+${schoolHeader(schoolName, 'Student Monthly Attendance Report', `${student.name} (${student.id}) | Month: ${monthLabel}`)}
+<div class="meta-grid">
+  <div class="meta-card green"><div class="val">${present}</div><div class="lbl">Days Present</div></div>
+  <div class="meta-card red"><div class="val">${absent}</div><div class="lbl">Days Absent</div></div>
+  <div class="meta-card"><div class="val">${monthRecs.length}</div><div class="lbl">Days Recorded</div></div>
+  <div class="meta-card ${pct >= 75 ? 'green' : 'red'}"><div class="val">${pct}%</div><div class="lbl">Month Attendance</div></div>
+</div>
+<table>
+  <thead><tr><th>Field</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>Full Name</td><td><strong>${student.name}</strong></td></tr>
+    <tr><td>Student ID</td><td>${student.id}</td></tr>
+    <tr><td>Class</td><td>${student.grade || '—'}</td></tr>
+    <tr><td>Father Name</td><td>${adm.fatherName || '—'}</td></tr>
+  </tbody>
+</table>
+<div class="section-title">Day-by-Day Record — ${monthLabel}</div>
+${monthRecs.length === 0
+            ? '<p style="color:#94a3b8;font-style:italic;font-size:12px">No attendance records found for this month.</p>'
+            : `<table><thead><tr><th>#</th><th>Date</th><th>Day</th><th>Status</th></tr></thead><tbody>${recRows}</tbody></table>`}`;
+}
+
+/* ── Generalized status report (present OR absent) ── */
+function studentRow(s, i, statusType) {
+    const pct = s.attendance?.percentage || 0;
+    const badgeClass = statusType === 'absent' ? 'absent' : 'present';
+    return `<tr>
+      <td>${i + 1}</td>
+      <td><strong>${s.name}</strong></td>
+      <td style="color:#64748b">${s.id}</td>
+      <td>${s.grade || '—'}</td>
+      <td>${s.admissions?.[0]?.gender || '—'}</td>
+      <td>${s.admissions?.[0]?.fatherName || '—'}</td>
+      <td>${s.admissions?.[0]?.contact || '—'}</td>
+      <td><span class="badge ${badgeClass}">${pct}%</span></td>
+    </tr>`;
+}
+
+function statusTable(list, statusType) {
+    if (list.length === 0) {
+        const msg = statusType === 'absent'
+            ? '✓ All students are present today!'
+            : 'No students marked present for this date.';
+        const color = statusType === 'absent' ? '#16a34a' : '#b45309';
+        return `<p style="color:${color};font-weight:700;font-size:14px;text-align:center;padding:20px">${msg}</p>`;
+    }
+    const rows = list.map((s, i) => studentRow(s, i, statusType)).join('');
+    return `<table>
+  <thead><tr><th>#</th><th>Student Name</th><th>ID</th><th>Class</th><th>Gender</th><th>Father Name</th><th>Contact</th><th>Overall %</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>`;
+}
+
+/* ── Status report — single class ────── */
+function buildStatusClassHTML(students, className, date, schoolName, statusType) {
+    const label = statusType === 'absent' ? 'Absent' : 'Present';
+    const classStudents = students
+        .filter(s => s.grade === className)
+        .filter(s => (s.attendance?.records || []).some(r => r.date === date))
+        .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+    const filtered = classStudents.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === statusType));
+    const rate = classStudents.length > 0 ? Math.round(((statusType === 'absent' ? classStudents.length - filtered.length : filtered.length) / classStudents.length) * 100) : 0;
+
+    return `
+${schoolHeader(schoolName, `${label} Students Report`, `Class: ${className} | Date: ${date}`)}
+<div class="meta-grid">
+  <div class="meta-card"><div class="val">${classStudents.length}</div><div class="lbl">Total Students</div></div>
+  <div class="meta-card green"><div class="val">${statusType === 'absent' ? classStudents.length - filtered.length : filtered.length}</div><div class="lbl">Present</div></div>
+  <div class="meta-card red"><div class="val">${statusType === 'absent' ? filtered.length : classStudents.length - filtered.length}</div><div class="lbl">Absent</div></div>
+  <div class="meta-card ${rate >= 75 ? 'green' : 'red'}"><div class="val">${rate}%</div><div class="lbl">Attendance Rate</div></div>
+</div>
+<div class="section-title">${statusType === 'absent' ? '⚠' : '✓'} ${label} Students — ${className} (${date})</div>
+${statusTable(filtered, statusType)}`;
+}
+
+/* ── Status report — section-wise ────── */
+function buildStatusSectionHTML(students, sections, date, schoolName, statusType) {
+    const label = statusType === 'absent' ? 'Absent' : 'Present';
+    const allFiltered = students.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === statusType));
+    const totalStudents = students.filter(s => (s.attendance?.records || []).some(r => r.date === date)).length;
+    const totalPresent = students.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === 'present')).length;
+
+    let sectionBlocks = '';
+    (sections || []).forEach(sec => {
+        const secStudents = students.filter(s => (sec.classes || []).includes(s.grade)).filter(s => (s.attendance?.records || []).some(r => r.date === date));
+        const secFiltered = secStudents.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === statusType))
+            .sort((a, b) => classSort(a.grade, b.grade) || a.id.localeCompare(b.id, undefined, { numeric: true }));
+        const secPresent = secStudents.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === 'present')).length;
+        const secRate = secStudents.length > 0 ? Math.round((secPresent / secStudents.length) * 100) : 0;
+
+        sectionBlocks += `
+<div class="section-title">📚 ${sec.name || 'Section'} — ${secFiltered.length} ${label.toLowerCase()} out of ${secStudents.length} (${secRate}% attendance)</div>`;
+
+        if (secFiltered.length === 0) {
+            sectionBlocks += statusType === 'absent'
+                ? '<p style="color:#16a34a;font-weight:600;font-size:12px;padding:8px 14px">✓ No absentees in this section</p>'
+                : '<p style="color:#b45309;font-weight:600;font-size:12px;padding:8px 14px">No students marked present in this section</p>';
+        } else {
+            // Sub-group by class within section
+            const byClass = {};
+            secFiltered.forEach(s => {
+                const cls = s.grade || 'Unassigned';
+                if (!byClass[cls]) byClass[cls] = [];
+                byClass[cls].push(s);
+            });
+            Object.keys(byClass).sort(classSort).forEach(cls => {
+                const list = byClass[cls];
+                const classTotal = secStudents.filter(s => s.grade === cls).length;
+                sectionBlocks += `<p style="font-size:11px;font-weight:700;color:#475569;margin:10px 0 4px;padding-left:14px">${cls} — ${list.length} ${label.toLowerCase()} / ${classTotal} total</p>`;
+                sectionBlocks += statusTable(list, statusType);
+            });
+        }
+    });
+
+    return `
+${schoolHeader(schoolName, `Section-Wise ${label} Report`, `Date: ${date} | All Sections`)}
+<div class="meta-grid">
+  <div class="meta-card"><div class="val">${totalStudents}</div><div class="lbl">Total Enrolled</div></div>
+  <div class="meta-card green"><div class="val">${totalPresent}</div><div class="lbl">Present</div></div>
+  <div class="meta-card red"><div class="val">${totalStudents - totalPresent}</div><div class="lbl">Absent</div></div>
+  <div class="meta-card ${totalStudents > 0 && ((totalPresent / totalStudents) * 100) >= 75 ? 'green' : 'red'}"><div class="val">${totalStudents > 0 ? Math.round((totalPresent / totalStudents) * 100) : 0}%</div><div class="lbl">College Attendance</div></div>
+</div>
+${sectionBlocks}`;
+}
+
+/* ── Status report — whole college ────── */
+function buildStatusCollegeHTML(students, date, schoolName, statusType) {
+    const label = statusType === 'absent' ? 'Absent' : 'Present';
+    const allFiltered = students
+        .filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === statusType))
+        .sort((a, b) => classSort(a.grade, b.grade) || a.id.localeCompare(b.id, undefined, { numeric: true }));
+    const totalStudents = students.filter(s => (s.attendance?.records || []).some(r => r.date === date)).length;
+    const totalPresent = students.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === 'present')).length;
+
+    // Group by class
+    const grouped = {};
+    allFiltered.forEach(s => {
+        const cls = s.grade || 'Unassigned';
+        if (!grouped[cls]) grouped[cls] = [];
+        grouped[cls].push(s);
+    });
+
+    let classSections = '';
+    Object.keys(grouped).sort(classSort).forEach(cls => {
+        const list = grouped[cls];
+        const classTotal = students.filter(s => s.grade === cls && (s.attendance?.records || []).some(r => r.date === date)).length;
+        classSections += `<div class="section-title">${cls} — ${list.length} ${label.toLowerCase()} out of ${classTotal}</div>`;
+        classSections += statusTable(list, statusType);
+    });
+
+    const emptyMsg = statusType === 'absent'
+        ? '✓ No absentees across the entire college today!'
+        : 'No students marked present for this date.';
+
     return `
 ${schoolHeader(schoolName, `College-Wide ${label} Report`, `Date: ${date} | All Classes`)}
 <div class="meta-grid">
@@ -434,7 +631,72 @@ const AttendanceTab = ({
     fetchData, showSaveMessage, openConfirm,
     schoolName, sections,
 }) => {
+    const { currentSchoolId, adminCredentials } = useSchoolData();
     const [genderTab, setGenderTab] = useState('all');
+
+    const [checkedClasses, setCheckedClasses] = useState(selectedClass ? [selectedClass] : []);
+    const [expandedSections, setExpandedSections] = useState(() => {
+        const initial = {};
+        (sections || []).forEach(sec => {
+            initial[sec.id] = true;
+        });
+        return initial;
+    });
+
+    useEffect(() => {
+        if (selectedClass && !checkedClasses.includes(selectedClass)) {
+            setCheckedClasses([selectedClass]);
+        }
+    }, [selectedClass]);
+
+    const toggleSectionExpand = (secId) => {
+        setExpandedSections(prev => ({ ...prev, [secId]: !prev[secId] }));
+    };
+
+    const handleSectionCheckboxChange = (sec, checked) => {
+        const secClasses = sec.classes || [];
+        if (checked) {
+            setCheckedClasses(prev => {
+                const next = [...prev];
+                secClasses.forEach(cls => {
+                    if (!next.includes(cls)) next.push(cls);
+                });
+                if (next.length > 0 && setSelectedClass) {
+                    setSelectedClass(next[0]);
+                }
+                return next;
+            });
+        } else {
+            setCheckedClasses(prev => {
+                const next = prev.filter(cls => !secClasses.includes(cls));
+                if (next.length > 0 && setSelectedClass) {
+                    setSelectedClass(next[0]);
+                }
+                return next;
+            });
+        }
+    };
+
+    const handleClassCheckboxChange = (cls, checked) => {
+        if (checked) {
+            setCheckedClasses(prev => {
+                if (!prev.includes(cls)) {
+                    const next = [...prev, cls];
+                    if (setSelectedClass) setSelectedClass(cls);
+                    return next;
+                }
+                return prev;
+            });
+        } else {
+            setCheckedClasses(prev => {
+                const next = prev.filter(c => c !== cls);
+                if (next.length > 0 && setSelectedClass) {
+                    setSelectedClass(next[0]);
+                }
+                return next;
+            });
+        }
+    };
     const [showPrintMenu, setShowPrintMenu] = useState(false);
     const [printMode, setPrintMode] = useState(null); // 'daily-class'|'monthly-class'|'student-daily'|'student-monthly'
     const [printMonth, setPrintMonth] = useState(() => {
@@ -453,10 +715,11 @@ const AttendanceTab = ({
     const filterDate = attDateFilter || today;
 
     const allClassStudents = students
-        .filter(s => s.grade === selectedClass)
+        .filter(s => checkedClasses.includes(s.grade))
         .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
 
     const classStudents = allClassStudents.filter(s => {
+        if (mainSearchQuery && !s.name.toLowerCase().includes(mainSearchQuery.toLowerCase()) && !s.id.toLowerCase().includes(mainSearchQuery.toLowerCase())) return false;
         if (genderTab === 'boys') return s.admissions?.[0]?.gender === 'Male';
         if (genderTab === 'girls') return s.admissions?.[0]?.gender === 'Female';
         return true;
@@ -493,54 +756,9 @@ const AttendanceTab = ({
                 const present = records.filter(r => r.status === 'present').length;
                 const absent = records.filter(r => r.status === 'absent').length;
                 const leave = records.filter(r => r.status === 'leave').length;
+                const holiday = records.filter(r => r.status === 'holiday').length;
                 const late = records.filter(r => r.status === 'late').length;
-                const presentForPct = present + leave + late;
-                const percentage = records.length > 0 ? parseFloat(((presentForPct / records.length) * 100).toFixed(1)) : 0;
-                return supabase.from('students').update({
-                    attendance: { records, total: records.length, present, absent, leave, late, percentage }
-                }).eq('id', s.id);
-            });
-        await Promise.all(updates);
-        await fetchData();
-        setHistorySaving(false);
-        setHistoryEdits({});
-        showSaveMessage(`Attendance history updated for ${historyDate}!`);
-    };
-
-    const excelBtnStyle = { padding: '0.5rem 1rem', fontSize: '0.85rem', borderRadius: 'var(--radius-md)', fontWeight: 'var(--font-weight-semibold)', border: '2px solid', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', transition: 'all var(--transition-base)' };
-
-    const markAll = async (status) => {
-        const updates = classStudents.map(s => {
-            const records = [...(s.attendance?.records || [])];
-            const idx = records.findIndex(r => r.date === filterDate);
-            if (idx >= 0) records[idx] = { date: filterDate, status };
-            else records.push({ date: filterDate, status });
-            const present = records.filter(r => r.status === 'present').length;
-            const absent = records.filter(r => r.status === 'absent').length;
-            const leave = records.filter(r => r.status === 'leave').length;
-            const late = records.filter(r => r.status === 'late').length;
-            const presentForPct = present + leave + late;
-            return supabase.from('students').update({
-                attendance: { records, total: records.length, present, absent, leave, late, percentage: parseFloat(((presentForPct / records.length) * 100).toFixed(1)) }
-            }).eq('id', s.id);
-        });
-        await Promise.all(updates);
-        fetchData();
-        const label = status === 'present' ? 'Present' : status === 'absent' ? 'Absent' : status === 'leave' ? 'Leave' : 'Late';
-        showSaveMessage(`All ${classStudents.length} students marked ${label} for ${filterDate}!`);
-    };
-
-    const unmarkAll = async () => {
-        const updates = classStudents.map(s => {
-            const records = [...(s.attendance?.records || [])].filter(r => r.date !== filterDate);
-            const present = records.filter(r => r.status === 'present').length;
-            const absent = records.filter(r => r.status === 'absent').length;
-            const leave = records.filter(r => r.status === 'leave').length;
-            const late = records.filter(r => r.status === 'late').length;
-            const presentForPct = present + leave + late;
-            const percentage = records.length > 0 ? parseFloat(((presentForPct / records.length) * 100).toFixed(1)) : 0;
-            return supabase.from('students').update({
-                attendance: { records, total: records.length, present, absent, leave, late, percentage }
+                const activeRecords = records.filter(r => r.status !== 'holiday');
             }).eq('id', s.id);
         });
         await Promise.all(updates);
@@ -558,7 +776,8 @@ const AttendanceTab = ({
     const absentToday = classStudents.filter(s => (s.attendance?.records || []).some(r => r.date === filterDate && r.status === 'absent')).length;
     const leaveToday = classStudents.filter(s => (s.attendance?.records || []).some(r => r.date === filterDate && r.status === 'leave')).length;
     const lateToday = classStudents.filter(s => (s.attendance?.records || []).some(r => r.date === filterDate && r.status === 'late')).length;
-    const unmarkedToday = classStudents.length - presentToday - absentToday - leaveToday - lateToday;
+    const holidayToday = classStudents.filter(s => (s.attendance?.records || []).some(r => r.date === filterDate && r.status === 'holiday')).length;
+    const unmarkedToday = classStudents.length - presentToday - absentToday - leaveToday - lateToday - holidayToday;
 
     // ── Print actions ──
     const doPrint = () => {
@@ -581,6 +800,7 @@ const AttendanceTab = ({
         setPrintMode(null);
     };
 
+    const [mainSearchQuery, setMainSearchQuery] = useState('');
     const filteredStudentsForSearch = allClassStudents.filter(s =>
         s.name.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
         s.id.toLowerCase().includes(studentSearchQuery.toLowerCase())
@@ -725,15 +945,15 @@ const AttendanceTab = ({
                                                     </td>
                                                     <td style={{ padding: '0.6rem 1rem', textAlign: 'center' }}>
                                                         <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                                                            {['present', 'absent', 'leave', 'late', 'unmark'].map(st => (
+                                                            {['present', 'absent', 'leave', 'late', 'holiday', 'unmark'].map(st => (
                                                                 <button key={st}
                                                                     onClick={() => setHistoryEdits(prev => ({ ...prev, [s.id]: st }))}
                                                                     style={{ padding: '0.25rem 0.45rem', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', border: '1.5px solid', transition: 'all 0.15s',
-                                                                        background: displayStatus === st ? (st === 'present' ? '#16a34a' : st === 'absent' ? '#dc2626' : st === 'leave' ? '#7c3aed' : st === 'late' ? '#d97706' : '#64748b') : 'white',
-                                                                        color: displayStatus === st ? 'white' : (st === 'present' ? '#16a34a' : st === 'absent' ? '#dc2626' : st === 'leave' ? '#7c3aed' : st === 'late' ? '#d97706' : '#64748b'),
-                                                                        borderColor: st === 'present' ? '#16a34a' : st === 'absent' ? '#dc2626' : st === 'leave' ? '#7c3aed' : st === 'late' ? '#d97706' : '#cbd5e1'
+                                                                        background: displayStatus === st ? (st === 'present' ? '#16a34a' : st === 'absent' ? '#dc2626' : st === 'leave' ? '#7c3aed' : st === 'late' ? '#d97706' : st === 'holiday' ? '#0284c7' : '#64748b') : 'white',
+                                                                        color: displayStatus === st ? 'white' : (st === 'present' ? '#16a34a' : st === 'absent' ? '#dc2626' : st === 'leave' ? '#7c3aed' : st === 'late' ? '#d97706' : st === 'holiday' ? '#0284c7' : '#64748b'),
+                                                                        borderColor: st === 'present' ? '#16a34a' : st === 'absent' ? '#dc2626' : st === 'leave' ? '#7c3aed' : st === 'late' ? '#d97706' : st === 'holiday' ? '#0284c7' : '#cbd5e1'
                                                                     }}>
-                                                                    {st === 'present' ? '✓ P' : st === 'absent' ? '✗ A' : st === 'leave' ? '📋 L' : st === 'late' ? '⏰ Lt' : '↩ Clear'}
+                                                                    {st === 'present' ? '✓ P' : st === 'absent' ? '✗ A' : st === 'leave' ? '📋 L' : st === 'late' ? '⏰ Lt' : st === 'holiday' ? '🌴 H' : '↩ Clear'}
                                                                 </button>
                                                             ))}
                                                         </div>
@@ -768,9 +988,11 @@ const AttendanceTab = ({
                     <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '0.25rem' }}>Day-by-day attendance tracking — {totalDays} school day{totalDays !== 1 ? 's' : ''} recorded</p>
                 </div>
                 <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <select className="form-input" style={{ padding: '0.5rem 0.8rem', minWidth: '150px' }} value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setGenderTab('all'); }}>
-                        {sectionClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
+                    <div style={{ position: 'relative' }}>
+                        <Search size={16} style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                        <input type="text" placeholder="Search student..." value={mainSearchQuery} onChange={e => setMainSearchQuery(e.target.value)} className="form-input" style={{ padding: '0.5rem 0.8rem 0.5rem 2rem', width: '180px' }} />
+                    </div>
+                    
                     <input type="date" value={attDateFilter} onChange={e => setAttDateFilter(e.target.value)} className="form-input" style={{ padding: '0.5rem 0.8rem' }} />
                     <button onClick={exportAttendanceExcel} style={{ ...excelBtnStyle, background: '#217346', color: 'white', borderColor: '#217346' }}>
                         <Download size={16} /> Export
@@ -854,7 +1076,90 @@ const AttendanceTab = ({
                 </div>
             </div>
 
-            {/* ── Gender Tabs ── */}
+            
+            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+                {/* ── Collapsible Section Sidebar ── */}
+                <div style={{ width: '260px', flexShrink: 0, background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.25rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.06)' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', borderBottom: '2px solid #f1f5f9', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Filter size={18} color="#2563eb" /> Sections & Classes
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        {(sections || []).map(sec => {
+                            const isExpanded = expandedSections[sec.id];
+                            const secClasses = sec.classes || [];
+                            const allChecked = secClasses.length > 0 && secClasses.every(cls => checkedClasses.includes(cls));
+                            const someChecked = secClasses.some(cls => checkedClasses.includes(cls)) && !allChecked;
+
+                            return (
+                                <div key={sec.id} style={{ background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', transition: 'all 0.2s' }}>
+                                    {/* Section Row */}
+                                    <div style={{ display: 'flex', alignItems: 'center', padding: '0.75rem 1rem', cursor: 'pointer', userSelect: 'none', background: '#f1f5f9', borderBottom: isExpanded ? '1px solid #e2e8f0' : 'none' }}
+                                        onClick={() => toggleSectionExpand(sec.id)}>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginRight: '0.5rem', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', color: '#64748b' }}>
+                                            <ChevronRight size={16} />
+                                        </span>
+                                        <input
+                                            type="checkbox"
+                                            checked={allChecked}
+                                            ref={el => {
+                                                if (el) el.indeterminate = someChecked;
+                                            }}
+                                            onChange={(e) => {
+                                                e.stopPropagation();
+                                                handleSectionCheckboxChange(sec, e.target.checked);
+                                            }}
+                                            onClick={e => e.stopPropagation()}
+                                            style={{ marginRight: '0.75rem', width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563eb' }}
+                                        />
+                                        <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>{sec.name}</span>
+                                    </div>
+
+                                    {/* Classes List */}
+                                    {isExpanded && (
+                                        <div style={{ padding: '0.5rem', background: 'white', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                            {secClasses.map(cls => {
+                                                const isChecked = checkedClasses.includes(cls);
+                                                const count = students.filter(s => s.grade === cls).length;
+
+                                                return (
+                                                    <div key={cls} 
+                                                        onClick={() => handleClassCheckboxChange(cls, !isChecked)}
+                                                        style={{ 
+                                                            display: 'flex', alignItems: 'center', padding: '0.5rem 0.75rem', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s',
+                                                            background: isChecked ? '#f0f6ff' : 'transparent',
+                                                        }}
+                                                        onMouseEnter={e => { if (!isChecked) e.currentTarget.style.background = '#f8fafc'; }}
+                                                        onMouseLeave={e => { if (!isChecked) e.currentTarget.style.background = 'transparent'; }}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isChecked}
+                                                            onChange={(e) => {
+                                                                e.stopPropagation();
+                                                                handleClassCheckboxChange(cls, e.target.checked);
+                                                            }}
+                                                            onClick={e => e.stopPropagation()}
+                                                            style={{ marginRight: '0.75rem', width: '15px', height: '15px', cursor: 'pointer', accentColor: '#2563eb' }}
+                                                        />
+                                                        <span style={{ fontWeight: isChecked ? 700 : 600, fontSize: '0.82rem', color: isChecked ? '#2563eb' : '#475569', flex: 1 }}>{cls}</span>
+                                                        <span style={{ fontSize: '0.72rem', background: isChecked ? '#2563eb1a' : '#e2e8f0', color: isChecked ? '#2563eb' : '#64748b', padding: '0.15rem 0.4rem', borderRadius: '6px', fontWeight: 700 }}>{count}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                            {secClasses.length === 0 && <div style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>No classes</div>}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                        {(!sections || sections.length === 0) && (
+                            <div style={{ padding: '1rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>No sections defined</div>
+                        )}
+                    </div>
+                </div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+    {/* ── Gender Tabs ── */}
             <div style={{ display: 'flex', marginBottom: '1.5rem', borderRadius: '12px 12px 0 0', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
                 {genderTabs.map(tab => (
                     <button key={tab.id} onClick={() => setGenderTab(tab.id)} style={{
@@ -880,6 +1185,7 @@ const AttendanceTab = ({
                     { label: `Absent (${filterDate})`, val: absentToday, color: '#dc2626', bg: '#fef2f2' },
                     { label: `Leave (${filterDate})`, val: leaveToday, color: '#7c3aed', bg: '#f5f3ff' },
                     { label: `Late (${filterDate})`, val: lateToday, color: '#d97706', bg: '#fffbeb' },
+                    { label: `Holiday (${filterDate})`, val: holidayToday, color: '#0284c7', bg: '#e0f2fe' },
                     { label: 'Not Marked', val: unmarkedToday, color: '#b45309', bg: '#fef3c7' },
                     { label: 'School Days', val: totalDays, color: '#0369a1', bg: '#e0f2fe' },
                 ].map(s => (
@@ -899,6 +1205,7 @@ const AttendanceTab = ({
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <button onClick={() => markAll('present')} style={{ padding: '0.5rem 1rem', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>✓ All Present</button>
                     <button onClick={() => markAll('absent')} style={{ padding: '0.5rem 1rem', background: '#dc2626', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>✗ All Absent</button>
+                    <button onClick={() => markAll('holiday')} style={{ padding: '0.5rem 1rem', background: '#0ea5e9', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>🌴 All Holiday</button>
                     <button onClick={() => openConfirm('Unmark All', `Remove attendance records for all ${classStudents.length} students on ${filterDate}?`, unmarkAll, true)} style={{ padding: '0.5rem 1rem', background: '#64748b', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>↩ Unmark All</button>
                 </div>
             </div>
@@ -958,8 +1265,9 @@ const AttendanceTab = ({
                                                         : r.status === 'absent' ? { bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' }
                                                         : r.status === 'leave' ? { bg: '#ede9fe', color: '#7c3aed', border: '#c4b5fd' }
                                                         : r.status === 'late' ? { bg: '#fef3c7', color: '#d97706', border: '#fcd34d' }
+                                                        : r.status === 'holiday' ? { bg: '#e0f2fe', color: '#0284c7', border: '#7dd3fc' }
                                                         : { bg: '#f1f5f9', color: '#94a3b8', border: '#e2e8f0' };
-                                                    const statusIcon = r.status === 'present' ? '✓' : r.status === 'absent' ? '✗' : r.status === 'leave' ? '📋' : r.status === 'late' ? '⏰' : '?';
+                                                    const statusIcon = r.status === 'present' ? '✓' : r.status === 'absent' ? '✗' : r.status === 'leave' ? '📋' : r.status === 'late' ? '⏰' : r.status === 'holiday' ? '🌴' : '?';
                                                     return (
                                                         <span key={r.date} title={`${r.date} — click to remove`}
                                                             onClick={() => openConfirm('Remove Record', `Remove attendance record for ${student.name} on ${r.date}?`, () => removeAttendanceRecord(student.id, r.date), false)}
@@ -1000,10 +1308,6 @@ const AttendanceTab = ({
                             )}
                         </tbody>
                     </table>
-                </div>
-            </div>
-        </div>
-    );
-};
+                </div></div></div></div></div>);};
 
 export default AttendanceTab;

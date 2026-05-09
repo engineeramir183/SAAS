@@ -12,17 +12,24 @@ const AdmissionsTab = ({
     const { schoolData } = useSchoolData();
     const update = (key, value) => setAdmissionData(prev => ({ ...prev, [key]: value }));
 
-    const [activeView, setActiveView] = useState('admission'); // 'admission', 'inquiry', 'inquiries_list'
+    const [activeView, setActiveView] = useState('admission'); // 'admission', 'inquiry', 'inquiries_list', 'dashboard'
+
+    const [inquiryFilter, setInquiryFilter] = useState('all');
+    const [inquirySearch, setInquirySearch] = useState('');
 
     const initialInquiryState = {
         id: '',
+        inquiryNumber: '',
         studentName: '',
         fatherName: '',
         contact: '',
         applyingFor: sectionClasses?.[0] || '',
         date: new Date().toISOString().split('T')[0],
         notes: '',
-        status: 'pending' // pending, confirmed
+        status: 'pending', // pending, confirmed
+        feeAdmission: '',
+        feePaperFund: '',
+        feeMonthly: ''
     };
     const [inquiryData, setInquiryData] = useState(initialInquiryState);
     const safeInquiries = INQUIRIES || [];
@@ -63,8 +70,20 @@ const AdmissionsTab = ({
 
     const printVoucher = () => {
         const total = Number(voucherFees.admission) + Number(voucherFees.paperFund) + Number(voucherFees.monthly);
-        const newId = inquiryData.id || `INQ-${Date.now()}`;
-        const newInquiry = { ...inquiryData, id: newId };
+        const newId = inquiryData.id || `INQ_ID_${Date.now()}`;
+        
+        const getNextInquiryNumberLocal = () => {
+            const year = new Date().getFullYear().toString().slice(-2);
+            const prefix = `INQ-${year}-`;
+            const existingInqs = safeInquiries.filter(i => (i.inquiryNumber || '').startsWith(prefix));
+            const maxNum = existingInqs.reduce((max, i) => {
+                const num = parseInt(i.inquiryNumber.split('-')[2], 10);
+                return !isNaN(num) ? Math.max(max, num) : max;
+            }, 0);
+            return `${prefix}${(maxNum + 1).toString().padStart(3, '0')}`;
+        };
+        const newInqNumber = inquiryData.inquiryNumber || getNextInquiryNumberLocal();
+        const newInquiry = { ...inquiryData, id: newId, inquiryNumber: newInqNumber };
         let newList = [...safeInquiries];
         if (inquiryData.id) newList = newList.map(i => i.id === inquiryData.id ? newInquiry : i);
         else newList.push(newInquiry);
@@ -165,7 +184,11 @@ const AdmissionsTab = ({
                 <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">${i.studentName}</td>
                 <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${i.contact}</td>
                 <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${i.applyingFor}</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">${i.feeQuoted ? 'Rs. ' + Number(i.feeQuoted).toLocaleString() : '-'}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">
+                    Adm: ${i.feeAdmission ? Number(i.feeAdmission).toLocaleString() : '-'}<br/>
+                    Mon: ${i.feeMonthly ? Number(i.feeMonthly).toLocaleString() : '-'}<br/>
+                    Pap: ${i.feePaperFund ? Number(i.feePaperFund).toLocaleString() : '-'}
+                </td>
                 <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${i.status.toUpperCase()}</td>
             </tr>
         `).join('');
@@ -210,8 +233,19 @@ const AdmissionsTab = ({
             return;
         }
 
-        const newId = inquiryData.id || `INQ-${Date.now()}`;
-        const newInqNumber = inquiryData.inquiryNumber || getNextInquiryNumber();
+        const newId = inquiryData.id || `INQ_ID_${Date.now()}`;
+        
+        const getNextInquiryNumberLocal = () => {
+            const year = new Date().getFullYear().toString().slice(-2);
+            const prefix = `INQ-${year}-`;
+            const existingInqs = safeInquiries.filter(i => (i.inquiryNumber || '').startsWith(prefix));
+            const maxNum = existingInqs.reduce((max, i) => {
+                const num = parseInt(i.inquiryNumber.split('-')[2], 10);
+                return !isNaN(num) ? Math.max(max, num) : max;
+            }, 0);
+            return `${prefix}${(maxNum + 1).toString().padStart(3, '0')}`;
+        };
+        const newInqNumber = inquiryData.inquiryNumber || getNextInquiryNumberLocal();
         const newInquiry = { ...inquiryData, id: newId, inquiryNumber: newInqNumber };
         
         let newList = [...safeInquiries];
@@ -283,6 +317,16 @@ const AdmissionsTab = ({
         if (bulkMode === 'class') return allStudents.filter(s => s.grade === bulkClass).length;
         return allStudents.length;
     };
+
+    const filteredInquiries = safeInquiries.filter(i => {
+        const matchesFilter = inquiryFilter === 'all' || i.status === inquiryFilter;
+        const matchesSearch = !inquirySearch || 
+            (i.studentName?.toLowerCase() || '').includes(inquirySearch.toLowerCase()) || 
+            (i.fatherName?.toLowerCase() || '').includes(inquirySearch.toLowerCase()) || 
+            (i.inquiryNumber?.toLowerCase() || '').includes(inquirySearch.toLowerCase()) ||
+            (i.contact?.toLowerCase() || '').includes(inquirySearch.toLowerCase());
+        return matchesFilter && matchesSearch;
+    });
 
     return (
         <div className="animate-fade-in">
@@ -402,9 +446,19 @@ const AdmissionsTab = ({
                                 <label className="form-label">Application Date</label>
                                 <input type="date" className="form-input" value={admissionData.applicationDate} onChange={e => update('applicationDate', e.target.value)} />
                             </div>
-                            <div className="col-span-2">
-                                <label className="form-label">Serial Number (Optional)</label>
-                                <input type="text" className="form-input" placeholder="Enter manual serial number (must be unique)" value={admissionData.serialNumber} onChange={e => update('serialNumber', e.target.value)} />
+                            <div className="col-span-2 grid grid-cols-3" style={{ gap: '1.5rem' }}>
+                                <div>
+                                    <label className="form-label">Serial Number (Optional)</label>
+                                    <input type="text" className="form-input" placeholder="Manual serial number" value={admissionData.serialNumber} onChange={e => update('serialNumber', e.target.value)} />
+                                </div>
+                                <div>
+                                    <label className="form-label">Admission Fee (Rs)</label>
+                                    <input type="number" className="form-input" placeholder="e.g. 5000" value={admissionData.admissionFee} onChange={e => update('admissionFee', e.target.value)} />
+                                </div>
+                                <div>
+                                    <label className="form-label">Monthly Fee (Rs)</label>
+                                    <input type="number" className="form-input" placeholder="e.g. 3000" value={admissionData.monthlyFee} onChange={e => update('monthlyFee', e.target.value)} />
+                                </div>
                             </div>
                         </div>
 
@@ -537,8 +591,16 @@ const AdmissionsTab = ({
                                 <input type="text" className="form-input" value={inquiryData.inquiryNumber || 'Auto-generated on save'} readOnly disabled style={{ background: '#f8fafc', color: '#64748b' }} />
                             </div>
                             <div>
-                                <label className="form-label">Quoted Fee (Rs)</label>
-                                <input type="number" className="form-input" value={inquiryData.feeQuoted} onChange={e => setInquiryData(prev => ({ ...prev, feeQuoted: e.target.value }))} placeholder="e.g. 5000" />
+                                <label className="form-label">Admission Fee (Rs)</label>
+                                <input type="number" className="form-input" value={inquiryData.feeAdmission} onChange={e => setInquiryData(prev => ({ ...prev, feeAdmission: e.target.value }))} placeholder="e.g. 5000" />
+                            </div>
+                            <div>
+                                <label className="form-label">Paper Fund (Rs)</label>
+                                <input type="number" className="form-input" value={inquiryData.feePaperFund} onChange={e => setInquiryData(prev => ({ ...prev, feePaperFund: e.target.value }))} placeholder="e.g. 1000" />
+                            </div>
+                            <div>
+                                <label className="form-label">Monthly Fee (Rs)</label>
+                                <input type="number" className="form-input" value={inquiryData.feeMonthly} onChange={e => setInquiryData(prev => ({ ...prev, feeMonthly: e.target.value }))} placeholder="e.g. 3000" />
                             </div>
                             <div>
                                 <label className="form-label">Student Name *</label>
@@ -575,6 +637,14 @@ const AdmissionsTab = ({
                 <>
                     <div className="flex-between" style={{ marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                         <h2 style={{ fontSize: '1.75rem', fontWeight: 'var(--font-weight-bold)' }}>Inquiries List</h2>
+                        <div className="flex gap-2">
+                            <input type="text" className="form-input" placeholder="Search inquiries..." value={inquirySearch} onChange={e => setInquirySearch(e.target.value)} style={{ minWidth: '220px' }} />
+                            <select className="form-input" value={inquiryFilter} onChange={e => setInquiryFilter(e.target.value)}>
+                                <option value="all">All Inquiries</option>
+                                <option value="pending">Pending</option>
+                                <option value="confirmed">Confirmed Admissions</option>
+                            </select>
+                        </div>
                         <button onClick={() => setInquiryPrintModal(true)} className="btn" style={{ background: '#eff6ff', color: '#1e3a8a', border: '1px solid #bfdbfe', fontWeight: 600 }}>
                             <Printer size={16} /> Print Inquiries
                         </button>
@@ -621,10 +691,10 @@ const AdmissionsTab = ({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {safeInquiries.length === 0 ? (
+                                    {filteredInquiries.length === 0 ? (
                                         <tr><td colSpan="9" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>No inquiries found.</td></tr>
                                     ) : (
-                                        [...safeInquiries].reverse().map(inq => (
+                                        [...filteredInquiries].reverse().map(inq => (
                                             <tr key={inq.id}>
                                                 <td>{new Date(inq.date).toLocaleDateString()}</td>
                                                 <td style={{ color: '#64748b', fontSize: '0.85rem' }}>{inq.inquiryNumber || '-'}</td>
@@ -632,7 +702,12 @@ const AdmissionsTab = ({
                                                 <td>{inq.fatherName}</td>
                                                 <td>{inq.contact}</td>
                                                 <td><span className="badge badge-info">{inq.applyingFor}</span></td>
-                                                <td style={{ fontWeight: 600 }}>{inq.feeQuoted ? `Rs. ${Number(inq.feeQuoted).toLocaleString()}` : '-'}</td>
+                                                <td style={{ fontWeight: 600, fontSize: '0.8rem' }}>
+                                                    {inq.feeAdmission ? <div>Adm: Rs. {Number(inq.feeAdmission).toLocaleString()}</div> : null}
+                                                    {inq.feeMonthly ? <div>Mon: Rs. {Number(inq.feeMonthly).toLocaleString()}</div> : null}
+                                                    {inq.feePaperFund ? <div>Pap: Rs. {Number(inq.feePaperFund).toLocaleString()}</div> : null}
+                                                    {!inq.feeAdmission && !inq.feeMonthly && !inq.feePaperFund && '-'}
+                                                </td>
                                                 <td>
                                                     <span className={`badge ${inq.status === 'confirmed' ? 'badge-success' : 'badge-warning'}`}>
                                                         {inq.status.toUpperCase()}
@@ -661,6 +736,51 @@ const AdmissionsTab = ({
                         </div>
                     </div>
                 </>
+            )}
+
+            {activeView === 'dashboard' && (
+                <div className="animate-fade-in">
+                    <div className="flex-between" style={{ marginBottom: '1.5rem' }}>
+                        <h2 style={{ fontSize: '1.75rem', fontWeight: 'var(--font-weight-bold)' }}>Conversion Dashboard</h2>
+                    </div>
+                    
+                    <div className="grid grid-cols-3" style={{ gap: '1.5rem', marginBottom: '2rem' }}>
+                        <div className="card" style={{ padding: '1.5rem', background: 'linear-gradient(135deg, #1e3a8a, #3b82f6)', color: 'white' }}>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '1px' }}>Total Inquiries</div>
+                            <div style={{ fontSize: '2.5rem', fontWeight: 800, marginTop: '0.5rem' }}>{safeInquiries.length}</div>
+                        </div>
+                        <div className="card" style={{ padding: '1.5rem', background: 'linear-gradient(135deg, #16a34a, #22c55e)', color: 'white' }}>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '1px' }}>Successful Admissions</div>
+                            <div style={{ fontSize: '2.5rem', fontWeight: 800, marginTop: '0.5rem' }}>{safeInquiries.filter(i => i.status === 'confirmed').length}</div>
+                        </div>
+                        <div className="card" style={{ padding: '1.5rem', background: 'linear-gradient(135deg, #d97706, #f59e0b)', color: 'white' }}>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '1px' }}>Conversion Rate</div>
+                            <div style={{ fontSize: '2.5rem', fontWeight: 800, marginTop: '0.5rem' }}>
+                                {safeInquiries.length > 0 ? Math.round((safeInquiries.filter(i => i.status === 'confirmed').length / safeInquiries.length) * 100) : 0}%
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="card" style={{ padding: '1.5rem' }}>
+                        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', color: '#1e293b' }}>Recent Inquiries Performance</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            {safeInquiries.slice(-5).reverse().map((inq, idx) => (
+                                <div key={idx} style={{ padding: '1rem', background: '#f8fafc', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0' }}>
+                                    <div>
+                                        <div style={{ fontWeight: 700, color: '#0f172a' }}>{inq.studentName}</div>
+                                        <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{inq.inquiryNumber || '-'} · Class: {inq.applyingFor}</div>
+                                    </div>
+                                    <div>
+                                        <span className={`badge ${inq.status === 'confirmed' ? 'badge-success' : 'badge-warning'}`}>
+                                            {inq.status.toUpperCase()}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                            {safeInquiries.length === 0 && <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>No data available</div>}
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* --- Modals for Inquiries --- */}

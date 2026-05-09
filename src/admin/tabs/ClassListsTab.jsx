@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronRight, Upload, Download, PlusCircle, Users, Edit3, Trash2, GripVertical, ChevronUp, ChevronDown, X, Hash, Check, Settings } from 'lucide-react';
-
+import { supabase } from '../../supabaseClient';
 const ClassListsTab = ({
     students, setStudents,
     SECTIONS, CLASSES,
@@ -331,6 +331,7 @@ const ClassListsTab = ({
                                                                         showSaveMessage('Uploading photo directly...');
                                                                         const publicUrl = await uploadImage(file, 'students');
                                                                         if (publicUrl) {
+                                                                            await supabase.from('students').update({ photo: publicUrl, image: publicUrl }).eq('id', student.id);
                                                                             const upd = students.map(s => s.id === student.id ? { ...s, photo: publicUrl, image: publicUrl } : s);
                                                                             await setStudents(upd);
                                                                             showSaveMessage('Photo uploaded successfully!');

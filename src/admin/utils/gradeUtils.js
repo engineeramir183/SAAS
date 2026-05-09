@@ -2,21 +2,54 @@
 // Used across Gradebook, PDF Report, Student Report tabs.
 
 export const calcGrade = (pct) => {
-    if (pct >= 90) return 'A+';
-    if (pct >= 80) return 'A';
-    if (pct >= 70) return 'B+';
-    if (pct >= 60) return 'B';
-    if (pct >= 50) return 'C';
-    if (pct >= 40) return 'D';
-    return 'F';
+    if (pct === 'Absent' || pct === 'ABS' || pct === 'A') return 'Absent';
+    if (pct === null || pct === undefined || pct === '') return '—';
+    const num = Number(pct);
+    if (isNaN(num)) return '—';
+    if (num >= 95) return 'A++';
+    if (num >= 90) return 'A+';
+    if (num >= 85) return 'A';
+    if (num >= 80) return 'B++';
+    if (num >= 75) return 'B+';
+    if (num >= 70) return 'B';
+    if (num >= 60) return 'C';
+    if (num >= 50) return 'D';
+    if (num >= 40) return 'E';
+    return 'U';
 };
 
 export const gradeColor = (pct) => {
-    if (pct >= 80) return { bg: '#dcfce7', text: '#15803d' };
-    if (pct >= 60) return { bg: '#dbeafe', text: '#1d4ed8' };
-    if (pct >= 50) return { bg: '#fef9c3', text: '#a16207' };
-    if (pct >= 40) return { bg: '#ffedd5', text: '#c2410c' };
-    return { bg: '#fee2e2', text: '#dc2626' };
+    if (pct === 'Absent' || pct === 'ABS' || pct === 'A') return { bg: '#f3f4f6', text: '#4b5563', border: '#cbd5e1' };
+    if (pct === null || pct === undefined || pct === '') return { bg: '#f8fafc', text: '#64748b', border: '#cbd5e1' };
+    const num = Number(pct);
+    if (isNaN(num)) return { bg: '#f8fafc', text: '#64748b', border: '#cbd5e1' };
+    if (num >= 95) return { bg: '#f5f3ff', text: '#6d28d9', border: '#1e293b' }; // A++ (Violet)
+    if (num >= 90) return { bg: '#f3e8ff', text: '#7c3aed', border: '#1e293b' }; // A+ (Purple)
+    if (num >= 85) return { bg: '#ecfdf5', text: '#059669', border: '#1e293b' }; // A (Emerald)
+    if (num >= 80) return { bg: '#f0fdf4', text: '#16a34a', border: '#1e293b' }; // B++ (Green)
+    if (num >= 75) return { bg: '#f0fdfa', text: '#0d9488', border: '#1e293b' }; // B+ (Teal)
+    if (num >= 70) return { bg: '#eff6ff', text: '#2563eb', border: '#1e293b' }; // B (Blue)
+    if (num >= 60) return { bg: '#fef3c7', text: '#b45309', border: '#1e293b' }; // C (Amber)
+    if (num >= 50) return { bg: '#fffbeb', text: '#d97706', border: '#1e293b' }; // D (Yellow)
+    if (num >= 40) return { bg: '#fff7ed', text: '#ea580c', border: '#1e293b' }; // E (Orange)
+    return { bg: '#fee2e2', text: '#dc2626', border: '#1e293b' }; // U (Red)
+};
+
+export const getGradeRemark = (grade) => {
+    switch (grade) {
+        case 'A++': return 'Absolutely Outstanding! Your dedication and hard work truly paid off. Keep up the amazing effort! Incredible achievement! ';
+        case 'A+': return 'Excellent work! Fantastic results';
+        case 'A': return 'Adorable!';
+        case 'B++': return 'Great job';
+        case 'B+': return 'Well done!';
+        case 'B': return 'Good progress. Keep it up! You have potential to do even better!';
+        case 'C': return 'Satisfactory! Don’t be discouraged! DO More';
+        case 'D': return 'Don’t give up! We’re here to help you';
+        case 'E': return 'Performance needs serious improvement. Strong effort and consistent support are urgently needed. We believe in your potential—let’s work together to improve.!';
+        case 'U': return 'Unsatisfactory!';
+        case 'Absent': return 'Absent';
+        default: return '';
+    }
 };
 
 export const calcOverallPct = (results, getSubjectTotal) => {

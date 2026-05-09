@@ -4,6 +4,7 @@ import { developerCredentials } from '../data/schoolData';
 import { supabase } from '../supabaseClient';
 import { useSchoolData } from '../context/SchoolDataContext';
 import { useSuperAdmin } from '../context/SuperAdminContext';
+import { ActivityLogService } from '../services/ActivityLogService';
 
 // ─── Suspension Modal ─────────────────────────────────────────────────────────
 const SuspensionModal = ({ schoolName, whatsappNumber, onClose }) => {
@@ -195,6 +196,15 @@ const Login = ({
                 setIsAdmin(true);
                 setCurrentPage('admin');
                 setIsLoading(false);
+                // Log Admin login asynchronously
+                ActivityLogService.logActivity({
+                    schoolId: sid,
+                    username: username,
+                    role: 'admin',
+                    action: 'Login',
+                    targetName: 'Admin Dashboard',
+                    details: { timestamp: new Date().toISOString() }
+                });
                 return;
             }
 
@@ -213,6 +223,15 @@ const Login = ({
                 setLoggedInStudent(studentData);
                 setCurrentPage('portal');
                 setIsLoading(false);
+                // Log Student login asynchronously
+                ActivityLogService.logActivity({
+                    schoolId: sid,
+                    username: studentData.name,
+                    role: 'student',
+                    action: 'Login',
+                    targetName: `Student Portal (${studentData.id})`,
+                    details: { student_id: studentData.id }
+                });
                 return;
             }
 

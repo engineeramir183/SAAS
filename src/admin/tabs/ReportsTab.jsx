@@ -1,15 +1,40 @@
-import React, { useState, useMemo } from 'react';
-import { Search, Download, Printer, Award, TrendingUp, TrendingDown, Users, ChevronDown, ChevronUp, BarChart2, Star, Filter } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Search, Download, Printer, Award, TrendingUp, TrendingDown, Users, ChevronDown, ChevronUp, ChevronRight, BarChart2, Star, Filter } from 'lucide-react';
+
 
 // ─── Grade Helpers ────────────────────────────────────────────────────────────
 const calcGrade = (pct) => {
-    if (pct >= 90) return { grade: 'A+', color: '#7c3aed', bg: '#f5f3ff' };
-    if (pct >= 80) return { grade: 'A',  color: '#15803d', bg: '#dcfce7' };
-    if (pct >= 70) return { grade: 'B+', color: '#1d4ed8', bg: '#dbeafe' };
-    if (pct >= 60) return { grade: 'B',  color: '#0369a1', bg: '#e0f2fe' };
-    if (pct >= 50) return { grade: 'C',  color: '#a16207', bg: '#fef9c3' };
-    if (pct >= 40) return { grade: 'D',  color: '#c2410c', bg: '#ffedd5' };
-    return                { grade: 'F',  color: '#dc2626', bg: '#fee2e2' };
+    if (pct === 'Absent' || pct === 'ABS') return { grade: 'Absent', color: '#4b5563', bg: '#f3f4f6' };
+    if (pct === null || pct === undefined || pct === '') return { grade: '—', color: '#64748b', bg: '#f8fafc' };
+    const num = Number(pct);
+    if (isNaN(num)) return { grade: '—', color: '#64748b', bg: '#f8fafc' };
+    if (num >= 95) return { grade: 'A++', color: '#6d28d9', bg: '#f5f3ff' };
+    if (num >= 90) return { grade: 'A+', color: '#7c3aed', bg: '#f3e8ff' };
+    if (num >= 85) return { grade: 'A',  color: '#059669', bg: '#ecfdf5' };
+    if (num >= 80) return { grade: 'B++', color: '#16a34a', bg: '#f0fdf4' };
+    if (num >= 75) return { grade: 'B+', color: '#0d9488', bg: '#f0fdfa' };
+    if (num >= 70) return { grade: 'B',  color: '#2563eb', bg: '#eff6ff' };
+    if (num >= 60) return { grade: 'C',  color: '#b45309', bg: '#fef3c7' };
+    if (num >= 50) return { grade: 'D',  color: '#d97706', bg: '#fffbeb' };
+    if (num >= 40) return { grade: 'E',  color: '#ea580c', bg: '#fff7ed' };
+    return                { grade: 'U',  color: '#dc2626', bg: '#fee2e2' };
+};
+
+const getGradeRemark = (grade) => {
+    switch (grade) {
+        case 'A++': return 'Absolutely Outstanding! Your dedication and hard work truly paid off. Keep up the amazing effort! Incredible achievement! ';
+        case 'A+': return 'Excellent work! Fantastic results';
+        case 'A': return 'Adorable!';
+        case 'B++': return 'Great job';
+        case 'B+': return 'Well done!';
+        case 'B': return 'Good progress. Keep it up! You have potential to do even better!';
+        case 'C': return 'Satisfactory! Don’t be discouraged! DO More';
+        case 'D': return 'Don’t give up! We’re here to help you';
+        case 'E': return 'Performance needs serious improvement. Strong effort and consistent support are urgently needed. We believe in your potential—let’s work together to improve.!';
+        case 'U': return 'Unsatisfactory!';
+        case 'Absent': return 'Absent';
+        default: return '';
+    }
 };
 
 const calcOverallPct = (results, weights) => {
@@ -31,6 +56,14 @@ function printReportCard(student, termLabel, subjects, weights, schoolName, scho
     const { grade: overallGrade, color: gradeColor } = calcGrade(overall);
     const printDate = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'long', year: 'numeric' });
     const adm = student.admissions?.[0] || {};
+    const fatherName = adm.fatherName || adm.father_name || student.fatherName || student.father_name || '—';
+    
+    // Calculate attendance — exclude holidays entirely
+    const attendanceRecords = (student.attendance?.records || []).filter(r => r.status !== 'holiday');
+    const totalDays = attendanceRecords.length;
+    const presentDays = attendanceRecords.filter(r => r.status === 'present' || r.status === 'late' || r.status === 'leave').length;
+    const absentDays = attendanceRecords.filter(r => r.status === 'absent').length;
+    const attPct = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
 
     const subjectRows = subjects.map(sub => {
         const r = results.find(r => r.subject === sub);
@@ -75,7 +108,7 @@ function printReportCard(student, termLabel, subjects, weights, schoolName, scho
   .overall-label{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;margin-bottom:6px}
   .overall-value{font-size:28px;font-weight:900}
   .pass-badge{padding:8px 20px;border-radius:50px;font-weight:800;font-size:14px}
-  .sigs{display:grid;grid-template-columns:1fr 1fr;gap:40px;padding:24px 40px 32px;border-top:1px solid #e2e8f0}
+  .sigs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:30px;padding:24px 40px 32px;border-top:1px solid #e2e8f0}
   .sig-line{border-top:1.5px solid #cbd5e1;padding-top:10px;text-align:center;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px}
   .footer{text-align:center;padding:14px;background:#f8fafc;font-size:10px;color:#94a3b8;border-top:1px solid #e2e8f0}
   @media print{body{padding:0;background:white}.card{box-shadow:none}}
@@ -93,7 +126,7 @@ function printReportCard(student, termLabel, subjects, weights, schoolName, scho
     <div class="info-item"><div class="lbl">Student Name</div><div class="val">${student.name}</div></div>
     <div class="info-item"><div class="lbl">Student ID</div><div class="val">${student.id}</div></div>
     <div class="info-item"><div class="lbl">Class</div><div class="val">${student.grade}</div></div>
-    <div class="info-item"><div class="lbl">Father's Name</div><div class="val">${adm.fatherName || '—'}</div></div>
+    <div class="info-item"><div class="lbl">Father's Name</div><div class="val">${fatherName}</div></div>
     <div class="info-item"><div class="lbl">Gender</div><div class="val">${adm.gender || '—'}</div></div>
     <div class="info-item"><div class="lbl">Date Generated</div><div class="val">${printDate}</div></div>
   </div>
@@ -109,6 +142,20 @@ function printReportCard(student, termLabel, subjects, weights, schoolName, scho
     </table>
   </div>
 
+  <div style="padding:20px 40px;background:#f8fafc;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">
+    <div style="flex:1;padding-right:20px;">
+      <div style="font-size:11px;text-transform:uppercase;color:#94a3b8;font-weight:700;margin-bottom:6px">Class Teacher Remarks</div>
+      <div style="font-size:14px;font-weight:600;color:#1e293b;font-style:italic">"${(student.termRemarks && student.termRemarks[termLabel]) || getGradeRemark(overallGrade) || '_____________________________________________________'}"</div>
+    </div>
+    <div style="background:white;padding:12px 20px;border-radius:12px;border:1px solid #e2e8f0;text-align:center;min-width:200px">
+      <div style="font-size:10px;text-transform:uppercase;color:#64748b;font-weight:700;margin-bottom:8px;letter-spacing:1px">Attendance Summary</div>
+      <div style="display:flex;justify-content:space-between;gap:15px">
+        <div><div style="font-size:16px;font-weight:800;color:#15803d">${presentDays}</div><div style="font-size:10px;color:#94a3b8">Present</div></div>
+        <div><div style="font-size:16px;font-weight:800;color:#dc2626">${absentDays}</div><div style="font-size:10px;color:#94a3b8">Absent</div></div>
+        <div><div style="font-size:16px;font-weight:800;color:#2563eb">${attPct}%</div><div style="font-size:10px;color:#94a3b8">Rate</div></div>
+      </div>
+    </div>
+  </div>
   <div class="overall">
     <div>
       <div class="overall-label">Overall Percentage</div>
@@ -126,6 +173,7 @@ function printReportCard(student, termLabel, subjects, weights, schoolName, scho
   </div>
 
   <div class="sigs">
+    <div class="sig-line">Parent / Guardian Signature</div>
     <div class="sig-line">Class Teacher Signature</div>
     <div class="sig-line">Principal / HM Signature</div>
   </div>
@@ -151,7 +199,7 @@ function printClassReportCards(classStudents, termLabel, subjects, weights, scho
 const ReportsTab = ({
     students, schoolData, SUBJECTS, TERMS, WEIGHTS, SECTIONS,
     selectedClass, setSelectedClass, sectionClasses,
-    currencySymbol, schoolSettings
+    currencySymbol, schoolSettings, setStudents
 }) => {
     const schoolName = schoolData?.name || 'School';
     const schoolLogo = schoolSettings?.logo_url || '/logo.png';
@@ -161,47 +209,109 @@ const ReportsTab = ({
     const [genderFilter, setGenderFilter] = useState('all');
     const [showClassStats, setShowClassStats] = useState(true);
 
+    const [checkedClasses, setCheckedClasses] = useState(selectedClass ? [selectedClass] : []);
+    const [expandedSections, setExpandedSections] = useState(() => {
+        const initial = {};
+        (SECTIONS || []).forEach(sec => {
+            initial[sec.id] = true;
+        });
+        return initial;
+    });
+
+    useEffect(() => {
+        if (selectedClass && !checkedClasses.includes(selectedClass)) {
+            setCheckedClasses([selectedClass]);
+        }
+    }, [selectedClass]);
+
+    const toggleSectionExpand = (secId) => {
+        setExpandedSections(prev => ({ ...prev, [secId]: !prev[secId] }));
+    };
+
+    const handleSectionCheckboxChange = (sec, checked) => {
+        const secClasses = sec.classes || [];
+        if (checked) {
+            setCheckedClasses(prev => {
+                const next = [...prev];
+                secClasses.forEach(cls => {
+                    if (!next.includes(cls)) next.push(cls);
+                });
+                if (next.length > 0 && setSelectedClass) {
+                    setSelectedClass(next[0]);
+                }
+                return next;
+            });
+        } else {
+            setCheckedClasses(prev => {
+                const next = prev.filter(cls => !secClasses.includes(cls));
+                if (next.length > 0 && setSelectedClass) {
+                    setSelectedClass(next[0]);
+                }
+                return next;
+            });
+        }
+    };
+
+    const handleClassCheckboxChange = (cls, checked) => {
+        if (checked) {
+            setCheckedClasses(prev => {
+                if (!prev.includes(cls)) {
+                    const next = [...prev, cls];
+                    if (setSelectedClass) setSelectedClass(cls);
+                    return next;
+                }
+                return prev;
+            });
+        } else {
+            setCheckedClasses(prev => {
+                const next = prev.filter(c => c !== cls);
+                if (next.length > 0 && setSelectedClass) {
+                    setSelectedClass(next[0]);
+                }
+                return next;
+            });
+        }
+    };
+
+    const activeClass = selectedClass || checkedClasses[0] || '';
+
     // Derived data for the selected class
     const classSubjects = useMemo(() => {
         if (!SUBJECTS || Array.isArray(SUBJECTS)) return SUBJECTS || [];
-        return SUBJECTS[selectedClass] || [];
-    }, [SUBJECTS, selectedClass]);
+        return SUBJECTS[activeClass] || [];
+    }, [SUBJECTS, activeClass]);
 
     const classTerms = useMemo(() => {
         if (!TERMS || Array.isArray(TERMS)) return TERMS || [];
-        return TERMS[selectedClass] || [];
-    }, [TERMS, selectedClass]);
+        return TERMS[activeClass] || [];
+    }, [TERMS, activeClass]);
 
-    const classWeights = useMemo(() => {
-        if (!WEIGHTS || typeof WEIGHTS !== 'object') return {};
-        const cw = WEIGHTS[selectedClass];
-        if (!cw || typeof cw !== 'object') return {};
-        // If class weights are term-scoped: { "Term 1": { "Biology": 75 } }
-        if (selectedTerm && cw[selectedTerm] && typeof cw[selectedTerm] === 'object') return cw[selectedTerm];
-        return cw;
-    }, [WEIGHTS, selectedClass, selectedTerm]);
-
-    const sectionName = useMemo(() => {
-        return (SECTIONS || []).find(s => s.classes?.includes(selectedClass))?.name || '';
-    }, [SECTIONS, selectedClass]);
+    const currentTerm = selectedTerm || classTerms[0] || '';
 
     const classStudents = useMemo(() => {
         return students
-            .filter(s => s.grade === selectedClass)
+            .filter(s => checkedClasses.includes(s.grade))
             .filter(s => genderFilter === 'all' || s.admissions?.[0]?.gender === (genderFilter === 'boys' ? 'Male' : 'Female'))
             .filter(s => !searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.id.toLowerCase().includes(searchQuery.toLowerCase()))
             .slice().sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
-    }, [students, selectedClass, genderFilter, searchQuery]);
+    }, [students, checkedClasses, genderFilter, searchQuery]);
 
-    // Analytics for the class
+    // Analytics for all checked classes (aggregated)
     const analytics = useMemo(() => {
-        const all = students.filter(s => s.grade === selectedClass);
+        const all = students.filter(s => checkedClasses.includes(s.grade));
         const withResults = all.filter(s => (s.results || []).filter(r => !selectedTerm || r.term === selectedTerm).length > 0);
         if (withResults.length === 0) return null;
 
         const scores = withResults.map(s => {
             const res = (s.results || []).filter(r => !selectedTerm || r.term === selectedTerm);
-            return { student: s, pct: calcOverallPct(res, classWeights) };
+            const studentWeights = (() => {
+                if (!WEIGHTS || typeof WEIGHTS !== 'object') return {};
+                const cw = WEIGHTS[s.grade];
+                if (!cw || typeof cw !== 'object') return {};
+                if (selectedTerm && cw[selectedTerm] && typeof cw[selectedTerm] === 'object') return cw[selectedTerm];
+                return cw;
+            })();
+            return { student: s, pct: calcOverallPct(res, studentWeights) };
         }).sort((a, b) => b.pct - a.pct);
 
         const avgPct = Math.round(scores.reduce((sum, s) => sum + s.pct, 0) / scores.length);
@@ -213,9 +323,28 @@ const ReportsTab = ({
         });
 
         return { scores, avgPct, passCount, failCount: scores.length - passCount, total: scores.length, gradeDistrib, topStudents: scores.slice(0, 3) };
-    }, [students, selectedClass, selectedTerm, classWeights]);
+    }, [students, checkedClasses, selectedTerm, WEIGHTS]);
 
-    const currentTerm = selectedTerm || classTerms[0] || '';
+    // Custom sequential printing delay wrapper
+    const handlePrintAll = () => {
+        if (!classStudents.length) { alert('No students in selection!'); return; }
+        classStudents.forEach((s, i) => {
+            const sWeights = (() => {
+                if (!WEIGHTS || typeof WEIGHTS !== 'object') return {};
+                const cw = WEIGHTS[s.grade];
+                if (!cw || typeof cw !== 'object') return {};
+                if (currentTerm && cw[currentTerm] && typeof cw[currentTerm] === 'object') return cw[currentTerm];
+                return cw;
+            })();
+            const sSubjects = (() => {
+                if (!SUBJECTS || Array.isArray(SUBJECTS)) return SUBJECTS || [];
+                return SUBJECTS[s.grade] || [];
+            })();
+            const sSectionName = (SECTIONS || []).find(sec => sec.classes?.includes(s.grade))?.name || '';
+            setTimeout(() => printReportCard(s, currentTerm, sSubjects, sWeights, schoolName, schoolLogo, sSectionName), i * 400);
+        });
+    };
+
 
     return (
         <div className="animate-fade-in" style={{ paddingBottom: '3rem' }}>
@@ -227,19 +356,96 @@ const ReportsTab = ({
                     <p style={{ color: '#64748b', margin: '0.25rem 0 0' }}>Generate, print and analyze terminal report cards for any class.</p>
                 </div>
                 <button
-                    onClick={() => printClassReportCards(classStudents, currentTerm, classSubjects, classWeights, schoolName, schoolLogo, sectionName)}
+                    onClick={handlePrintAll}
                     style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'linear-gradient(135deg,#1e3a5f,#2563eb)', color: 'white', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(37,99,235,0.3)', fontSize: '0.95rem' }}>
                     <Printer size={18} /> Print All ({classStudents.length})
                 </button>
             </div>
 
             {/* ── FILTERS ROW ── */}
+            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+                {/* ── Collapsible Section Sidebar ── */}
+                <div style={{ width: '260px', flexShrink: 0, background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.25rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.06)' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', borderBottom: '2px solid #f1f5f9', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Filter size={18} color="#2563eb" /> Sections & Classes
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        {(SECTIONS || []).map(sec => {
+                            const isExpanded = expandedSections[sec.id];
+                            const secClasses = sec.classes || [];
+                            const allChecked = secClasses.length > 0 && secClasses.every(cls => checkedClasses.includes(cls));
+                            const someChecked = secClasses.some(cls => checkedClasses.includes(cls)) && !allChecked;
+
+                            return (
+                                <div key={sec.id} style={{ background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', transition: 'all 0.2s' }}>
+                                    {/* Section Row */}
+                                    <div style={{ display: 'flex', alignItems: 'center', padding: '0.75rem 1rem', cursor: 'pointer', userSelect: 'none', background: '#f1f5f9', borderBottom: isExpanded ? '1px solid #e2e8f0' : 'none' }}
+                                        onClick={() => toggleSectionExpand(sec.id)}>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginRight: '0.5rem', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', color: '#64748b' }}>
+                                            <ChevronRight size={16} />
+                                        </span>
+                                        <input
+                                            type="checkbox"
+                                            checked={allChecked}
+                                            ref={el => {
+                                                if (el) el.indeterminate = someChecked;
+                                            }}
+                                            onChange={(e) => {
+                                                e.stopPropagation();
+                                                handleSectionCheckboxChange(sec, e.target.checked);
+                                            }}
+                                            onClick={e => e.stopPropagation()}
+                                            style={{ marginRight: '0.75rem', width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563eb' }}
+                                        />
+                                        <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>{sec.name}</span>
+                                    </div>
+
+                                    {/* Classes List */}
+                                    {isExpanded && (
+                                        <div style={{ padding: '0.5rem', background: 'white', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                            {secClasses.map(cls => {
+                                                const isChecked = checkedClasses.includes(cls);
+                                                const count = students.filter(s => s.grade === cls).length;
+
+                                                return (
+                                                    <div key={cls} 
+                                                        onClick={() => handleClassCheckboxChange(cls, !isChecked)}
+                                                        style={{ 
+                                                            display: 'flex', alignItems: 'center', padding: '0.5rem 0.75rem', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s',
+                                                            background: isChecked ? '#f0f6ff' : 'transparent',
+                                                        }}
+                                                        onMouseEnter={e => { if (!isChecked) e.currentTarget.style.background = '#f8fafc'; }}
+                                                        onMouseLeave={e => { if (!isChecked) e.currentTarget.style.background = 'transparent'; }}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isChecked}
+                                                            onChange={(e) => {
+                                                                e.stopPropagation();
+                                                                handleClassCheckboxChange(cls, e.target.checked);
+                                                            }}
+                                                            onClick={e => e.stopPropagation()}
+                                                            style={{ marginRight: '0.75rem', width: '15px', height: '15px', cursor: 'pointer', accentColor: '#2563eb' }}
+                                                        />
+                                                        <span style={{ fontWeight: isChecked ? 700 : 600, fontSize: '0.82rem', color: isChecked ? '#2563eb' : '#475569', flex: 1 }}>{cls}</span>
+                                                        <span style={{ fontSize: '0.72rem', background: isChecked ? '#2563eb1a' : '#e2e8f0', color: isChecked ? '#2563eb' : '#64748b', padding: '0.15rem 0.4rem', borderRadius: '6px', fontWeight: 700 }}>{count}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                            {secClasses.length === 0 && <div style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>No classes</div>}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                        {(!SECTIONS || SECTIONS.length === 0) && (
+                            <div style={{ padding: '1rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>No sections defined</div>
+                        )}
+                    </div>
+                </div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1.5rem', alignItems: 'center' }}>
-                {/* Class select */}
-                <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
-                    style={{ padding: '0.6rem 1rem', borderRadius: '10px', border: '1px solid #e2e8f0', fontWeight: 700, color: '#1e293b', background: 'white', outline: 'none', cursor: 'pointer' }}>
-                    {sectionClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
 
                 {/* Term select */}
                 <select value={selectedTerm} onChange={e => setSelectedTerm(e.target.value)}
@@ -277,7 +483,7 @@ const ReportsTab = ({
                         border: 'none', borderRadius: '10px', padding: '0.6rem 1.2rem', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem', transition: 'all 0.2s'
                     }}>
                         {showClassStats ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        📊 Class Analytics — {selectedClass} {currentTerm ? `(${currentTerm})` : ''}
+                        📊 Class Analytics — {checkedClasses.length === 1 ? checkedClasses[0] : `${checkedClasses.length} Classes Selected`} {currentTerm ? `(${currentTerm})` : ''}
                     </button>
 
                     {showClassStats && (
@@ -358,14 +564,14 @@ const ReportsTab = ({
             ) : (
                 <div style={{ background: 'white', borderRadius: '16px', overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
-                        <span style={{ fontWeight: 700, color: '#1e293b' }}>{classStudents.length} students in {selectedClass}</span>
+                        <span style={{ fontWeight: 700, color: '#1e293b' }}>{classStudents.length} students in {checkedClasses.length === 1 ? checkedClasses[0] : `${checkedClasses.length} Classes`}</span>
                         {currentTerm && <span style={{ background: '#eff6ff', color: '#2563eb', padding: '0.3rem 0.8rem', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 700 }}>{currentTerm}</span>}
                     </div>
 
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                             <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                                {['#', 'Student', 'ID', 'Overall %', 'Grade', 'Result', 'Action'].map(h => (
+                                {['#', 'Student', 'ID', 'Overall %', 'Grade', 'Result', 'Teacher Remarks', 'Action'].map(h => (
                                     <th key={h} style={{ padding: '0.9rem 1rem', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', color: '#475569', letterSpacing: '0.5px', textAlign: h === 'Action' ? 'center' : 'left' }}>{h}</th>
                                 ))}
                             </tr>
@@ -373,7 +579,14 @@ const ReportsTab = ({
                         <tbody>
                             {classStudents.map((student, idx) => {
                                 const res = (student.results || []).filter(r => !currentTerm || r.term === currentTerm);
-                                const pct = res.length > 0 ? calcOverallPct(res, classWeights) : null;
+                                const studentWeights = (() => {
+                                    if (!WEIGHTS || typeof WEIGHTS !== 'object') return {};
+                                    const cw = WEIGHTS[student.grade];
+                                    if (!cw || typeof cw !== 'object') return {};
+                                    if (currentTerm && cw[currentTerm] && typeof cw[currentTerm] === 'object') return cw[currentTerm];
+                                    return cw;
+                                })();
+                                const pct = res.length > 0 ? calcOverallPct(res, studentWeights) : null;
                                 const gInfo = pct !== null ? calcGrade(pct) : null;
                                 const isPassed = pct !== null && pct >= 40;
 
@@ -405,9 +618,41 @@ const ReportsTab = ({
                                                 {isPassed ? 'PASS' : 'FAIL'}
                                             </span>}
                                         </td>
+                                        <td style={{ padding: '0.9rem 1rem' }}>
+                                            <input type="text" 
+                                                placeholder={gInfo ? getGradeRemark(gInfo.grade) : "Write remark..."}
+                                                defaultValue={(student.termRemarks && student.termRemarks[currentTerm]) || ''}
+                                                onBlur={(e) => {
+                                                    const val = e.target.value;
+                                                    if(setStudents) {
+                                                        setStudents(prev => prev.map(s => {
+                                                            if(s.id === student.id) {
+                                                                return { ...s, termRemarks: { ...(s.termRemarks || {}), [currentTerm]: val } };
+                                                            }
+                                                            return s;
+                                                        }));
+                                                    }
+                                                }}
+                                                style={{ width: '100%', minWidth: '150px', padding: '0.5rem 0.8rem', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', outline: 'none' }}
+                                            />
+                                        </td>
                                         <td style={{ padding: '0.9rem 1rem', textAlign: 'center' }}>
                                             <button
-                                                onClick={() => printReportCard(student, currentTerm, classSubjects, classWeights, schoolName, schoolLogo, sectionName)}
+                                                onClick={() => {
+                                                    const sWeights = (() => {
+                                                        if (!WEIGHTS || typeof WEIGHTS !== 'object') return {};
+                                                        const cw = WEIGHTS[student.grade];
+                                                        if (!cw || typeof cw !== 'object') return {};
+                                                        if (currentTerm && cw[currentTerm] && typeof cw[currentTerm] === 'object') return cw[currentTerm];
+                                                        return cw;
+                                                    })();
+                                                    const sSubjects = (() => {
+                                                        if (!SUBJECTS || Array.isArray(SUBJECTS)) return SUBJECTS || [];
+                                                        return SUBJECTS[student.grade] || [];
+                                                    })();
+                                                    const sSectionName = (SECTIONS || []).find(sec => sec.classes?.includes(student.grade))?.name || '';
+                                                    printReportCard(student, currentTerm, sSubjects, sWeights, schoolName, schoolLogo, sSectionName);
+                                                }}
                                                 style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: '#1e3a5f', color: 'white', border: 'none', padding: '0.45rem 0.9rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>
                                                 <Printer size={13} /> Print
                                             </button>
@@ -419,6 +664,8 @@ const ReportsTab = ({
                     </table>
                 </div>
             )}
+        </div>
+        </div>
         </div>
     );
 };
