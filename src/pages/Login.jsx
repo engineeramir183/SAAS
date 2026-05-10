@@ -8,7 +8,7 @@ import { ActivityLogService } from '../services/ActivityLogService';
 
 // ─── Suspension Modal ─────────────────────────────────────────────────────────
 const SuspensionModal = ({ schoolName, whatsappNumber, onClose }) => {
-    const waNumber = (whatsappNumber || '+923001333275').replace(/\+/g, '').replace(/\s/g, '');
+    const waNumber = (whatsappNumber || '+92 345 7685122').replace(/\+/g, '').replace(/\s/g, '');
     const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent('Hello, my school account (' + (schoolName || '') + ') has been suspended. I would like to renew my subscription.')}`;
     return (
         <div style={{
@@ -176,7 +176,7 @@ const Login = ({
             if (schoolRecord && !schoolRecord.is_active) {
                 setSuspendedSchool({
                     name: schoolRecord.school_name,
-                    whatsappNumber: schoolRecord.contact_phone || saasInfo?.whatsapp_number || '+923001333275'
+                    whatsappNumber: schoolRecord.contact_phone || saasInfo?.whatsapp_number || '+92 345 7685122'
                 });
                 setIsLoading(false);
                 return;

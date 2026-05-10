@@ -33,7 +33,7 @@ const SaaSLanding = ({ setCurrentPage, setShowLoginModal }) => {
 
     const businessName = saasInfo?.business_name || 'KHR Educo';
     const supportEmail = saasInfo?.support_email || 'sales@khreduco.com';
-    const whatsappNum = saasInfo?.whatsapp_number || '+92 300 1333275';
+    const whatsappNum = saasInfo?.whatsapp_number || '+92 345 7685122';
     const heroTitle = saasInfo?.hero_title || 'The All-in-One School OS for Modern Institutions.';
     const heroSubtitle = saasInfo?.hero_subtitle || 'Engineered by KHR Educo — the definitive multi-tenant cloud platform to instantly deploy, scale, and manage entire school ecosystems from a single dashboard.';
 

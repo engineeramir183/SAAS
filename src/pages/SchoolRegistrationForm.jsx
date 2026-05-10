@@ -40,7 +40,7 @@ const inputStyle = {
 
 const SchoolRegistrationForm = ({ setCurrentPage }) => {
     const { saasInfo } = useSuperAdmin();
-    const whatsappNum = saasInfo?.whatsapp_number || '+923001333275';
+    const whatsappNum = saasInfo?.whatsapp_number || '+92 345 7685122';
 
     const [step, setStep] = useState(0);
     const [submitted, setSubmitted] = useState(false);
