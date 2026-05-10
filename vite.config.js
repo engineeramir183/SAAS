@@ -14,8 +14,8 @@ export default defineConfig({
         name: 'KHR Educo Platform',
         short_name: 'KHR Educo',
         description: 'Advanced School Management System',
-        theme_color: '#0f172a',
-        background_color: '#f8fafc',
+        theme_color: '#003B95',
+        background_color: '#ffffff',
         display: 'standalone',
         icons: [
           {

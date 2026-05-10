@@ -154,10 +154,18 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                     })}
                 </nav>
 
-                <div style={{ padding: '1.5rem', borderTop: '1px solid #334155' }}>
-                    <button onClick={handleLogout} className="btn hover-scale" style={{ width: '100%', justifyContent: 'center', background: 'rgba(239, 68, 68, 0.1)', color: '#fca5a5', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '10px' }}>
+                <div style={{ padding: '1.25rem 1.5rem', borderTop: '1px solid #334155' }}>
+                    <button onClick={handleLogout} className="btn hover-scale" style={{ width: '100%', justifyContent: 'center', background: 'rgba(239, 68, 68, 0.1)', color: '#fca5a5', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '10px', marginBottom: '1rem' }}>
                         <LogOut size={16} /> Logout
                     </button>
+                    <div style={{ textAlign: 'center', opacity: 0.6, fontSize: '0.68rem', color: '#94a3b8', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '0.85rem' }}>
+                        <span style={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{schoolData?.name || 'Student'} Portal</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', justifyContent: 'center' }}>
+                            <span>Powered by</span>
+                            <img src="/logo.png" style={{ height: '11px', width: 'auto', objectFit: 'contain' }} alt="KHR" />
+                            <strong style={{ color: '#cbd5e1' }}>KHR Educo</strong>
+                        </div>
+                    </div>
                 </div>
             </aside>
 

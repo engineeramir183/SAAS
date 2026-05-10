@@ -57,7 +57,7 @@ export const WhatsAppTemplates = {
         `Dear Parent, this is to inform you that ${studentName} is ABSENT today (${date}). Please ensure regular attendance. \n- Regards, ${schoolName}`,
     
     feePaid: (studentName, month, amount, balance, schoolName) => 
-        `Fee received! ${amount} for ${month} (${studentName}). Remaining Balance: ${balance}. Thank you for your payment. \n- ${schoolName}`,
+        `Fee received! ${amount} for ${month} (${studentName}). Remaining Balance: ${balance}. Thank you for your payment. \nPayment processed. System secured by KHR Educo Support \n- ${schoolName}`,
     
     admissionWelcome: (studentName, studentId, schoolName) => 
         `Welcome to ${schoolName}! ${studentName} has been successfully registered with ID: ${studentId}. We look forward to a bright future together!`,

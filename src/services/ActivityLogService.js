@@ -81,5 +81,31 @@ export const ActivityLogService = {
             console.error('Unexpected error fetching activity logs:', err);
             return { success: false, error: err, data: [] };
         }
+    },
+
+    /**
+     * Fetches global activity logs across all tenants (for Super Admin).
+     * 
+     * @param {number} [limit=200] - Limit of logs to return
+     * @returns {Promise<{success: boolean, data: Array, error: any}>}
+     */
+    async fetchAllActivityLogs(limit = 200) {
+        try {
+            const { data, error } = await supabase
+                .from('activity_logs')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(limit);
+
+            if (error) {
+                console.error('Error fetching global activity logs:', error);
+                return { success: false, error, data: [] };
+            }
+
+            return { success: true, data: data || [] };
+        } catch (err) {
+            console.error('Unexpected error fetching global activity logs:', err);
+            return { success: false, error: err, data: [] };
+        }
     }
 };

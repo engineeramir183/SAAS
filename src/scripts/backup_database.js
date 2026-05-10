@@ -10,6 +10,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // All tables to back up
 const TABLES = [
+    'schools',
     'students',
     'faculty',
     'facilities',
@@ -18,7 +19,8 @@ const TABLES = [
     'blogs',
     'school_info',
     'metadata',
-    'admins'
+    'admins',
+    'activity_logs'
 ];
 
 const backupDatabase = async () => {

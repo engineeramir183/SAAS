@@ -2,7 +2,7 @@
 echo ====================================
 echo   ACS Database Backup - %date% %time%
 echo ====================================
-cd /d "c:\Professional Projects\acs_website"
+cd /d "%~dp0"
 node src/scripts/backup_database.js
 echo ====================================
 echo   Backup Complete

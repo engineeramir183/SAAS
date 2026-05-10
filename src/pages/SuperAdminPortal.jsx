@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useSuperAdmin } from '../context/SuperAdminContext';
 import { supabase } from '../supabaseClient';
-import { Building, ShieldCheck, PlusCircle, CheckCircle, XCircle, MoreVertical, LogOut, Users, Settings, Database, Info, BarChart, TrendingUp, DollarSign, Activity, Bell, Phone, Mail, ClipboardList, Trash2 } from 'lucide-react';
+import { Building, ShieldCheck, PlusCircle, CheckCircle, XCircle, MoreVertical, LogOut, Users, Settings, Database, Info, BarChart, TrendingUp, DollarSign, Activity, Bell, Phone, Mail, ClipboardList, Trash2, Search, RotateCw, Clock, ShieldAlert, Filter } from 'lucide-react';
 import { sendWhatsAppMessage, WhatsAppTemplates } from '../services/WhatsAppService';
 import { sendEmail } from '../services/EmailService';
+import { ActivityLogService } from '../services/ActivityLogService';
 
 const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
     const {
@@ -113,6 +114,16 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                 await sendEmail(req.contact_email, emailSub, emailMsg, saasInfo);
             }
 
+            // Log action
+            await ActivityLogService.logActivity({
+                schoolId: 'platform',
+                username: 'superadmin',
+                role: 'super_admin',
+                action: 'Approve School Request',
+                targetName: req.school_name,
+                details: { school_id: assignedSchoolId.trim().toLowerCase(), plan: 'basic' }
+            });
+
             fetchRequests();
             setTimeout(() => setStatusMessage(''), 4000);
         } else {
@@ -126,6 +137,17 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
             .update({ status: 'rejected' })
             .eq('id', req.id);
         setStatusMessage(`Request from "${req.school_name}" rejected.`);
+        
+        // Log action
+        await ActivityLogService.logActivity({
+            schoolId: 'platform',
+            username: 'superadmin',
+            role: 'super_admin',
+            action: 'Reject School Request',
+            targetName: req.school_name,
+            details: { email: req.contact_email }
+        });
+
         fetchRequests();
         setTimeout(() => setStatusMessage(''), 3000);
     };
@@ -136,6 +158,17 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
             .delete()
             .eq('id', req.id);
         setStatusMessage(`Request from "${req.school_name}" deleted permanently.`);
+        
+        // Log action
+        await ActivityLogService.logActivity({
+            schoolId: 'platform',
+            username: 'superadmin',
+            role: 'super_admin',
+            action: 'Delete School Request',
+            targetName: req.school_name,
+            details: { email: req.contact_email }
+        });
+
         fetchRequests();
         setTimeout(() => setStatusMessage(''), 3000);
     };
@@ -200,6 +233,17 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
         if (res.success) {
             setStatusMessage('School registered successfully!');
             setIsRegistering(false);
+            
+            // Log action
+            await ActivityLogService.logActivity({
+                schoolId: 'platform',
+                username: 'superadmin',
+                role: 'super_admin',
+                action: 'Register School',
+                targetName: formData.school_name,
+                details: { school_id: formData.school_id.trim().toLowerCase(), plan: formData.plan }
+            });
+
             setFormData({
                 school_id: '',
                 school_name: '',
@@ -226,6 +270,17 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
         } else {
             await reactivateSchool(school.school_id);
         }
+
+        // Log action
+        await ActivityLogService.logActivity({
+            schoolId: 'platform',
+            username: 'superadmin',
+            role: 'super_admin',
+            action: school.is_active ? 'Suspend School' : 'Reactivate School',
+            targetName: school.school_name,
+            details: { school_id: school.school_id }
+        });
+
         setStatusMessage('Status updated.');
         setTimeout(() => setStatusMessage(''), 3000);
     };
@@ -236,6 +291,17 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
 
         setStatusMessage(`Upgrading plan to ${newPlan.toUpperCase()}...`);
         await updateSchoolPlan(school.school_id, newPlan);
+
+        // Log action
+        await ActivityLogService.logActivity({
+            schoolId: 'platform',
+            username: 'superadmin',
+            role: 'super_admin',
+            action: 'Update School Plan',
+            targetName: school.school_name,
+            details: { school_id: school.school_id, old_plan: school.plan, new_plan: newPlan }
+        });
+
         setStatusMessage(`Plan updated to ${newPlan.toUpperCase()}.`);
         setTimeout(() => setStatusMessage(''), 3000);
     };
@@ -250,10 +316,24 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
             {/* Navbar */}
             <nav style={{ background: '#0f172a', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'white' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <ShieldCheck size={28} color="#fbbf24" />
+                    <img 
+                        src="/logo.png" 
+                        alt="KHR Educo Logo" 
+                        style={{ height: '36px', width: '36px', objectFit: 'contain', borderRadius: '8px' }}
+                        onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextSibling.style.display = 'block';
+                        }}
+                    />
+                    <div style={{ display: 'none' }}>
+                        <ShieldCheck size={28} color="#fbbf24" />
+                    </div>
                     <div>
-                        <h1 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>SaaS Master Control</h1>
-                        <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Super Admin</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', lineHeight: 1, marginBottom: '0.15rem' }}>
+                            <span style={{ fontSize: '1.15rem', fontWeight: 900, color: '#ffffff', letterSpacing: '-0.3px' }}>KHR <span style={{ color: '#FF7A00' }}>Educo</span></span>
+                            <span style={{ fontSize: '0.65rem', color: '#94a3b8', background: 'rgba(255,255,255,0.1)', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 700, textTransform: 'uppercase', marginLeft: '0.3rem', letterSpacing: '0.5px' }}>Super Admin</span>
+                        </div>
+                        <h1 style={{ fontSize: '0.8rem', fontWeight: 600, margin: 0, color: '#64748b' }}>SaaS Master Control</h1>
                     </div>
                 </div>
                 <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>
@@ -309,6 +389,9 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                     </button>
                     <button onClick={() => setActiveTab('analytics')} style={{ background: activeTab === 'analytics' ? '#1e293b' : 'white', color: activeTab === 'analytics' ? 'white' : '#64748b', border: '1px solid #e2e8f0', padding: '0.6rem 1.2rem', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                         <BarChart size={18} /> Platform Analytics
+                    </button>
+                    <button onClick={() => setActiveTab('logs')} style={{ background: activeTab === 'logs' ? '#1e293b' : 'white', color: activeTab === 'logs' ? 'white' : '#64748b', border: '1px solid #e2e8f0', padding: '0.6rem 1.2rem', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <ClipboardList size={18} /> Platform Logs
                     </button>
                 </div>
 
@@ -582,7 +665,7 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                     {activeTab === 'settings' && (
                         <div style={{ padding: '2rem' }}>
                             <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '1.5rem', color: '#0f172a' }}>Platform Branding & Contact</h2>
-                            <p style={{ color: '#64748b', marginBottom: '2rem' }}>Changes here update the KHR Digital Labs landing page instantly.</p>
+                            <p style={{ color: '#64748b', marginBottom: '2rem' }}>Changes here update the KHR Educo landing page instantly.</p>
                             
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -625,6 +708,93 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* ──── DATABASE BACKUPS SECTION ──── */}
+                            <div style={{ marginTop: '3rem', borderTop: '1px solid #e2e8f0', paddingTop: '2.5rem' }}>
+                                <div style={{ background: '#fcfaff', border: '1px solid #eddffc', borderRadius: '20px', padding: '2rem', display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'stretch' }}>
+                                    <div style={{ flex: '1.5', minWidth: '280px' }}>
+                                        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#4c1d95', margin: '0 0 0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <Database size={24} color="#8b5cf6" /> Live Platform Database Snapshots
+                                        </h3>
+                                        <p style={{ fontSize: '0.9rem', color: '#6d28d9', margin: '0 0 1.5rem', fontWeight: 500 }}>
+                                            Download a master JSON snapshot of every table in the platform in one single click, or view automatic schedule scripts.
+                                        </p>
+                                        
+                                        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                            <button 
+                                                onClick={async () => {
+                                                    try {
+                                                        setStatusMessage('🔄 Initializing live platform-wide snapshot...');
+                                                        const TABLES = [
+                                                            'schools', 'students', 'faculty', 'facilities', 'testimonials', 
+                                                            'announcements', 'blogs', 'school_info', 'metadata', 'admins', 'activity_logs'
+                                                        ];
+                                                        
+                                                        const snapshot = {
+                                                            snapshot_type: 'manual_superadmin_snapshot',
+                                                            created_at: new Date().toISOString(),
+                                                            total_tables: TABLES.length,
+                                                            tables: {}
+                                                        };
+                                                        
+                                                        for (const table of TABLES) {
+                                                            const { data, error } = await supabase.from(table).select('*');
+                                                            if (error) {
+                                                                console.error(`Error fetching table ${table}:`, error);
+                                                                snapshot.tables[table] = { error: error.message, data: [] };
+                                                            } else {
+                                                                snapshot.tables[table] = data || [];
+                                                            }
+                                                        }
+                                                        
+                                                        // Trigger file download
+                                                        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(snapshot, null, 2));
+                                                        const downloadAnchor = document.createElement('a');
+                                                        const dateStr = new Date().toISOString().split('T')[0];
+                                                        downloadAnchor.setAttribute("href", dataStr);
+                                                        downloadAnchor.setAttribute("download", `acs_platform_snapshot_${dateStr}.json`);
+                                                        document.body.appendChild(downloadAnchor);
+                                                        downloadAnchor.click();
+                                                        downloadAnchor.remove();
+                                                        
+                                                        // Log snapshot action
+                                                        await ActivityLogService.logActivity({
+                                                            schoolId: 'platform',
+                                                            username: 'superadmin',
+                                                            role: 'super_admin',
+                                                            action: 'Manual Database Backup',
+                                                            targetName: 'global_databases',
+                                                            details: { format: 'json', tables_included: TABLES.length }
+                                                        });
+                                                        
+                                                        setStatusMessage('✅ Platform backup snapshot downloaded successfully!');
+                                                        setTimeout(() => setStatusMessage(''), 4000);
+                                                    } catch (err) {
+                                                        console.error('Backup download error:', err);
+                                                        setStatusMessage('❌ Error generating snapshot: ' + err.message);
+                                                    }
+                                                }}
+                                                style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)', color: 'white', border: 'none', padding: '0.8rem 1.8rem', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(124,58,237,0.2)', display: 'flex', alignItems: 'center', gap: '0.5rem', transition: 'all 0.2s ease' }}
+                                            >
+                                                <Database size={16} /> Download Live JSON Snapshot
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style={{ flex: '1', minWidth: '250px', background: 'white', border: '1px solid #eddffc', borderRadius: '12px', padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                                        <div>
+                                            <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', fontWeight: 700, color: '#5b21b6' }}>📅 Daily Automated Backup Script</h4>
+                                            <p style={{ margin: '0 0 1rem', fontSize: '0.82rem', color: '#475569', lineHeight: 1.5 }}>
+                                                An automated backup runner script is located in <code>/src/scripts/backup_database.js</code>. It backs up all 11 core tables and auto-purges snapshots older than 30 days.
+                                            </p>
+                                        </div>
+                                        <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '8px', padding: '0.8rem', fontFamily: 'monospace', fontSize: '0.75rem', color: '#6d28d9', wordBreak: 'break-all' }}>
+                                            # Daily execution command:<br />
+                                            node src/scripts/backup_database.js
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                             
                             <div style={{ marginTop: '2.5rem', textAlign: 'right' }}>
                                 <button 
@@ -633,6 +803,17 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                         const { error } = await updateSaasInfo(saasForm);
                                         if (!error) {
                                             setStatusMessage('✅ SaaS branding updated successfully!');
+                                            
+                                            // Log action
+                                            await ActivityLogService.logActivity({
+                                                schoolId: 'platform',
+                                                username: 'superadmin',
+                                                role: 'super_admin',
+                                                action: 'Update Platform Settings',
+                                                targetName: 'global',
+                                                details: { business_name: saasForm.business_name }
+                                            });
+
                                             setTimeout(() => setStatusMessage(''), 3000);
                                         } else {
                                             setStatusMessage('Error: ' + error.message);
@@ -731,6 +912,11 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                             </div>
                         </div>
                     )}
+
+                    {/* ──── PLATFORM LOGS ──── */}
+                    {activeTab === 'logs' && (
+                        <PlatformLogsView schools={schools} />
+                    )}
                 </div>
 
                 {/* ──── SCHOOL INSIGHTS MODAL ──── */}
@@ -812,6 +998,250 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                 <button onClick={() => setViewingSchool(null)} style={{ background: '#1e293b', color: 'white', border: 'none', padding: '0.7rem 2rem', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}>Close Insights</button>
                             </div>
                         </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const PlatformLogsView = ({ schools }) => {
+    const [logs, setLogs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [schoolFilter, setSchoolFilter] = useState('all');
+    const [roleFilter, setRoleFilter] = useState('all');
+    const [actionFilter, setActionFilter] = useState('all');
+
+    const loadAllLogs = async () => {
+        setLoading(true);
+        const { data } = await ActivityLogService.fetchAllActivityLogs(250);
+        setLogs(data || []);
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        loadAllLogs();
+    }, []);
+
+    const uniqueActions = ['all', ...new Set(logs.map(log => log.action))];
+
+    const filteredLogs = logs.filter(log => {
+        const matchesSearch = 
+            log.action?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            log.operator_username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (log.target_name && log.target_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            log.school_id?.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        const matchesSchool = schoolFilter === 'all' || log.school_id === schoolFilter;
+        const matchesRole = roleFilter === 'all' || log.operator_role === roleFilter;
+        const matchesAction = actionFilter === 'all' || log.action === actionFilter;
+
+        return matchesSearch && matchesSchool && matchesRole && matchesAction;
+    });
+
+    const getActionBadgeColor = (action) => {
+        const act = action.toLowerCase();
+        if (act.includes('login')) return { bg: '#e0f2fe', text: '#0369a1', border: '#bae6fd' };
+        if (act.includes('mark') || act.includes('attendance')) return { bg: '#ecfdf5', text: '#047857', border: '#a7f3d0' };
+        if (act.includes('gradebook') || act.includes('marks')) return { bg: '#f5f3ff', text: '#6d28d9', border: '#ddd6fe' };
+        if (act.includes('register') || act.includes('school')) return { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe' };
+        if (act.includes('suspend') || act.includes('deactivate')) return { bg: '#fee2e2', text: '#dc2626', border: '#fca5a5' };
+        return { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' };
+    };
+
+    const getRoleIcon = (role) => {
+        if (role === 'super_admin') return <ShieldCheck size={14} style={{ marginRight: '4px', display: 'inline', verticalAlign: 'middle', color: '#fbbf24' }} />;
+        if (role === 'admin') return <ShieldCheck size={14} style={{ marginRight: '4px', display: 'inline', verticalAlign: 'middle', color: '#3b82f6' }} />;
+        return <Clock size={14} style={{ marginRight: '4px', display: 'inline', verticalAlign: 'middle', color: '#64748b' }} />;
+    };
+
+    const getSchoolName = (schoolId) => {
+        if (schoolId === 'platform') return 'SaaS Master Platform';
+        const sch = schools.find(s => s.school_id === schoolId);
+        return sch ? sch.school_name : schoolId;
+    };
+
+    return (
+        <div style={{ padding: '2rem', background: '#f8fafc' }} className="animate-fade-in">
+            {/* Header section with real-time controls */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Global Platform Logs</h2>
+                    <p style={{ color: '#64748b', fontSize: '0.85rem', marginTop: '0.25rem', margin: 0 }}>Consolidated audit trails across all school environments and master platform actions.</p>
+                </div>
+                <button 
+                    onClick={loadAllLogs} 
+                    style={{ background: 'white', border: '1px solid #cbd5e1', color: '#475569', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                    disabled={loading}
+                >
+                    <RotateCw size={16} className={loading ? "animate-spin" : ""} /> {loading ? "Syncing..." : "Sync Logs"}
+                </button>
+            </div>
+
+            {/* Quick Stats Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div style={{ padding: '1.25rem', background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)', border: '1px solid #bfdbfe', borderRadius: '12px' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Consolidated Logs</div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#1e3a8a', marginTop: '0.25rem' }}>{logs.length}</div>
+                </div>
+                <div style={{ padding: '1.25rem', background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)', border: '1px solid #a7f3d0', borderRadius: '12px' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Active Tenants</div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#064e3b', marginTop: '0.25rem' }}>
+                        {new Set(logs.map(l => l.school_id)).size}
+                    </div>
+                </div>
+                <div style={{ padding: '1.25rem', background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)', border: '1px solid #ddd6fe', borderRadius: '12px' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#5b21b6', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Operator Accounts</div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#4c1d95', marginTop: '0.25rem' }}>
+                        {new Set(logs.map(l => l.operator_username)).size}
+                    </div>
+                </div>
+                <div style={{ padding: '1.25rem', background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)', border: '1px solid #fde68a', borderRadius: '12px' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Platform Actions</div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#78350f', marginTop: '0.25rem' }}>
+                        {logs.filter(l => l.school_id === 'platform').length}
+                    </div>
+                </div>
+            </div>
+
+            {/* Filter Bar Panel */}
+            <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem', marginBottom: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
+                <div style={{ flex: 2, minWidth: '220px', position: 'relative' }}>
+                    <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                    <input 
+                        type="text" 
+                        placeholder="Search logs by action, operator, target, school..." 
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        style={{ paddingLeft: '2.5rem', width: '100%', height: '40px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem', outline: 'none' }}
+                    />
+                </div>
+                
+                <div style={{ flex: 1, minWidth: '150px' }}>
+                    <select 
+                        value={schoolFilter} 
+                        onChange={e => setSchoolFilter(e.target.value)}
+                        style={{ height: '40px', width: '100%', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem', background: 'white', padding: '0 0.5rem' }}
+                    >
+                        <option value="all">🏫 All Environments</option>
+                        <option value="platform">✨ SaaS Platform Only</option>
+                        {schools.map(s => (
+                            <option key={s.school_id} value={s.school_id}>{s.school_name}</option>
+                        ))}
+                    </select>
+                </div>
+                
+                <div style={{ flex: 1, minWidth: '150px' }}>
+                    <select 
+                        value={roleFilter} 
+                        onChange={e => setRoleFilter(e.target.value)}
+                        style={{ height: '40px', width: '100%', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem', background: 'white', padding: '0 0.5rem' }}
+                    >
+                        <option value="all">🎭 All Roles</option>
+                        <option value="super_admin">🔑 Super Admin</option>
+                        <option value="admin">💼 Admin</option>
+                        <option value="student">🎓 Student</option>
+                        <option value="developer">🛠️ Developer</option>
+                    </select>
+                </div>
+
+                <div style={{ flex: 1, minWidth: '150px' }}>
+                    <select 
+                        value={actionFilter} 
+                        onChange={e => setActionFilter(e.target.value)}
+                        style={{ height: '40px', width: '100%', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem', background: 'white', padding: '0 0.5rem', textTransform: 'capitalize' }}
+                    >
+                        <option value="all">⚡ All Actions</option>
+                        {uniqueActions.filter(act => act !== 'all').map(act => (
+                            <option key={act} value={act}>{act}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
+            {/* Logs List Table */}
+            <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+                {filteredLogs.length > 0 ? (
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                            <thead>
+                                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                                    <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: 700, color: '#475569' }}>Time</th>
+                                    <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: 700, color: '#475569' }}>Environment</th>
+                                    <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: 700, color: '#475569' }}>Operator</th>
+                                    <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: 700, color: '#475569' }}>Action</th>
+                                    <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: 700, color: '#475569' }}>Target</th>
+                                    <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: 700, color: '#475569' }}>Change Context</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredLogs.map((log) => {
+                                    const badge = getActionBadgeColor(log.action);
+                                    return (
+                                        <tr key={log.id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background-color 0.2s ease' }}>
+                                            <td style={{ padding: '1rem 1.5rem', fontSize: '0.8rem', color: '#64748b', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                                                {new Date(log.created_at).toLocaleString()}
+                                            </td>
+                                            <td style={{ padding: '1rem 1.5rem' }}>
+                                                <span style={{ 
+                                                    padding: '0.2rem 0.6rem', 
+                                                    borderRadius: '6px', 
+                                                    fontSize: '0.75rem', 
+                                                    fontWeight: 700,
+                                                    background: log.school_id === 'platform' ? '#fdf4ff' : '#f1f5f9',
+                                                    color: log.school_id === 'platform' ? '#c026d3' : '#334155',
+                                                    border: `1px solid ${log.school_id === 'platform' ? '#f5d0fe' : '#e2e8f0'}`
+                                                }}>
+                                                    {getSchoolName(log.school_id)}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '1rem 1.5rem' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                    <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#1e293b' }}>
+                                                        {log.operator_username}
+                                                    </span>
+                                                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, marginTop: '2px', display: 'flex', alignItems: 'center' }}>
+                                                        {getRoleIcon(log.operator_role)} {log.operator_role?.replace('_', ' ')}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '1rem 1.5rem' }}>
+                                                <span style={{ 
+                                                    padding: '0.25rem 0.75rem', 
+                                                    borderRadius: '999px', 
+                                                    fontSize: '0.75rem', 
+                                                    fontWeight: 700,
+                                                    background: badge.bg,
+                                                    color: badge.text,
+                                                    border: `1px solid ${badge.border}`
+                                                }}>
+                                                    {log.action}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', color: '#475569', fontWeight: 600 }}>
+                                                {log.target_name || '—'}
+                                            </td>
+                                            <td style={{ padding: '1rem 1.5rem', fontSize: '0.8rem', color: '#64748b' }}>
+                                                {log.details && Object.keys(log.details).length > 0 ? (
+                                                    <code style={{ background: '#f1f5f9', padding: '0.2rem 0.5rem', borderRadius: '4px', display: 'inline-block', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.75rem', border: '1px solid #e2e8f0' }}>
+                                                        {JSON.stringify(log.details)}
+                                                    </code>
+                                                ) : (
+                                                    <span style={{ fontStyle: 'italic', color: '#94a3b8' }}>None</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div style={{ textAlign: 'center', padding: '4rem 0', color: '#94a3b8' }}>
+                        <ShieldAlert size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
+                        <p style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>No matching logs found</p>
+                        <p style={{ fontSize: '0.85rem', marginTop: '0.25rem', margin: 0 }}>Refine your filters or search criteria.</p>
                     </div>
                 )}
             </div>

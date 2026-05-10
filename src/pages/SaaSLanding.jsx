@@ -31,11 +31,11 @@ const SaaSLanding = ({ setCurrentPage, setShowLoginModal }) => {
         if (!saasInfo) fetchSaasInfo();
     }, []);
 
-    const businessName = saasInfo?.business_name || 'KHR Digital Labs';
-    const supportEmail = saasInfo?.support_email || 'sales@khrdigitallabs.com';
+    const businessName = saasInfo?.business_name || 'KHR Educo';
+    const supportEmail = saasInfo?.support_email || 'sales@khreduco.com';
     const whatsappNum = saasInfo?.whatsapp_number || '+92 300 1333275';
     const heroTitle = saasInfo?.hero_title || 'The All-in-One School OS for Modern Institutions.';
-    const heroSubtitle = saasInfo?.hero_subtitle || 'Engineered by KHR Digital Labs — the definitive multi-tenant cloud platform to instantly deploy, scale, and manage entire school ecosystems from a single dashboard.';
+    const heroSubtitle = saasInfo?.hero_subtitle || 'Engineered by KHR Educo — the definitive multi-tenant cloud platform to instantly deploy, scale, and manage entire school ecosystems from a single dashboard.';
 
     const features = [
         { icon: Wallet, color: '#2563eb', bg: '#dbeafe', title: 'Dynamic Fee Management', desc: 'Generate bulk PDF challans, record partial payments, enforce custom discount policies, and print branded receipts — in seconds.' },
@@ -184,11 +184,33 @@ const SaaSLanding = ({ setCurrentPage, setShowLoginModal }) => {
                 justifyContent: 'space-between',
                 transition: 'all 0.3s ease'
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }} onClick={() => window.scrollTo(0,0)}>
-                    <div style={{ background: 'linear-gradient(135deg, #2563eb, #6366f1)', padding: '0.6rem', borderRadius: '12px', color: 'white', display: 'flex', boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)' }}>
-                        <MonitorSmartphone size={24} strokeWidth={2.5} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }} onClick={() => window.scrollTo(0,0)}>
+                    <img 
+                        src="/logo.png" 
+                        alt="KHR Educo Logo" 
+                        style={{ height: '40px', width: '40px', objectFit: 'contain', borderRadius: '8px' }}
+                        onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextSibling.style.display = 'flex';
+                        }}
+                    />
+                    <span style={{ 
+                        fontSize: '1.45rem', 
+                        fontWeight: 900, 
+                        letterSpacing: '-0.3px', 
+                        color: '#003B95', 
+                        fontFamily: "'Inter', sans-serif",
+                        display: 'flex',
+                        alignItems: 'center'
+                    }}>
+                        KHR <span style={{ color: '#FF7A00', marginLeft: '5px' }}>Educo</span>
+                    </span>
+                    <div style={{ display: 'none', alignItems: 'center', gap: '0.75rem' }}>
+                        <div style={{ background: 'linear-gradient(135deg, #2563eb, #6366f1)', padding: '0.6rem', borderRadius: '12px', color: 'white', display: 'flex', boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)' }}>
+                            <MonitorSmartphone size={24} strokeWidth={2.5} />
+                        </div>
+                        <span style={{ fontSize: '1.5rem', fontWeight: 900, letterSpacing: '-0.5px', color: '#0f172a' }}>{businessName}</span>
                     </div>
-                    <span style={{ fontSize: '1.5rem', fontWeight: 900, letterSpacing: '-0.5px', color: '#0f172a' }}>{businessName}</span>
                 </div>
 
                 <nav className="desktop-nav" style={{ display: 'flex', gap: '2.5rem', alignItems: 'center' }}>
@@ -448,11 +470,33 @@ const SaaSLanding = ({ setCurrentPage, setShowLoginModal }) => {
             {/* ── FOOTER ── */}
             <footer style={{ background: '#0f172a', padding: '3rem 5%', borderTop: '1px solid #1e293b' }}>
                 <div className="footer-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', maxWidth: '1200px', margin: '0 auto' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <div style={{ background: 'linear-gradient(135deg, #2563eb, #6366f1)', padding: '0.6rem', borderRadius: '10px', color: 'white', display: 'flex' }}>
-                            <MonitorSmartphone size={20} strokeWidth={2.5} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <img 
+                            src="/logo.png" 
+                            alt="KHR Educo Logo" 
+                            style={{ height: '36px', width: '36px', objectFit: 'contain', filter: 'brightness(1.15)' }}
+                            onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                e.currentTarget.nextSibling.style.display = 'flex';
+                            }}
+                        />
+                        <span style={{ 
+                            fontSize: '1.25rem', 
+                            fontWeight: 900, 
+                            letterSpacing: '-0.3px', 
+                            color: '#ffffff', 
+                            fontFamily: "'Inter', sans-serif",
+                            display: 'flex',
+                            alignItems: 'center'
+                        }}>
+                            KHR <span style={{ color: '#FF7A00', marginLeft: '5px' }}>Educo</span>
+                        </span>
+                        <div style={{ display: 'none', alignItems: 'center', gap: '0.75rem' }}>
+                            <div style={{ background: 'linear-gradient(135deg, #2563eb, #6366f1)', padding: '0.6rem', borderRadius: '10px', color: 'white', display: 'flex' }}>
+                                <MonitorSmartphone size={20} strokeWidth={2.5} />
+                            </div>
+                            <span style={{ fontSize: '1.2rem', fontWeight: 900, color: '#cbd5e1' }}>{businessName}</span>
                         </div>
-                        <span style={{ fontSize: '1.2rem', fontWeight: 900, color: '#cbd5e1' }}>{businessName}</span>
                     </div>
                     <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>© {new Date().getFullYear()} {businessName}. All rights reserved.</div>
                     <div style={{ display: 'flex', gap: '2rem', fontSize: '0.95rem', fontWeight: 600 }}>

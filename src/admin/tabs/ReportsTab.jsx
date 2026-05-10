@@ -177,7 +177,7 @@ function printReportCard(student, termLabel, subjects, weights, schoolName, scho
     <div class="sig-line">Class Teacher Signature</div>
     <div class="sig-line">Principal / HM Signature</div>
   </div>
-  <div class="footer">Generated on ${printDate} &nbsp;|&nbsp; ${schoolName} &nbsp;|&nbsp; Confidential Document</div>
+  <div class="footer">Generated on ${printDate} &nbsp;|&nbsp; ${schoolName} &nbsp;|&nbsp; Official transcript generated via KHR Educo Smart Platform</div>
 </div>
 <script>window.onload = () => window.print();</script>
 </body></html>`;

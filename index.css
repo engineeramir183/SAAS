@@ -1,12 +1,12 @@
 /* ==================== DESIGN SYSTEM ==================== */
 
 :root {
-  /* Colors - Premium Palette */
-  --color-primary: #1e3a8a;
-  --color-primary-dark: #172554;
-  --color-primary-light: #3b82f6;
-  --color-secondary: #0ea5e9;
-  --color-accent: #f59e0b;
+  /* Colors - Premium Palette (KHR Educo) */
+  --color-primary: #003B95;             /* KHR Educo Deep Royal Blue */
+  --color-primary-dark: #0a1f4d;        /* Dark Navy */
+  --color-primary-light: #3b82f6;       /* Soft Blue */
+  --color-secondary: #FF7A00;           /* KHR Educo Electric Orange Accent */
+  --color-accent: #FF7A00;              /* Electric Orange Accent */
   --color-success: #10b981;
   --color-danger: #ef4444;
   --color-warning: #f59e0b;
@@ -25,8 +25,8 @@
   --color-gray-900: #111827;
 
   /* Gradients */
-  --gradient-primary: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
-  --gradient-hero: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #3b82f6 100%);
+  --gradient-primary: linear-gradient(135deg, #003B95 0%, #002e75 100%);
+  --gradient-hero: linear-gradient(135deg, #0f172a 0%, #003B95 50%, #FF7A00 100%);
   --gradient-overlay: linear-gradient(to bottom, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.6));
 
   /* Spacing */

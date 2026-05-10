@@ -164,7 +164,7 @@ const OnboardingWizard = ({ schoolData, onComplete, completeOnboarding }) => {
                             <div style={{ padding: '0.8rem', background: '#fef3c7', borderRadius: '14px', color: '#f59e0b' }}><Layout size={24} /></div>
                             <h2 style={{ fontSize: '1.75rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>Review & Deploy</h2>
                         </div>
-                        <p style={{ color: '#64748b', marginBottom: '2rem', lineHeight: 1.6 }}>Nice job! KHR Digital Labs is initializing your environment. Review your details below.</p>
+                        <p style={{ color: '#64748b', marginBottom: '2rem', lineHeight: 1.6 }}>Nice job! KHR Educo is initializing your environment. Review your details below.</p>
 
                         <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '2rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>

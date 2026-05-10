@@ -318,7 +318,7 @@ const Login = ({
                         display: 'flex', alignItems: 'center', gap: '0.5rem'
                     }}
                 >
-                    {new URLSearchParams(window.location.search).get('school') ? `← Back to ${schoolData?.name || 'Home'}` : '← Back to KHR Digital Labs'}
+                    {new URLSearchParams(window.location.search).get('school') ? `← Back to ${schoolData?.name || 'Home'}` : '← Back to KHR Educo'}
                 </button>
             )}
 
@@ -334,27 +334,36 @@ const Login = ({
                     zIndex: 10
                 }}
             >
-                {/* Icon */}
-                <div className="flex-center" style={{
-                    width: '72px',
-                    height: '72px',
-                    background: 'var(--gradient-primary)',
-                    borderRadius: '50%',
-                    color: 'white',
-                    margin: '0 auto 1.75rem'
-                }}>
-                    <LogIn size={34} />
+                {/* Brand Logo & Name */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '1.5rem' }}>
+                    <img 
+                        src="/logo.png" 
+                        alt="KHR Educo Logo" 
+                        style={{ height: '64px', width: '64px', objectFit: 'contain', marginBottom: '0.75rem' }}
+                        onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextSibling.style.display = 'block';
+                        }}
+                    />
+                    <div style={{ display: 'none' }}>
+                        <div style={{ width: '64px', height: '64px', background: 'var(--gradient-primary)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                            <LogIn size={28} />
+                        </div>
+                    </div>
+                    <span style={{ 
+                        fontSize: '1.6rem', 
+                        fontWeight: 900, 
+                        letterSpacing: '-0.5px', 
+                        color: '#003B95', 
+                        fontFamily: "'Inter', sans-serif",
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}>
+                        KHR <span style={{ color: '#FF7A00', marginLeft: '5px' }}>Educo</span>
+                    </span>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginTop: '0.25rem', letterSpacing: '1px' }}>Smart Education solutions</span>
                 </div>
-
-                <h2 style={{
-                    fontSize: '1.9rem',
-                    fontWeight: 800,
-                    textAlign: 'center',
-                    marginBottom: '0.4rem',
-                    color: '#0f172a'
-                }}>
-                    Portal Login
-                </h2>
                 <p style={{
                     textAlign: 'center',
                     color: 'var(--color-gray-500)',
@@ -385,7 +394,7 @@ const Login = ({
                             />
                         </div>
                         <p style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.3rem' }}>
-                            Your unique school identifier provided by KHR Digital Labs.
+                            Your unique school identifier provided by KHR Educo.
                         </p>
                     </div>
 
@@ -486,8 +495,8 @@ const Login = ({
                         <ShieldCheck size={14} />
                         <span>Super Admin? Use username <code>superadmin</code></span>
                     </div>
-                    <div style={{ opacity: 0.6, fontSize: '0.75rem' }}>
-                        Powered by <strong>KHR Digital Labs</strong>
+                    <div style={{ opacity: 0.8, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#64748b', fontWeight: 600 }}>
+                        <span>🔒 Infrastructure secured by</span> <strong>KHR Educo</strong>
                     </div>
                 </div>
             </div>
