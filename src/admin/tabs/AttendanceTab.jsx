@@ -624,6 +624,61 @@ const AttendanceTab = ({
         setPrintMode(null);
     };
 
+    // ── Bulk mark all visible students ──
+    const markAll = async (status) => {
+        if (classStudents.length === 0) return;
+        const updates = classStudents.map(s => {
+            const records = [...(s.attendance?.records || [])];
+            const existingIdx = records.findIndex(r => r.date === filterDate);
+            if (existingIdx >= 0) {
+                records[existingIdx] = { date: filterDate, status };
+            } else {
+                records.push({ date: filterDate, status });
+            }
+            const present = records.filter(r => r.status === 'present').length;
+            const absent = records.filter(r => r.status === 'absent').length;
+            const leave = records.filter(r => r.status === 'leave').length;
+            const late = records.filter(r => r.status === 'late').length;
+            const holiday = records.filter(r => r.status === 'holiday').length;
+            const activeRecords = records.filter(r => r.status !== 'holiday');
+            const presentForPct = activeRecords.filter(r => r.status === 'present' || r.status === 'leave' || r.status === 'late').length;
+            const percentage = activeRecords.length > 0 ? parseFloat(((presentForPct / activeRecords.length) * 100).toFixed(1)) : 0;
+            const newAttendance = { records, total: records.length, present, absent, leave, late, holiday, percentage };
+            return supabase
+                .from('students')
+                .update({ attendance: newAttendance })
+                .eq('id', s.id);
+        });
+        await Promise.all(updates);
+        fetchData();
+        const statusLabel = status === 'present' ? '✓ All Present' : status === 'absent' ? '✗ All Absent' : '🌴 All Holiday';
+        showSaveMessage(`${statusLabel} marked for ${classStudents.length} students on ${filterDate}!`);
+    };
+
+    // ── Unmark all visible students for the selected date ──
+    const unmarkAll = async () => {
+        if (classStudents.length === 0) return;
+        const updates = classStudents.map(s => {
+            const records = (s.attendance?.records || []).filter(r => r.date !== filterDate);
+            const present = records.filter(r => r.status === 'present').length;
+            const absent = records.filter(r => r.status === 'absent').length;
+            const leave = records.filter(r => r.status === 'leave').length;
+            const late = records.filter(r => r.status === 'late').length;
+            const holiday = records.filter(r => r.status === 'holiday').length;
+            const activeRecords = records.filter(r => r.status !== 'holiday');
+            const presentForPct = activeRecords.filter(r => r.status === 'present' || r.status === 'leave' || r.status === 'late').length;
+            const percentage = activeRecords.length > 0 ? parseFloat(((presentForPct / activeRecords.length) * 100).toFixed(1)) : 0;
+            const newAttendance = { records, total: records.length, present, absent, leave, late, holiday, percentage };
+            return supabase
+                .from('students')
+                .update({ attendance: newAttendance })
+                .eq('id', s.id);
+        });
+        await Promise.all(updates);
+        fetchData();
+        showSaveMessage(`↩ All ${classStudents.length} students unmarked for ${filterDate}!`);
+    };
+
     const filteredStudentsForSearch = allClassStudents.filter(s =>
         s.name.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
         s.id.toLowerCase().includes(studentSearchQuery.toLowerCase())
