@@ -52,7 +52,11 @@ const ClassListsTab = ({
         const updatedStudents = students.map(s =>
             s.id === studentId ? { ...s, serialNumber: newSerial || null } : s
         );
-        await setStudents(updatedStudents);
+        const { error } = await setStudents(updatedStudents);
+        if (error) {
+            alert("Database Error: Failed to update serial number. It might be already in use by another student. " + error.message);
+            return;
+        }
         setEditingSerialStudentId(null);
         showSaveMessage('Serial number updated!');
     };
@@ -99,7 +103,11 @@ const ClassListsTab = ({
                 if (femalesObj[s.id] !== undefined) return { ...s, serialNumber: femalesObj[s.id] };
                 return s;
             });
-            await setStudents(newStudents);
+            const { error } = await setStudents(newStudents);
+            if (error) {
+                alert("Database Error: Failed to auto-assign serial numbers. Check for overlapping numbers or database constraints. " + error.message);
+                return;
+            }
         }
 
         const newMap = { ...(CLASS_SERIAL_STARTS || {}), [viewingClass]: { boys: bInput || null, girls: gInput || null } };

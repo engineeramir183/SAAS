@@ -13,6 +13,34 @@ const ScannerTab = ({ students, setStudents, showSaveMessage, schoolName = 'Scho
 
     const todayDate = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD local time
 
+    const playBeep = (type = 'success') => {
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            if (type === 'success') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.2);
+            } else {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(250, ctx.currentTime);
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.3);
+            }
+        } catch(e) { console.log('Audio error', e); }
+    };
+
     useEffect(() => {
         // Load html5-qrcode dynamically so we don't break SSR or initial load
         let Html5Qrcode;
@@ -74,10 +102,12 @@ const ScannerTab = ({ students, setStudents, showSaveMessage, schoolName = 'Scho
         const student = students.find(s => s.id === studentId);
         
         if (!student) {
+            playBeep('error');
             setScanStatus('error');
             setErrorMsg(`Student not found with ID: ${studentId}`);
+            if (showSaveMessage) showSaveMessage(`❌ Student not found!`);
             setLastScanned(null);
-            setTimeout(() => setScanStatus('idle'), 3000);
+            setTimeout(() => setScanStatus('idle'), 1000);
             return;
         }
 
@@ -100,9 +130,11 @@ const ScannerTab = ({ students, setStudents, showSaveMessage, schoolName = 'Scho
             }
 
             if (alreadyMarked) {
+                playBeep('success');
                 setScanStatus('success');
                 setLastScanned({ ...student, message: 'Already marked present today!' });
-                setTimeout(() => setScanStatus('idle'), 3000);
+                if (showSaveMessage) showSaveMessage(`✅ ${student.name} is already marked!`);
+                setTimeout(() => setScanStatus('idle'), 1000);
                 return;
             }
 
@@ -136,6 +168,8 @@ const ScannerTab = ({ students, setStudents, showSaveMessage, schoolName = 'Scho
 
             setScanStatus('success');
             setLastScanned({ ...student, message: `${student.name} marked PRESENT.` });
+            playBeep('success');
+            if (showSaveMessage) showSaveMessage(`✅ Attendance marked for ${student.name}!`);
             
             // WhatsApp Automation: Safe Arrival
             if (schoolSettings?.auto_attendance_alert) {
@@ -147,13 +181,15 @@ const ScannerTab = ({ students, setStudents, showSaveMessage, schoolName = 'Scho
                 }
             }
             
-            setTimeout(() => setScanStatus('idle'), 3000);
+            setTimeout(() => setScanStatus('idle'), 1000);
 
         } catch (err) {
             console.error(err);
+            playBeep('error');
             setScanStatus('error');
             setErrorMsg(`Error saving attendance: ${err.message}`);
-            setTimeout(() => setScanStatus('idle'), 3000);
+            if (showSaveMessage) showSaveMessage(`❌ Error: ${err.message}`);
+            setTimeout(() => setScanStatus('idle'), 1500);
         }
     };
 

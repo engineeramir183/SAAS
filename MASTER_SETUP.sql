@@ -61,7 +61,7 @@ CREATE TABLE testimonials (
 
 CREATE TABLE students (
     id               TEXT PRIMARY KEY,
-    serial_number    TEXT UNIQUE,
+    serial_number    TEXT,
     password         TEXT NOT NULL,
     name             TEXT NOT NULL,
     grade            TEXT,

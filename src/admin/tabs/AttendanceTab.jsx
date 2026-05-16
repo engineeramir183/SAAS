@@ -10,6 +10,11 @@ import { ActivityLogService } from '../../services/ActivityLogService';
 ───────────────────────────────────────────── */
 function openPrintWindow(htmlBody, title = 'Attendance Report') {
     const win = window.open('', '_blank', 'width=900,height=700');
+    if (!win) {
+        alert("Popup blocked! Please allow popups for this site.");
+        return;
+    }
+    win.document.open();
     win.document.write(`
 <!DOCTYPE html>
 <html lang="en">
@@ -66,6 +71,7 @@ ${htmlBody}
 </body>
 </html>`);
     win.document.close();
+    win.focus();
 }
 
 /* Numeric-aware class name sort: "9th A" before "10th B" */
@@ -1094,7 +1100,8 @@ const AttendanceTab = ({
                     <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
                         <thead>
                             <tr style={{ background: '#0f172a', color: 'white' }}>
-                                <th style={{ padding: '1rem', textAlign: 'left', color: 'white', fontSize: '0.85rem', fontWeight: 700, position: 'sticky', top: 0, left: 0, background: '#0f172a', zIndex: 20, minWidth: '180px' }}>Student</th>
+                                <th style={{ padding: '1rem', textAlign: 'center', color: 'white', fontSize: '0.85rem', fontWeight: 700, position: 'sticky', top: 0, left: 0, background: '#0f172a', zIndex: 20, width: '60px' }}>Sr. #</th>
+                                <th style={{ padding: '1rem', textAlign: 'left', color: 'white', fontSize: '0.85rem', fontWeight: 700, position: 'sticky', top: 0, left: '60px', background: '#0f172a', zIndex: 20, minWidth: '180px' }}>Student</th>
                                 <th style={{ padding: '1rem', textAlign: 'center', color: 'white', fontSize: '0.85rem', fontWeight: 700, position: 'sticky', top: 0, background: '#0f172a', zIndex: 10 }}>Today ({filterDate})</th>
                                 <th style={{ padding: '1rem', textAlign: 'left', color: 'white', fontSize: '0.85rem', fontWeight: 700, position: 'sticky', top: 0, background: '#0f172a', zIndex: 10 }}>Overall %</th>
                                 <th style={{ padding: '1rem', textAlign: 'left', color: 'white', fontSize: '0.85rem', fontWeight: 700, position: 'sticky', top: 0, background: '#0f172a', zIndex: 10 }}>Recent Records</th>
@@ -1109,7 +1116,10 @@ const AttendanceTab = ({
                                 const pctColor = pct >= 90 ? '#16a34a' : pct >= 75 ? '#2563eb' : pct >= 60 ? '#d97706' : '#dc2626';
                                 return (
                                     <tr key={student.id} style={{ borderBottom: '1px solid #f1f5f9', background: rowIdx % 2 === 0 ? 'white' : '#f8fafc' }}>
-                                        <td style={{ padding: '0.85rem 1rem', position: 'sticky', left: 0, background: rowIdx % 2 === 0 ? 'white' : '#f8fafc', zIndex: 1, borderRight: '1px solid #e2e8f0' }}>
+                                        <td style={{ padding: '0.85rem 1rem', position: 'sticky', left: 0, background: rowIdx % 2 === 0 ? 'white' : '#f8fafc', zIndex: 1, borderRight: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 700, color: '#64748b' }}>
+                                            {rowIdx + 1}
+                                        </td>
+                                        <td style={{ padding: '0.85rem 1rem', position: 'sticky', left: '60px', background: rowIdx % 2 === 0 ? 'white' : '#f8fafc', zIndex: 1, borderRight: '1px solid #e2e8f0' }}>
                                             <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>{student.name}</div>
                                             <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{student.id}</div>
                                         </td>
