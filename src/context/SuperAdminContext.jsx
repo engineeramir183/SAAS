@@ -64,12 +64,18 @@ export const SuperAdminProvider = ({ children }) => {
     // ─── School Registry ──────────────────────────────────────────────────────
     const fetchAllSchools = async () => {
         setLoading(true);
+        setError(null);
         const { data, error: err } = await supabase
             .from('schools')
-            .select('*, school_info(*)')
+            .select('*')
             .order('created_at', { ascending: false });
 
-        if (!err) setSchools(data || []);
+        if (err) {
+            console.error('Fetch Schools Error:', err);
+            setError(`Fetch Error: ${err.message}`);
+        } else {
+            setSchools(data || []);
+        }
         setLoading(false);
         return { data, error: err };
     };
@@ -125,9 +131,11 @@ export const SuperAdminProvider = ({ children }) => {
         }
 
         // 2. Seed school_info row (blank — school fills in later)
-        await supabase.from('school_info').insert([{
+        // We use upsert to avoid conflicts if row already exists
+        await supabase.from('school_info').upsert([{
             school_id: schoolPayload.school_id,
             name:      schoolPayload.school_name,
+            id:        `info-${schoolPayload.school_id}` // Unique ID per school
         }]);
 
         // 3. Create the first admin account for this school

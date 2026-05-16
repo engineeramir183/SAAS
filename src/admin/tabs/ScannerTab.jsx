@@ -3,7 +3,7 @@ import { supabase } from '../../supabaseClient';
 import { Camera, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { sendWhatsAppMessage, WhatsAppTemplates } from '../../services/WhatsAppService';
 
-const ScannerTab = ({ students, setStudents, showSaveMessage, schoolName = 'School', schoolSettings }) => {
+const ScannerTab = ({ students, setStudents, showSaveMessage, schoolName = 'School', schoolSettings, saveAttendanceRecords }) => {
     const scannerRef = useRef(null);
     const [scannerInstance, setScannerInstance] = useState(null);
     const [scanStatus, setScanStatus] = useState('idle'); // idle, scanning, success, error
@@ -138,33 +138,14 @@ const ScannerTab = ({ students, setStudents, showSaveMessage, schoolName = 'Scho
                 return;
             }
 
-            // Calculate new summary totals
-            const present = updatedRecords.filter(r => r.status === 'present').length;
-            const absent = updatedRecords.filter(r => r.status === 'absent').length;
-            const leave = updatedRecords.filter(r => r.status === 'leave').length;
-            const late = updatedRecords.filter(r => r.status === 'late').length;
-            
-            const presentForPct = present + leave + late;
-            const total = updatedRecords.length;
-            const percentage = total > 0 ? parseFloat(((presentForPct / total) * 100).toFixed(1)) : 0;
-
-            const newAttendanceObj = {
-                records: updatedRecords,
-                total, present, absent, leave, late, percentage
-            };
-
-            // 3. Save to Supabase
-            const { error } = await supabase
-                .from('students')
-                .update({ attendance: newAttendanceObj })
-                .eq('id', student.id)
-                .eq('school_id', student.school_id);
+            // 3. Save to relational table via context
+            const { error } = await saveAttendanceRecords([{
+                student_id: student.id,
+                date: todayDate,
+                status: 'present'
+            }]);
 
             if (error) throw error;
-
-            // 4. Update local state instantly for UI sync
-            const updatedStudents = students.map(s => s.id === student.id ? { ...s, attendance: newAttendanceObj } : s);
-            setStudents(updatedStudents);
 
             setScanStatus('success');
             setLastScanned({ ...student, message: `${student.name} marked PRESENT.` });

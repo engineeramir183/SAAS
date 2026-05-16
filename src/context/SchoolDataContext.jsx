@@ -86,8 +86,11 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 { data: info },
                 { data: metaRows },
                 { data: announcements },
-                { data: students },
-                { data: admins }
+                { data: studentsRes },
+                { data: admins },
+                { data: attRecords },
+                { data: feeRecords },
+                { data: resRecords }
             ] = await Promise.all([
                 // Master school settings (currency, logo, etc.)
                 supabase
@@ -119,8 +122,9 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 // Students — explicit columns, ordered by serial number
                 supabase
                     .from('students')
-                    .select('id, name, grade, image, serial_number, password, attendance, fee_history, results, admissions, previous_results')
+                    .select('id, name, grade, image, serial_number, password, fee_history, results, admissions, previous_results')
                     .eq('school_id', sid)
+                    .eq('is_active', true)
                     .order('serial_number', { ascending: true, nullsFirst: false }),
 
                 // Admin credentials
@@ -129,7 +133,25 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                     .select('*')
                     .eq('school_id', sid)
                     .eq('role', 'admin')
-                    .limit(1)
+                    .limit(1),
+                    
+                // Fetch Relational Attendance
+                supabase
+                    .from('attendance_records')
+                    .select('*')
+                    .eq('school_id', sid),
+
+                // Fetch Relational Fees
+                supabase
+                    .from('fee_records')
+                    .select('*')
+                    .eq('school_id', sid),
+
+                // Fetch Relational Results
+                supabase
+                    .from('exam_results')
+                    .select('*')
+                    .eq('school_id', sid)
             ]);
 
             // ── Update school settings ────────────────────────────────────────
@@ -146,15 +168,79 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
             const metaMap = {};
             (metaRows || []).forEach(r => { metaMap[r.key] = r.value; });
 
-            // ── Normalise student shape ───────────────────────────────────────
-            const normalisedStudents = (students || []).map(s => ({
-                ...s,
-                photo:           s.image,
-                feeHistory:      s.fee_history      || [],
-                previous_results: s.previous_results,
-                previousResults: s.previous_results,
-                serialNumber:    s.serial_number
-            }));
+            // ── Students ──────────────────────────────────────────────────────
+            let studentsList = [];
+            if (studentsRes) {
+                // Group attendance by student
+                const attByStudent = {};
+                (attRecords || []).forEach(r => {
+                    if (!attByStudent[r.student_id]) attByStudent[r.student_id] = [];
+                    attByStudent[r.student_id].push({ date: r.date, status: r.status });
+                });
+
+                // Group fees by student
+                const feesByStudent = {};
+                (feeRecords || []).forEach(f => {
+                    if (!feesByStudent[f.student_id]) feesByStudent[f.student_id] = [];
+                    feesByStudent[f.student_id].push({
+                        month: f.month,
+                        tuitionFee: f.tuition_fee,
+                        admissionFee: f.admission_fee,
+                        annualFee: f.annual_fee,
+                        examFee: f.exam_fee,
+                        transportFee: f.transport_fee,
+                        labFee: f.lab_fee,
+                        lateFine: f.late_fine,
+                        discount: f.discount,
+                        paidAmount: f.paid_amount,
+                        status: f.status,
+                        paymentDate: f.payment_date,
+                        paymentMethod: f.payment_method,
+                        isOnline: f.is_online
+                    });
+                });
+
+                // Group results by student
+                const resByStudent = {};
+                (resRecords || []).forEach(r => {
+                    if (!resByStudent[r.student_id]) resByStudent[r.student_id] = [];
+                    resByStudent[r.student_id].push({
+                        term: r.term,
+                        subject: r.subject,
+                        obtained: r.is_absent ? 'A' : r.marks_obtained,
+                        remarks: r.remarks
+                    });
+                });
+
+                studentsList = studentsRes.map(s => {
+                    const records = attByStudent[s.id] || [];
+                    const feeHistory = feesByStudent[s.id] || [];
+                    const results = resByStudent[s.id] || [];
+                    const present = records.filter(r => r.status === 'present').length;
+                    const absent = records.filter(r => r.status === 'absent').length;
+                    const leave = records.filter(r => r.status === 'leave').length;
+                    const late = records.filter(r => r.status === 'late').length;
+                    const holiday = records.filter(r => r.status === 'holiday').length;
+                    
+                    const activeRecords = records.filter(r => r.status !== 'holiday');
+                    const presentForPct = activeRecords.filter(r => r.status === 'present' || r.status === 'leave' || r.status === 'late').length;
+                    const percentage = activeRecords.length > 0 ? parseFloat(((presentForPct / activeRecords.length) * 100).toFixed(1)) : 0;
+
+                    return {
+                        ...s,
+                        photo:           s.image,
+                        feeHistory:      feeHistory,
+                        previous_results: s.previous_results,
+                        previousResults: s.previous_results,
+                        serialNumber:    s.serial_number,
+                        results:         results,
+                        admissions:      s.admissions || [],
+                        attendance: {
+                            records, total: records.length, present, absent, leave, late, holiday, percentage
+                        }
+                    };
+                });
+            }
 
             setData(prev => ({
                 ...prev,
@@ -162,7 +248,7 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 about:         info?.about   || { mission: '', vision: '', values: [], history: '' },
                 contact:       info?.contact || { phone: '', email: '', address: '', hours: '' },
                 announcements: announcements || [],
-                students:      normalisedStudents,
+                students:      studentsList,
                 plan:          schoolRow?.plan
                 // Note: faculty, facilities, testimonials, blogs are loaded
                 // lazily via fetchPublicData() — only when public pages open
@@ -222,7 +308,7 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 { data: testimonials },
                 { data: blogs }
             ] = await Promise.all([
-                supabase.from('faculty').select('*').eq('school_id', sid).order('id'),
+                supabase.from('faculty').select('*').eq('school_id', sid).eq('is_active', true).order('id'),
                 supabase.from('facilities').select('*').eq('school_id', sid).order('id'),
                 supabase.from('testimonials').select('*').eq('school_id', sid),
                 supabase.from('blogs').select('*').eq('school_id', sid).order('created_at', { ascending: false })
@@ -335,37 +421,50 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
     };
 
     const setStudents = async (studentsList) => {
-        const dbStudents = studentsList.map(s => ({
-            school_id:        currentSchoolId,   // ← always stamped
-            id:               s.id,
-            serial_number:    s.serialNumber     !== undefined ? s.serialNumber   : s.serial_number,
-            password:         s.password,
-            name:             s.name,
-            grade:            s.grade,
-            image:            s.image            !== undefined ? s.image          : s.photo,
-            fee_history:      s.feeHistory       !== undefined ? s.feeHistory     : (s.fee_history || []),
-            results:          s.results          || [],
-            attendance:       s.attendance       || {},
-            previous_results: s.previousResults  !== undefined ? s.previousResults : s.previous_results || [],
-            admissions:       s.admissions       || []
-        }));
+        const dbStudents = studentsList.map(s => {
+            const out = {
+                school_id:        currentSchoolId,
+                serial_number:    s.serialNumber     !== undefined ? s.serialNumber   : s.serial_number,
+                password:         s.password,
+                name:             s.name,
+                grade:            s.grade,
+                image:            s.image            !== undefined ? s.image          : s.photo,
+                fee_history:      s.feeHistory       !== undefined ? s.feeHistory     : (s.fee_history || []),
+                results:          s.results          || [],
+                attendance:       s.attendance       || {},
+                previous_results: s.previousResults  !== undefined ? s.previousResults : s.previous_results || [],
+                admissions:       s.admissions       || []
+            };
+            if (s.id && !s.id.startsWith('TEMP-')) {
+                out.id = s.id;
+            }
+            return out;
+        });
 
-        const { error } = await supabase.from('students').upsert(dbStudents);
-        if (!error) {
-            // Normalise and update local state directly — merge instead of replace
-            const incomingNormalised = studentsList.map(s => ({
-                ...s,
-                photo:           s.image || s.photo,
-                feeHistory:      s.feeHistory      || s.fee_history      || [],
-                previousResults: s.previousResults || s.previous_results || [],
-                serialNumber:    s.serialNumber    !== undefined ? s.serialNumber : s.serial_number
+        const { data: updatedRows, error } = await supabase.from('students').upsert(dbStudents).select();
+        if (!error && updatedRows) {
+            // Normalise and update local state directly — merge instead of replace using the returned DB rows
+            const incomingNormalised = updatedRows.map(dbRow => ({
+                id:              dbRow.id,
+                name:            dbRow.name,
+                grade:           dbRow.grade,
+                password:        dbRow.password,
+                photo:           dbRow.image,
+                feeHistory:      dbRow.fee_history || [],
+                previousResults: dbRow.previous_results || [],
+                serialNumber:    dbRow.serial_number,
+                results:         dbRow.results || [],
+                attendance:      dbRow.attendance || {},
+                admissions:      dbRow.admissions || []
             }));
 
             setData(prev => {
                 const merged = [...(prev.students || [])];
                 incomingNormalised.forEach(ns => {
-                    const idx = merged.findIndex(s => s.id === ns.id);
-                    if (idx > -1) merged[idx] = ns;
+                    const idx = merged.findIndex(s => s.id === ns.id || (s.id && s.id.startsWith('TEMP-') && s.name === ns.name && s.grade === ns.grade));
+                    if (idx > -1) {
+                        merged[idx] = { ...merged[idx], ...ns, id: ns.id }; // Update with new ID and DB data
+                    }
                     else merged.push(ns);
                 });
                 // Maintain sort order by serial number if possible
@@ -449,6 +548,74 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
         return { error };
     };
 
+    const saveAttendanceRecords = async (records) => {
+        // records: [{ student_id, date, status, remarks }]
+        const dbRecords = records.map(r => ({ ...r, school_id: currentSchoolId }));
+        const { error } = await supabase.from('attendance_records').upsert(dbRecords, { onConflict: 'student_id, date' });
+        if (!error) await fetchData();
+        return { error };
+    };
+
+    const deleteAttendanceRecords = async (studentIds, date) => {
+        const { error } = await supabase.from('attendance_records')
+            .delete()
+            .eq('school_id', currentSchoolId)
+            .eq('date', date)
+            .in('student_id', studentIds);
+        if (!error) await fetchData();
+        return { error };
+    };
+
+    const saveFeeRecords = async (records) => {
+        const dbRecords = records.map(r => ({
+            school_id: currentSchoolId,
+            student_id: r.student_id,
+            month: r.month,
+            tuition_fee: r.tuitionFee,
+            admission_fee: r.admissionFee,
+            annual_fee: r.annualFee,
+            exam_fee: r.examFee,
+            transport_fee: r.transportFee,
+            lab_fee: r.labFee,
+            late_fine: r.lateFine,
+            discount: r.discount,
+            paid_amount: r.paidAmount,
+            status: r.status,
+            payment_date: r.paymentDate,
+            payment_method: r.paymentMethod,
+            is_online: r.isOnline
+        }));
+        const { error } = await supabase.from('fee_records').upsert(dbRecords, { onConflict: 'student_id, month' });
+        if (!error) await fetchData();
+        return { error };
+    };
+
+    const deleteFeeRecords = async (studentIds, month) => {
+        const { error } = await supabase.from('fee_records')
+            .delete()
+            .eq('school_id', currentSchoolId)
+            .eq('month', month)
+            .in('student_id', studentIds);
+        if (!error) await fetchData();
+        return { error };
+    };
+
+    const saveExamResults = async (results) => {
+        // results: [{ student_id, term, subject, obtained, remarks }]
+        const dbRecords = results.map(r => ({
+            school_id: currentSchoolId,
+            student_id: r.student_id,
+            term: r.term,
+            subject: r.subject,
+            marks_obtained: r.obtained === 'A' ? 0 : (r.obtained === null ? null : Number(r.obtained)),
+            is_absent: r.obtained === 'A',
+            remarks: r.remarks
+        }));
+        const { error } = await supabase.from('exam_results').upsert(dbRecords, { onConflict: 'student_id, term, subject' });
+        if (!error) await fetchData();
+        return { error };
+    };
+
     const updateInquiries = async (newList) => {
         const { error } = await _upsertMeta('INQUIRIES', newList);
         if (!error) setInquiries(newList);
@@ -514,6 +681,11 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
             updateClassFeeDefaults,
             updateExpenses,
             updateInquiries,
+            saveAttendanceRecords,
+            deleteAttendanceRecords,
+            saveFeeRecords,
+            deleteFeeRecords,
+            saveExamResults,
             changeAdminPassword
         }}>
             {children}

@@ -292,50 +292,58 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         setGbSaving(true);
         const termLabel = gbTerm || classTerms[0] || 'Current';
         const classStudents = students.filter(s => s.grade === selectedClass);
-        const updatedStudents = classStudents.map(s => {
-            if (!gbEdits[s.id]) return s;
-            // Build new results for this term only
-            const newTermResults = classSubjects.map(subject => {
-                const subTotal = getSubjectTotal(subject, termLabel);
-                let obtained = gbEdits[s.id]?.[subject];
-                if (obtained === undefined) {
-                    obtained = getTermResults(s, termLabel).find(r => r.subject === subject)?.obtained ?? 0;
+        
+        const resultsToSave = [];
+        classStudents.forEach(s => {
+            if (!gbEdits[s.id]) return;
+            
+            classSubjects.forEach(subject => {
+                const editedValue = gbEdits[s.id]?.[subject];
+                if (editedValue !== undefined) {
+                    const existing = getTermResults(s, termLabel).find(r => r.subject === subject);
+                    resultsToSave.push({
+                        student_id: s.id,
+                        term: termLabel,
+                        subject: subject,
+                        obtained: editedValue,
+                        remarks: existing?.remarks || ''
+                    });
                 }
-                const numObtained = obtained === 'A' ? 0 : Number(obtained);
-                const pct = Math.round((numObtained / subTotal) * 100);
-                const grade = obtained === 'A' ? 'Absent' : calcGrade(pct);
-                const existing = getTermResults(s, termLabel).find(r => r.subject === subject);
-                return { subject, total: subTotal, obtained, percentage: pct, grade, remarks: existing?.remarks || '', term: termLabel };
             });
-            // Merge: keep results from OTHER terms, replace results for THIS term
-            const otherTermResults = (s.results || []).filter(r => r.term !== termLabel);
-            return { ...s, results: [...otherTermResults, ...newTermResults] };
         });
-        const allStudents = students.map(s => updatedStudents.find(u => u.id === s.id) || s);
-        await setStudents(allStudents);
-        setGbEdits({});
+
+        const { error } = await schoolContext.saveExamResults(resultsToSave);
         setGbSaving(false);
-        ActivityLogService.logActivity({
-            schoolId: currentSchoolId,
-            username: adminCredentials.username || 'admin',
-            role: 'admin',
-            action: 'Save Gradebook',
-            targetName: `Class: ${selectedClass} - Term: ${termLabel}`,
-            details: { students_count: Object.keys(gbEdits).length, term: termLabel }
-        });
-        showSaveMessage(`Gradebook saved for ${termLabel}!`);
+        if (!error) {
+            setGbEdits({});
+            ActivityLogService.logActivity({
+                schoolId: currentSchoolId,
+                username: adminCredentials.username || 'admin',
+                role: 'admin',
+                action: 'Save Gradebook',
+                targetName: `Class: ${selectedClass} - Term: ${termLabel}`,
+                details: { students_count: Object.keys(gbEdits).length, term: termLabel }
+            });
+            showSaveMessage(`Gradebook saved for ${termLabel}!`);
+        }
     };
 
     const saveRemarks = async (studentId, subject, remarks) => {
         const termLabel = gbTerm || classTerms[0] || 'Current';
-        const updatedStudents = students.map(s => {
-            if (s.id !== studentId) return s;
-            const newResults = (s.results || []).map(r =>
-                (r.subject === subject && r.term === termLabel) ? { ...r, remarks } : r
-            );
-            return { ...s, results: newResults };
-        });
-        await setStudents(updatedStudents);
+        const student = students.find(s => s.id === studentId);
+        if (!student) return;
+        const result = getTermResults(student, termLabel).find(r => r.subject === subject);
+        
+        const { error } = await schoolContext.saveExamResults([{
+            student_id: studentId,
+            term: termLabel,
+            subject: subject,
+            obtained: result?.obtained ?? null,
+            remarks: remarks
+        }]);
+        if (!error) {
+            showSaveMessage('Remarks saved!');
+        }
     };
 
     const archiveTerm = async () => {
@@ -921,19 +929,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
         // 1. Save to Supabase
         try {
-            const prefix = schoolSettings?.school_id?.split('-')[0]?.toUpperCase() || 'ID';
-            const year = new Date().getFullYear();
-            // Find the max existing ID number for this school (ignoring prefix case)
-            const maxNum = students.reduce((max, s) => {
-                const parts = (s.id || '').split('-');
-                if (parts.length >= 3 && parts[0].toUpperCase() === prefix) {
-                    const num = parseInt(parts[parts.length - 1], 10);
-                    return !isNaN(num) ? Math.max(max, num) : max;
-                }
-                return max;
-            }, 0);
-            const nextIdNum = maxNum + 1;
-            const studentId = `${prefix}-${year}-${nextIdNum.toString().padStart(3, '0')}`;
+            // Generate a temporary ID. The database trigger will replace this with a real sequential ID.
+            let studentId = `TEMP-${Date.now()}`;
 
             // Auto-assign serial number — globally unique across ALL students
             let autoSerial = d.serialNumber ? d.serialNumber : null;
@@ -1627,35 +1624,12 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         if (!student) return;
 
         const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-        const oldAtt = student.attendance || {};
-        const records = [...(oldAtt.records || [])];
-
-        // Prevent duplicate entry for same day
-        const existingIdx = records.findIndex(r => r.date === today);
-        if (existingIdx >= 0) {
-            records[existingIdx] = { date: today, status }; // overwrite today's entry
-        } else {
-            records.push({ date: today, status });
-        }
-
-        // Recompute totals — 'leave' and 'late' count as present for percentage. 'holiday' is excluded entirely from calculations.
-        const present = records.filter(r => r.status === 'present').length;
-        const absent = records.filter(r => r.status === 'absent').length;
-        const leave = records.filter(r => r.status === 'leave').length;
-        const late = records.filter(r => r.status === 'late').length;
-        const holiday = records.filter(r => r.status === 'holiday').length;
         
-        const activeRecords = records.filter(r => r.status !== 'holiday');
-        const presentForPct = activeRecords.filter(r => r.status === 'present' || r.status === 'leave' || r.status === 'late').length;
-        const percentage = activeRecords.length > 0 ? parseFloat(((presentForPct / activeRecords.length) * 100).toFixed(1)) : 0;
-
-        const newAttendance = { records, total: records.length, present, absent, leave, late, holiday, percentage };
-
-        const { error } = await supabase
-            .from('students')
-            .update({ attendance: newAttendance })
-            .eq('id', studentId)
-            .eq('school_id', currentSchoolId);
+        const { error } = await schoolContext.saveAttendanceRecords([{
+            student_id: studentId,
+            date: today,
+            status: status
+        }]);
 
         if (!error) {
             fetchData();
@@ -1677,23 +1651,11 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     const removeAttendanceRecord = async (studentId, dateStr) => {
         const student = students.find(s => s.id === studentId);
         if (!student) return;
-        const oldAtt = student.attendance || {};
-        const records = (oldAtt.records || []).filter(r => r.date !== dateStr);
         
-        const present = records.filter(r => r.status === 'present').length;
-        const absent = records.filter(r => r.status === 'absent').length;
-        const leave = records.filter(r => r.status === 'leave').length;
-        const late = records.filter(r => r.status === 'late').length;
-        const holiday = records.filter(r => r.status === 'holiday').length;
-        
-        const activeRecords = records.filter(r => r.status !== 'holiday');
-        const presentForPct = activeRecords.filter(r => r.status === 'present' || r.status === 'leave' || r.status === 'late').length;
-        const percentage = activeRecords.length > 0 ? parseFloat(((presentForPct / activeRecords.length) * 100).toFixed(1)) : 0;
-
-        const newAttendance = { records, total: records.length, present, absent, leave, late, holiday, percentage };
-        await supabase.from('students').update({ attendance: newAttendance }).eq('id', studentId).eq('school_id', currentSchoolId);
-        fetchData();
-        showSaveMessage(`Record for ${dateStr} removed.`);
+        const { error } = await schoolContext.deleteAttendanceRecords([studentId], dateStr);
+        if (!error) {
+            showSaveMessage(`Record for ${dateStr} removed.`);
+        }
     };
 
     // --- ATTENDANCE EXCEL EXPORT ---
@@ -1784,96 +1746,135 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             return;
         }
 
-        const updatedStudents = students.map(s => {
-            if (s.grade !== selectedClass) return s;
-            const existing = s.feeHistory || [];
-            return { ...s, feeHistory: [...existing, { month: monthLabel, status: 'unpaid', paidOn: null }] };
-        });
-        await setStudents(updatedStudents);
-        showSaveMessage(`Fee month "${monthLabel}" opened for ${selectedClass}!`);
+        const classDefaults = (CLASS_FEE_DEFAULTS && CLASS_FEE_DEFAULTS[selectedClass]) || {
+            tuitionFee: 1000, admissionFee: 0, annual_fee: 0, examFee: 0, transportFee: 0, labFee: 0
+        };
+
+        const records = classStudents.map(s => ({
+            student_id: s.id,
+            month: monthLabel,
+            status: 'unpaid',
+            tuitionFee: classDefaults.tuitionFee || 1000,
+            admissionFee: classDefaults.admissionFee || 0,
+            annualFee: classDefaults.annualFee || 0,
+            examFee: classDefaults.examFee || 0,
+            transportFee: classDefaults.transportFee || 0,
+            labFee: classDefaults.labFee || 0,
+            lateFine: 0,
+            discount: 0,
+            paidAmount: 0
+        }));
+
+        const { error } = await schoolContext.saveFeeRecords(records);
+        if (!error) {
+            showSaveMessage(`Fee month "${monthLabel}" opened for ${selectedClass}!`);
+        }
     };
 
     // Toggle a specific month's fee status for a student (Quick Toggle)
     const toggleMonthFeeStatus = async (studentId, monthLabel) => {
-        const updatedStudents = students.map(s => {
-            if (s.id !== studentId) return s;
-            const history = s.feeHistory || [];
-            const updated = history.map(h => {
-                if (h.month !== monthLabel) return h;
-                const newStatus = h.status === 'paid' ? 'unpaid' : 'paid';
-                return { ...h, status: newStatus, paidOn: newStatus === 'paid' ? new Date().toLocaleDateString() : null };
-            });
-            return { ...s, feeHistory: updated };
-        });
-        await setStudents(updatedStudents);
-        showSaveMessage('Fee status updated!');
+        const student = students.find(s => s.id === studentId);
+        if (!student) return;
+        const record = (student.feeHistory || []).find(h => h.month === monthLabel);
+        if (!record) return;
+
+        const newStatus = record.status === 'paid' ? 'unpaid' : 'paid';
+        // For simple toggle, we assume full payment if marking as paid
+        const tuition = record.tuitionFee || 1000;
+        const total = (tuition + (record.admissionFee || 0) + (record.annualFee || 0) + (record.examFee || 0) + (record.transportFee || 0) + (record.labFee || 0)) + (record.lateFine || 0) - (record.discount || 0);
+
+        const { error } = await schoolContext.saveFeeRecords([{
+            ...record,
+            student_id: studentId,
+            status: newStatus,
+            paidAmount: newStatus === 'paid' ? total : 0,
+            paymentDate: newStatus === 'paid' ? new Date().toISOString().split('T')[0] : null
+        }]);
+
+        if (!error) {
+            showSaveMessage('Fee status updated!');
+        }
     };
 
     // Update full detailed fee record for a student
     const updateStudentFeeRecord = async (studentId, monthLabel, newRecordData) => {
-        const updatedStudents = students.map(s => {
-            if (s.id !== studentId) return s;
-            const history = s.feeHistory || [];
-            const updated = history.map(h => h.month === monthLabel ? { ...h, ...newRecordData } : h);
-            return { ...s, feeHistory: updated };
-        });
-        await setStudents(updatedStudents);
-        showSaveMessage('Fee record updated successfully!');
+        const { error } = await schoolContext.saveFeeRecords([{
+            ...newRecordData,
+            student_id: studentId,
+            month: monthLabel
+        }]);
 
-        // WhatsApp Automation: Fee Receipt
-        if (newRecordData.status === 'paid' && schoolSettings?.auto_fee_alert) {
-            const student = students.find(s => s.id === studentId);
-            const parentPhone = student?.admissions?.[0]?.whatsapp || student?.admissions?.[0]?.contact || '';
-            if (parentPhone) {
-                const msg = WhatsAppTemplates.feePaid(
-                    student.name, 
-                    monthLabel, 
-                    `${currencySymbol} ${newRecordData.paidAmount || 0}`, 
-                    `${currencySymbol} ${newRecordData.balance || 0}`, 
-                    schoolName
-                );
-                sendWhatsAppMessage(parentPhone, msg, schoolSettings);
+        if (!error) {
+            showSaveMessage('Fee record updated successfully!');
+
+            // WhatsApp Automation: Fee Receipt
+            if (newRecordData.status === 'paid' && schoolSettings?.auto_fee_alert) {
+                const student = students.find(s => s.id === studentId);
+                const parentPhone = student?.admissions?.[0]?.whatsapp || student?.admissions?.[0]?.contact || '';
+                if (parentPhone) {
+                    const msg = WhatsAppTemplates.feePaid(
+                        student.name, 
+                        monthLabel, 
+                        `${currencySymbol} ${newRecordData.paidAmount || 0}`, 
+                        `${currencySymbol} ${newRecordData.balance || 0}`, 
+                        schoolName
+                    );
+                    sendWhatsAppMessage(parentPhone, msg, schoolSettings);
+                }
             }
         }
     };
 
     // Mark all students in selected class as paid for a given month
     const markAllPaidForMonth = async (monthLabel) => {
-        const updatedStudents = students.map(s => {
-            if (s.grade !== selectedClass) return s;
-            const history = (s.feeHistory || []).map(h =>
-                h.month === monthLabel
-                    ? { ...h, status: 'paid', paidOn: h.paidOn || new Date().toLocaleDateString() }
-                    : h
-            );
-            return { ...s, feeHistory: history };
+        const classStudents = students.filter(s => s.grade === selectedClass);
+        const records = classStudents.map(s => {
+            const record = (s.feeHistory || []).find(h => h.month === monthLabel) || { month: monthLabel };
+            const tuition = record.tuitionFee || 1000;
+            const total = (tuition + (record.admissionFee || 0) + (record.annualFee || 0) + (record.examFee || 0) + (record.transportFee || 0) + (record.labFee || 0)) + (record.lateFine || 0) - (record.discount || 0);
+            return {
+                ...record,
+                student_id: s.id,
+                month: monthLabel,
+                status: 'paid',
+                paidAmount: total,
+                paymentDate: new Date().toISOString().split('T')[0]
+            };
         });
-        await setStudents(updatedStudents);
-        showSaveMessage(`All students marked Paid for ${monthLabel}!`);
+        const { error } = await schoolContext.saveFeeRecords(records);
+        if (!error) {
+            showSaveMessage(`All students marked Paid for ${monthLabel}!`);
+        }
     };
 
     // Reset all students in selected class as unpaid for a given month
     const markAllUnpaidForMonth = async (monthLabel) => {
-        const updatedStudents = students.map(s => {
-            if (s.grade !== selectedClass) return s;
-            const history = (s.feeHistory || []).map(h =>
-                h.month === monthLabel ? { ...h, status: 'unpaid', paidOn: null } : h
-            );
-            return { ...s, feeHistory: history };
+        const classStudents = students.filter(s => s.grade === selectedClass);
+        const records = classStudents.map(s => {
+            const record = (s.feeHistory || []).find(h => h.month === monthLabel) || { month: monthLabel };
+            return {
+                ...record,
+                student_id: s.id,
+                month: monthLabel,
+                status: 'unpaid',
+                paidAmount: 0,
+                paymentDate: null
+            };
         });
-        await setStudents(updatedStudents);
-        showSaveMessage(`All students reset to Unpaid for ${monthLabel}!`);
+        const { error } = await schoolContext.saveFeeRecords(records);
+        if (!error) {
+            showSaveMessage(`All students reset to Unpaid for ${monthLabel}!`);
+        }
     };
 
     // Delete a month from all students in the selected class
     const deleteFeeMonth = async (monthLabel) => {
         if (!window.confirm(`Remove "${monthLabel}" from all students in ${selectedClass}? This cannot be undone.`)) return;
-        const updatedStudents = students.map(s => {
-            if (s.grade !== selectedClass) return s;
-            return { ...s, feeHistory: (s.feeHistory || []).filter(h => h.month !== monthLabel) };
-        });
-        await setStudents(updatedStudents);
-        showSaveMessage(`Month "${monthLabel}" removed!`);
+        const studentIds = students.filter(s => s.grade === selectedClass).map(s => s.id);
+        const { error } = await schoolContext.deleteFeeRecords(studentIds, monthLabel);
+        if (!error) {
+            showSaveMessage(`Month "${monthLabel}" removed!`);
+        }
     };
 
 
@@ -2317,7 +2318,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
     const deleteFaculty = async (id) => {
         if (window.confirm('Are you sure you want to remove this faculty member?')) {
-            const { error } = await supabase.from('faculty').delete().eq('id', id).eq('school_id', currentSchoolId);
+            const { error } = await supabase.from('faculty').update({ is_active: false }).eq('id', id).eq('school_id', currentSchoolId);
             if (error) {
                 alert('Error deleting faculty: ' + error.message);
             } else {
@@ -2596,22 +2597,10 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                             processedSerials.add(serial.toLowerCase());
                         }
 
-                        // 3. Generate or Validate ID
+                        // Generate a temporary ID. The database trigger will replace this with a real sequential ID.
                         let studentId = providedId;
                         if (!studentId) {
-                            const prefix = schoolSettings?.school_id?.split('-')[0]?.toUpperCase() || 'ID';
-                            const year = new Date().getFullYear();
-                            // Find the max existing ID number for this school
-                            const maxNum = [...students, ...newStudents].reduce((max, s) => {
-                                const parts = (s.id || '').split('-');
-                                if (parts.length >= 3 && parts[0].toUpperCase() === prefix) {
-                                    const num = parseInt(parts[parts.length - 1], 10);
-                                    return !isNaN(num) ? Math.max(max, num) : max;
-                                }
-                                return max;
-                            }, 0);
-                            const seq = String(maxNum + 1).padStart(3, '0');
-                            studentId = `${prefix}-${year}-${seq}`;
+                            studentId = `TEMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
                         } else {
                             const targetId = studentId.toUpperCase();
                             if (students.some(s => s.id && s.id.toString().trim().toUpperCase() === targetId) || newStudents.some(s => s.id.toUpperCase() === targetId)) {
@@ -2732,7 +2721,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         if (window.confirm(`Are you sure you want to permanently delete "${studentName}" (${studentId})? This cannot be undone.`)) {
             const { error } = await supabase
                 .from('students')
-                .delete()
+                .update({ is_active: false })
                 .eq('id', studentId)
                 .eq('school_id', currentSchoolId);
             
@@ -3074,6 +3063,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         showSaveMessage={showSaveMessage}
                                         schoolName={schoolName}
                                         schoolSettings={schoolSettings}
+                                        saveAttendanceRecords={schoolContext.saveAttendanceRecords}
                                     />
                                 )}
 

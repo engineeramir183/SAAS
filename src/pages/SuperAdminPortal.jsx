@@ -348,6 +348,12 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                     </div>
                 )}
 
+                {error && (
+                    <div style={{ padding: '1rem', background: '#fee2e2', color: '#991b1b', borderRadius: '8px', marginBottom: '1.5rem', fontWeight: 600, border: '1px solid #f87171' }}>
+                        ⚠️ {error}
+                    </div>
+                )}
+
                 {/* Dashboard Stats */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2.5rem' }}>
                     <div style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', gap: '1rem', borderTop: '4px solid #3b82f6' }}>

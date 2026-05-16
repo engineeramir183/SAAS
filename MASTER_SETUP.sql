@@ -38,6 +38,7 @@ CREATE TABLE faculty (
     department TEXT,
     image      TEXT,
     bio        TEXT,
+    is_active  BOOLEAN DEFAULT true,
     school_id  TEXT NOT NULL DEFAULT 'acs-001'
 );
 
@@ -71,7 +72,9 @@ CREATE TABLE students (
     previous_results JSONB DEFAULT '[]',
     attendance       JSONB DEFAULT '{}',
     admissions       JSONB DEFAULT '[]',
-    school_id        TEXT NOT NULL DEFAULT 'acs-001'
+    is_active        BOOLEAN DEFAULT true,
+    school_id        TEXT NOT NULL DEFAULT 'acs-001',
+    UNIQUE (school_id, serial_number)
 );
 
 CREATE TABLE metadata (
@@ -114,6 +117,63 @@ CREATE TABLE admins (
     school_id TEXT NOT NULL DEFAULT 'acs-001',
     UNIQUE (username, school_id)
 );
+
+CREATE TABLE attendance_records (
+    id SERIAL PRIMARY KEY,
+    student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    school_id TEXT NOT NULL REFERENCES schools(school_id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    status TEXT NOT NULL,
+    remarks TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (student_id, date)
+);
+
+CREATE TABLE fee_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    school_id TEXT NOT NULL REFERENCES schools(school_id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    month TEXT NOT NULL, -- e.g. "May 2026"
+    tuition_fee NUMERIC DEFAULT 0,
+    admission_fee NUMERIC DEFAULT 0,
+    annual_fee NUMERIC DEFAULT 0,
+    exam_fee NUMERIC DEFAULT 0,
+    transport_fee NUMERIC DEFAULT 0,
+    lab_fee NUMERIC DEFAULT 0,
+    late_fine NUMERIC DEFAULT 0,
+    discount NUMERIC DEFAULT 0,
+    paid_amount NUMERIC DEFAULT 0,
+    status TEXT DEFAULT 'unpaid', -- paid, unpaid, partial
+    payment_date DATE,
+    payment_method TEXT,
+    is_online BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(student_id, month)
+);
+
+-- Performance Indexes
+CREATE INDEX IF NOT EXISTS idx_attendance_school ON attendance_records(school_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_student ON attendance_records(student_id);
+CREATE INDEX IF NOT EXISTS idx_fee_records_school ON fee_records(school_id);
+CREATE INDEX IF NOT EXISTS idx_fee_records_student ON fee_records(student_id);
+CREATE INDEX IF NOT EXISTS idx_fee_records_month ON fee_records(month);
+
+CREATE TABLE exam_results (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    school_id TEXT NOT NULL REFERENCES schools(school_id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    term TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    marks_obtained NUMERIC,
+    is_absent BOOLEAN DEFAULT false,
+    remarks TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(student_id, term, subject)
+);
+
+CREATE INDEX IF NOT EXISTS idx_exam_results_school ON exam_results(school_id);
+CREATE INDEX IF NOT EXISTS idx_exam_results_student ON exam_results(student_id);
+CREATE INDEX IF NOT EXISTS idx_exam_results_term ON exam_results(term);
 
 -- 3. SAAS INFRASTRUCTURE
 CREATE TABLE schools (
@@ -194,5 +254,53 @@ CREATE INDEX idx_faculty_school        ON faculty(school_id);
 CREATE INDEX idx_announcements_school  ON announcements(school_id);
 CREATE INDEX idx_blogs_school          ON blogs(school_id);
 CREATE INDEX idx_admins_school         ON admins(school_id);
-CREATE INDEX idx_announcements_date    ON announcements(date DESC);
 CREATE INDEX idx_blogs_date            ON blogs(date DESC);
+
+CREATE INDEX idx_attendance_school_date ON attendance_records(school_id, date);
+CREATE INDEX idx_attendance_student ON attendance_records(student_id);
+
+-- 6. FOREIGN KEY CONSTRAINTS (Ensures orphan data cleanup)
+ALTER TABLE school_info ADD CONSTRAINT fk_school_info_school FOREIGN KEY (school_id) REFERENCES schools(school_id) ON DELETE CASCADE;
+ALTER TABLE faculty ADD CONSTRAINT fk_faculty_school FOREIGN KEY (school_id) REFERENCES schools(school_id) ON DELETE CASCADE;
+ALTER TABLE facilities ADD CONSTRAINT fk_facilities_school FOREIGN KEY (school_id) REFERENCES schools(school_id) ON DELETE CASCADE;
+ALTER TABLE testimonials ADD CONSTRAINT fk_testimonials_school FOREIGN KEY (school_id) REFERENCES schools(school_id) ON DELETE CASCADE;
+ALTER TABLE students ADD CONSTRAINT fk_students_school FOREIGN KEY (school_id) REFERENCES schools(school_id) ON DELETE CASCADE;
+ALTER TABLE metadata ADD CONSTRAINT fk_metadata_school FOREIGN KEY (school_id) REFERENCES schools(school_id) ON DELETE CASCADE;
+ALTER TABLE announcements ADD CONSTRAINT fk_announcements_school FOREIGN KEY (school_id) REFERENCES schools(school_id) ON DELETE CASCADE;
+ALTER TABLE blogs ADD CONSTRAINT fk_blogs_school FOREIGN KEY (school_id) REFERENCES schools(school_id) ON DELETE CASCADE;
+ALTER TABLE admins ADD CONSTRAINT fk_admins_school FOREIGN KEY (school_id) REFERENCES schools(school_id) ON DELETE CASCADE;
+
+-- 7. AUTO-GENERATED STUDENT IDs (Prevents Race Conditions)
+CREATE OR REPLACE FUNCTION generate_student_id() RETURNS TRIGGER AS $$
+DECLARE
+    prefix TEXT;
+    seq_num INTEGER;
+BEGIN
+    -- Extract the prefix from school_id (e.g., 'ACS' from 'acs-001')
+    prefix := UPPER(SPLIT_PART(NEW.school_id, '-', 1));
+    
+    -- If no prefix, default to 'ID'
+    IF prefix = '' THEN
+        prefix := 'ID';
+    END IF;
+
+    -- If ID is not provided or starts with TEMP-, generate one
+    IF NEW.id IS NULL OR NEW.id = '' OR NEW.id LIKE 'TEMP-%' THEN
+        -- Find the max sequence number for the current year and school
+        SELECT COALESCE(MAX(SUBSTRING(id FROM '.*-.*-([0-9]+)$')::INTEGER), 0) INTO seq_num
+        FROM students
+        WHERE school_id = NEW.school_id AND id LIKE prefix || '-' || EXTRACT(YEAR FROM CURRENT_DATE) || '-%';
+
+        -- Generate the new ID: PREFIX-YYYY-000
+        NEW.id := prefix || '-' || EXTRACT(YEAR FROM CURRENT_DATE) || '-' || LPAD((seq_num + 1)::TEXT, 3, '0');
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_generate_student_id ON students;
+CREATE TRIGGER trigger_generate_student_id
+BEFORE INSERT ON students
+FOR EACH ROW
+EXECUTE FUNCTION generate_student_id();
