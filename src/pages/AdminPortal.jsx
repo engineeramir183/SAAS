@@ -5,7 +5,7 @@ import {
     Download, Upload, FileText, Search, Camera,
     BellPlus, Trash2, Megaphone, PlusCircle, Lock,
     Building, School, Check, X, ChevronRight, Layout, Building2,
-    GripVertical, ChevronUp, ChevronDown, Menu, TrendingDown
+    GripVertical, ChevronUp, ChevronDown, Menu, TrendingDown, BookMarked
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useSchoolData } from '../context/SchoolDataContext';
@@ -32,6 +32,7 @@ const SettingsTab = lazy(() => import('../admin/tabs/SettingsTab'));
 const DashboardTab = lazy(() => import('../admin/tabs/DashboardTab'));
 const PayrollTab = lazy(() => import('../admin/tabs/PayrollTab'));
 const LogsTab = lazy(() => import('../admin/tabs/LogsTab'));
+const DiaryTab = lazy(() => import('../admin/tabs/DiaryTab'));
 
 
 const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
@@ -2746,6 +2747,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         { id: 'reports', label: 'Report Cards', icon: FileText, desc: 'View analysis and print student report cards.', isPro: true },
         { id: 'faculty', label: 'Faculty & Teachers', icon: User, desc: 'Manage your teaching staff profiles.', isPro: false },
         { id: 'announcements', label: 'Noticeboard', icon: Megaphone, desc: 'Broadcast notices to portals.', isPro: false },
+        { id: 'diary', label: 'Student Diary', icon: BookMarked, desc: 'Post homework, classwork & notices for parents.', isPro: false },
         { id: 'facilities', label: 'School Facilities', icon: Building, desc: 'List and update school infrastructure.', isPro: false },
         { id: 'blog', label: 'Website Blog', icon: Layout, desc: 'Post stories and news to the public website.', isPro: true },
         { id: 'settings', label: 'School Settings', icon: Building2, desc: 'Update school name, logo, mission, and vision.', isPro: false },
@@ -3240,6 +3242,13 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                 {activeTab === 'logs' && (
                                     <LogsTab
                                         currentSchoolId={currentSchoolId}
+                                    />
+                                )}
+
+                                {/* Student Diary */}
+                                {activeTab === 'diary' && (
+                                    <DiaryTab
+                                        showSaveMessage={showSaveMessage}
                                     />
                                 )}
                             </Suspense>

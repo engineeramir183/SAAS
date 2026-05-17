@@ -20,6 +20,7 @@ const TABLES = [
     'school_info',
     'metadata',
     'admins',
+    'student_diaries',
     'activity_logs'
 ];
 

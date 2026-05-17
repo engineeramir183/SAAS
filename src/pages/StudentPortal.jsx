@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     User, Users, Calendar, Award, BarChart3, BookOpen,
     LogOut, TrendingUp, DollarSign, CheckCircle, XCircle,
@@ -7,18 +7,33 @@ import {
 import { useSchoolData } from '../context/SchoolDataContext';
 
 const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStudent }) => {
-    const { schoolData, TERMS } = useSchoolData();
+    const { schoolData, TERMS, fetchDiaryEntries, diaryEntries, acknowledgeDiaryEntry } = useSchoolData();
     const [activeTab, setActiveTab] = useState('overview');
     const [selectedPrevTerm, setSelectedPrevTerm] = useState(0);
     const classTerms = (TERMS && !Array.isArray(TERMS) ? (TERMS[student?.grade] || []) : (TERMS || []));
     const [selectedTerm, setSelectedTerm] = useState(classTerms[0] || '');
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [diaryLoading, setDiaryLoading] = useState(false);
+    const [ackLoading, setAckLoading] = useState({});
 
     const handleLogout = () => {
         setIsLoggedIn(false);
         setLoggedInStudent(null);
         setCurrentPage('home');
     };
+
+    // Load diary when student navigates to the diary tab
+    useEffect(() => {
+        if (activeTab === 'diary' && student?.grade) {
+            setDiaryLoading(true);
+            fetchDiaryEntries({
+                className: student.grade,
+                studentId: student.id,
+                // Last 30 days
+                dateFrom: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            }).finally(() => setDiaryLoading(false));
+        }
+    }, [activeTab, student?.grade]);
 
     if (!student) return null;
 
@@ -82,12 +97,13 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
     };
 
     const studentTabs = [
-        { id: 'overview', label: 'Dashboard', icon: BarChart3, desc: 'Your academic overview and quick stats.' },
-        { id: 'results', label: 'Term Results', icon: Award, desc: 'View your detailed grades and performance.' },
-        { id: 'attendance', label: 'Attendance Record', icon: Calendar, desc: 'Track your presence and absences.' },
-        { id: 'history', label: 'Previous Results', icon: BookMarked, desc: 'Review your historical academic performance.' },
-        { id: 'fees', label: 'Fee Status', icon: DollarSign, desc: 'Check your current fee payments.' },
-        { id: 'profile', label: 'My Profile', icon: User, desc: 'View your complete personal details.' }
+        { id: 'overview',    label: 'Dashboard',        icon: BarChart3,  desc: 'Your academic overview and quick stats.' },
+        { id: 'diary',       label: 'Daily Diary',       icon: BookOpen,   desc: 'View homework, classwork & notices from your teacher.' },
+        { id: 'results',     label: 'Term Results',      icon: Award,      desc: 'View your detailed grades and performance.' },
+        { id: 'attendance',  label: 'Attendance Record', icon: Calendar,   desc: 'Track your presence and absences.' },
+        { id: 'history',     label: 'Previous Results',  icon: BookMarked, desc: 'Review your historical academic performance.' },
+        { id: 'fees',        label: 'Fee Status',        icon: DollarSign, desc: 'Check your current fee payments.' },
+        { id: 'profile',     label: 'My Profile',        icon: User,       desc: 'View your complete personal details.' }
     ];
 
     return (
@@ -1004,6 +1020,111 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                             );
                         })()
                     }
+                    {/* ════════════════ DIARY TAB ════════════════ */}
+                    {activeTab === 'diary' && (
+                        <div className="animate-fade-in">
+                            <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.3rem', color: '#1e293b' }}>
+                                📓 Daily Diary
+                            </h2>
+                            <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Homework, classwork &amp; notices from your teacher — last 30 days</p>
+
+                            {diaryLoading ? (
+                                <div style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
+                                    <div style={{ width: 36, height: 36, border: '3px solid #e2e8f0', borderTopColor: '#3b82f6', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
+                                    Loading diary…
+                                </div>
+                            ) : diaryEntries.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '3rem', background: 'white', borderRadius: 14, border: '2px dashed #e2e8f0', color: '#94a3b8' }}>
+                                    <BookOpen size={44} style={{ margin: '0 auto 1rem', color: '#cbd5e1' }} />
+                                    <p style={{ fontWeight: 600, marginBottom: '0.4rem' }}>No diary entries yet.</p>
+                                    <p style={{ fontSize: '0.85rem' }}>Your teacher hasn't posted any entries for the last 30 days.</p>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    {diaryEntries.map(entry => {
+                                        const typeColors = {
+                                            Homework:  { color: '#3b82f6', bg: '#eff6ff',  emoji: '📚' },
+                                            Classwork: { color: '#8b5cf6', bg: '#f5f3ff',  emoji: '✏️' },
+                                            Notice:    { color: '#f59e0b', bg: '#fffbeb',  emoji: '📢' },
+                                            Behavior:  { color: '#ef4444', bg: '#fef2f2',  emoji: '⭐' },
+                                        };
+                                        const cfg = typeColors[entry.type] || typeColors.Notice;
+                                        const acks = Array.isArray(entry.acknowledgments) ? entry.acknowledgments : [];
+                                        const isAcknowledged = acks.includes(student.id);
+                                        const isAcking = ackLoading[entry.id];
+
+                                        const handleAck = async () => {
+                                            if (isAcknowledged || isAcking) return;
+                                            setAckLoading(prev => ({ ...prev, [entry.id]: true }));
+                                            await acknowledgeDiaryEntry(entry.id, student.id);
+                                            setAckLoading(prev => ({ ...prev, [entry.id]: false }));
+                                        };
+
+                                        return (
+                                            <div key={entry.id} style={{
+                                                background: 'white',
+                                                borderRadius: 12,
+                                                border: `1px solid ${entry.is_urgent ? '#fca5a5' : '#e2e8f0'}`,
+                                                borderLeft: `4px solid ${cfg.color}`,
+                                                padding: '1.1rem 1.25rem',
+                                                boxShadow: entry.is_urgent ? '0 0 0 2px #fee2e2' : '0 1px 4px rgba(0,0,0,0.04)'
+                                            }}>
+                                                {/* Entry top row */}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                        <span style={{ background: cfg.bg, color: cfg.color, borderRadius: 6, padding: '3px 10px', fontSize: '0.78rem', fontWeight: 700 }}>
+                                                            {cfg.emoji} {entry.type}
+                                                        </span>
+                                                        <span style={{ color: '#64748b', fontSize: '0.82rem', fontWeight: 600 }}>{entry.subject}</span>
+                                                        {entry.is_urgent && (
+                                                            <span style={{ background: '#dc2626', color: 'white', fontSize: '0.72rem', borderRadius: 4, padding: '2px 7px', fontWeight: 700 }}>URGENT</span>
+                                                        )}
+                                                    </div>
+                                                    <span style={{ color: '#94a3b8', fontSize: '0.78rem' }}>{entry.diary_date}</span>
+                                                </div>
+
+                                                {/* Title */}
+                                                {entry.title && (
+                                                    <p style={{ margin: '0 0 0.3rem', fontWeight: 700, color: '#1e293b', fontSize: '0.95rem' }}>{entry.title}</p>
+                                                )}
+
+                                                {/* Content */}
+                                                <p style={{ margin: '0 0 1rem', color: '#374151', lineHeight: 1.6, fontSize: '0.9rem', whiteSpace: 'pre-wrap' }}>
+                                                    {entry.content}
+                                                </p>
+
+                                                {/* Acknowledge button */}
+                                                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem', display: 'flex', justifyContent: 'flex-end' }}>
+                                                    {isAcknowledged ? (
+                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#16a34a', fontWeight: 700, fontSize: '0.85rem' }}>
+                                                            <CheckCircle size={16} /> Acknowledged
+                                                        </span>
+                                                    ) : (
+                                                        <button
+                                                            onClick={handleAck}
+                                                            disabled={isAcking}
+                                                            style={{
+                                                                display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                                                background: '#2563eb', color: 'white',
+                                                                border: 'none', borderRadius: 8,
+                                                                padding: '0.45rem 1rem', fontWeight: 700,
+                                                                fontSize: '0.85rem', cursor: isAcking ? 'wait' : 'pointer',
+                                                                opacity: isAcking ? 0.7 : 1
+                                                            }}
+                                                        >
+                                                            <CheckCircle size={15} />
+                                                            {isAcking ? 'Saving…' : 'Mark as Read'}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                 </div >
             </main >
         </div >

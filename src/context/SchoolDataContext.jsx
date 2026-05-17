@@ -66,6 +66,7 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
     const [classFeeDefaults,  setClassFeeDefaults]  = useState(DEFAULT_CLASS_FEE_DEFAULTS);
     const [expenses,          setExpenses]          = useState([]);
     const [inquiries,         setInquiries]         = useState([]);
+    const [diaryEntries,      setDiaryEntries]      = useState([]);
     const [loading,           setLoading]           = useState(true);
     const [adminCredentials,  setAdminCredentials]  = useState({ username: '', password: '' });
 
@@ -622,6 +623,122 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
         return { error };
     };
 
+    // ─── Student Diary ────────────────────────────────────────────────────────
+
+    /**
+     * Fetch diary entries for a specific class and date range.
+     * @param {object} filters - { className, dateFrom, dateTo, studentId }
+     */
+    const fetchDiaryEntries = async (filters = {}) => {
+        const { className, dateFrom, dateTo, studentId } = filters;
+        let query = supabase
+            .from('student_diaries')
+            .select('*')
+            .eq('school_id', currentSchoolId)
+            .order('diary_date', { ascending: false })
+            .order('created_at', { ascending: false });
+
+        if (className) query = query.eq('class', className);
+        if (dateFrom)  query = query.gte('diary_date', dateFrom);
+        if (dateTo)    query = query.lte('diary_date', dateTo);
+        // Fetch entries that are either class-wide OR for this specific student
+        if (studentId) {
+            query = query.or(`student_id.is.null,student_id.eq.${studentId}`);
+        }
+
+        const { data, error } = await query;
+        if (!error) setDiaryEntries(data || []);
+        return { data, error };
+    };
+
+    /**
+     * Save (create or update) a diary entry.
+     * @param {object} entry - Diary entry payload.
+     */
+    const saveDiaryEntry = async (entry) => {
+        const payload = {
+            school_id:  currentSchoolId,
+            class:      entry.class,
+            section:    entry.section    || 'All',
+            student_id: entry.student_id || null,
+            type:       entry.type       || 'Homework',
+            subject:    entry.subject    || 'General',
+            title:      entry.title      || '',
+            content:    entry.content,
+            is_urgent:  entry.is_urgent  || false,
+            attachments: entry.attachments || [],
+            diary_date: entry.diary_date || new Date().toISOString().split('T')[0],
+            updated_at: new Date().toISOString()
+        };
+
+        let result;
+        if (entry.id) {
+            // Update existing
+            result = await supabase
+                .from('student_diaries')
+                .update(payload)
+                .eq('id', entry.id)
+                .eq('school_id', currentSchoolId);
+        } else {
+            // Insert new
+            result = await supabase
+                .from('student_diaries')
+                .insert([payload])
+                .select()
+                .single();
+        }
+
+        if (!result.error) {
+            // Refresh local diary state
+            await fetchDiaryEntries({ className: payload.class });
+        }
+        return { data: result.data, error: result.error };
+    };
+
+    /**
+     * Delete a diary entry.
+     * @param {string} entryId - UUID of the entry to delete.
+     */
+    const deleteDiaryEntry = async (entryId) => {
+        const { error } = await supabase
+            .from('student_diaries')
+            .delete()
+            .eq('id', entryId)
+            .eq('school_id', currentSchoolId);
+
+        if (!error) {
+            setDiaryEntries(prev => prev.filter(e => e.id !== entryId));
+        }
+        return { error };
+    };
+
+    /**
+     * Mark a diary entry as acknowledged by the parent/student.
+     * @param {string} entryId   - UUID of the diary entry.
+     * @param {string} studentId - The student acknowledging the entry.
+     */
+    const acknowledgeDiaryEntry = async (entryId, studentId) => {
+        // Find current acknowledgments
+        const entry = diaryEntries.find(e => e.id === entryId);
+        if (!entry) return { error: { message: 'Entry not found' } };
+
+        const existing = Array.isArray(entry.acknowledgments) ? entry.acknowledgments : [];
+        if (existing.includes(studentId)) return { error: null }; // Already acknowledged
+
+        const updated = [...existing, studentId];
+        const { error } = await supabase
+            .from('student_diaries')
+            .update({ acknowledgments: updated })
+            .eq('id', entryId);
+
+        if (!error) {
+            setDiaryEntries(prev =>
+                prev.map(e => e.id === entryId ? { ...e, acknowledgments: updated } : e)
+            );
+        }
+        return { error };
+    };
+
     const changeAdminPassword = async (newUsername, newPassword) => {
         const { error } = await supabase
             .from('admins')
@@ -686,7 +803,13 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
             saveFeeRecords,
             deleteFeeRecords,
             saveExamResults,
-            changeAdminPassword
+            changeAdminPassword,
+            // ── Student Diary ──────────────────────────────────────────────────
+            diaryEntries,
+            fetchDiaryEntries,
+            saveDiaryEntry,
+            deleteDiaryEntry,
+            acknowledgeDiaryEntry,
         }}>
             {children}
         </SchoolDataContext.Provider>

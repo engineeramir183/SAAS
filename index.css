@@ -559,49 +559,60 @@ select {
 }
 
 /* ==================== DASHBOARD LAYOUT ==================== */
+
+/*
+  Layout model (desktop):
+    - Sidebar: fixed to the left, full viewport height from top of page
+    - Main:    fills remaining space with its own scroll
+  This guarantees the sidebar never scrolls away.
+*/
+
 .dashboard-container {
   display: flex;
-  flex: 1;
-  min-height: calc(100vh - 80px);
+  min-height: 100vh;
   background: #f8fafc;
   position: relative;
 }
 
 .dashboard-sidebar {
-  width: 280px;
+  width: 260px;
   background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
   border-right: 1px solid #334155;
   display: flex;
   flex-direction: column;
-  position: sticky;
-  top: 80px;
-  height: calc(100vh - 80px);
+
+  /* ── Fixed on the left, full height ── */
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  height: 100vh;
+
+  /* Sidebar has its own scrollbar */
   overflow-y: auto;
-  box-shadow: 4px 0 15px -3px rgba(0, 0, 0, 0.1);
+  overflow-x: hidden;
+
+  box-shadow: 4px 0 15px -3px rgba(0, 0, 0, 0.15);
   flex-shrink: 0;
-  z-index: 50;
+  z-index: 100;
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Sleek dark scrollbar for sidebar */
-.dashboard-sidebar::-webkit-scrollbar,
-.dashboard-sidebar nav::-webkit-scrollbar {
-  width: 5px;
+.dashboard-sidebar::-webkit-scrollbar {
+  width: 4px;
 }
 
-.dashboard-sidebar::-webkit-scrollbar-track,
-.dashboard-sidebar nav::-webkit-scrollbar-track {
+.dashboard-sidebar::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.dashboard-sidebar::-webkit-scrollbar-thumb,
-.dashboard-sidebar nav::-webkit-scrollbar-thumb {
+.dashboard-sidebar::-webkit-scrollbar-thumb {
   background: #475569;
   border-radius: 999px;
 }
 
-.dashboard-sidebar::-webkit-scrollbar-thumb:hover,
-.dashboard-sidebar nav::-webkit-scrollbar-thumb:hover {
+.dashboard-sidebar::-webkit-scrollbar-thumb:hover {
   background: #64748b;
 }
 
@@ -609,8 +620,14 @@ select {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
   min-width: 0;
+
+  /* Push content to the right of the fixed sidebar */
+  margin-left: 260px;
+
+  /* Main content scrolls independently */
+  overflow-y: auto;
+  min-height: 100vh;
 }
 
 .mobile-menu-btn {
@@ -626,12 +643,14 @@ select {
     flex-direction: column;
   }
 
+  /* On mobile, sidebar slides in as a drawer */
   .dashboard-sidebar {
     position: fixed;
-    top: 80px;
+    top: 0;
     left: 0;
     bottom: 0;
-    height: calc(100vh - 80px);
+    height: 100vh;
+    width: 260px;
     transform: translateX(-100%);
     box-shadow: 4px 0 25px rgba(0, 0, 0, 0.5);
   }
@@ -640,20 +659,18 @@ select {
     transform: translateX(0);
   }
 
+  /* Main content takes full width on mobile (no sidebar offset) */
+  .dashboard-main {
+    margin-left: 0 !important;
+  }
+
   .sidebar-overlay.open {
     display: block;
     position: fixed;
-    top: 80px;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     background: rgba(0, 0, 0, 0.5);
-    z-index: 40;
+    z-index: 90;
     backdrop-filter: blur(4px);
-  }
-
-  .dashboard-main {
-    flex: 1;
   }
 
   .mobile-menu-btn {
