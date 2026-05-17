@@ -3,6 +3,7 @@ import { Search, Download, Printer, X, ChevronDown, ChevronUp, ChevronRight, Edi
 import { supabase } from '../../supabaseClient';
 import { useSchoolData } from '../../context/SchoolDataContext';
 import { ActivityLogService } from '../../services/ActivityLogService';
+import { sendWhatsAppMessage, WhatsAppTemplates } from '../../services/WhatsAppService';
 
 /* ─────────────────────────────────────────────
    PRINT HELPER  – opens a new window with a
@@ -633,6 +634,20 @@ const AttendanceTab = ({
         
         await saveAttendanceRecords(records);
         
+        // --- WhatsApp Bulk Absence Alert ---
+        if (status === 'absent' && schoolSettings?.auto_attendance_alert !== false) {
+            let sent = 0;
+            for (const s of classStudents) {
+                const phone = s.admissions?.[0]?.whatsapp || s.admissions?.[0]?.contact || '';
+                if (phone) {
+                    const msg = WhatsAppTemplates.dailyAbsenceSummary(s.name, filterDate, schoolName);
+                    sendWhatsAppMessage(phone, msg, schoolSettings);
+                    sent++;
+                }
+            }
+            if (sent > 0) showSaveMessage(`Bulk WhatsApp absent alerts sent to ${sent} parents!`);
+        }
+
         const statusLabel = status === 'present' ? '✓ All Present' : status === 'absent' ? '✗ All Absent' : '🌴 All Holiday';
         showSaveMessage(`${statusLabel} marked for ${classStudents.length} students on ${filterDate}!`);
     };

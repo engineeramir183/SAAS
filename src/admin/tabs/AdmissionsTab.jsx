@@ -7,7 +7,7 @@ const AdmissionsTab = ({
     printAdmissionForm, printAdmissionFormBulk, printBlankAdmissionForm,
     handleAdmissionPhotoUpload, photoFileRef,
     sectionClasses, students,
-    INQUIRIES, updateInquiries
+    INQUIRIES, saveInquiry, deleteInquiry
 }) => {
     const { schoolData } = useSchoolData();
     const update = (key, value) => setAdmissionData(prev => ({ ...prev, [key]: value }));
@@ -50,10 +50,7 @@ const AdmissionsTab = ({
         }
         const newId = inquiryData.id || `INQ-${Date.now()}`;
         const newInquiry = { ...inquiryData, id: newId };
-        let newList = [...safeInquiries];
-        if (inquiryData.id) newList = newList.map(i => i.id === inquiryData.id ? newInquiry : i);
-        else newList.push(newInquiry);
-        updateInquiries(newList);
+        saveInquiry(newInquiry);
         
         if (printBlankAdmissionForm) {
             printBlankAdmissionForm(newInquiry);
@@ -84,10 +81,7 @@ const AdmissionsTab = ({
         };
         const newInqNumber = inquiryData.inquiryNumber || getNextInquiryNumberLocal();
         const newInquiry = { ...inquiryData, id: newId, inquiryNumber: newInqNumber };
-        let newList = [...safeInquiries];
-        if (inquiryData.id) newList = newList.map(i => i.id === inquiryData.id ? newInquiry : i);
-        else newList.push(newInquiry);
-        updateInquiries(newList);
+        saveInquiry(newInquiry);
 
         const sections = ['Bank Copy', 'Office Copy', 'Student Copy'];
         let html = `<html><head><style>
@@ -248,14 +242,7 @@ const AdmissionsTab = ({
         const newInqNumber = inquiryData.inquiryNumber || getNextInquiryNumberLocal();
         const newInquiry = { ...inquiryData, id: newId, inquiryNumber: newInqNumber };
         
-        let newList = [...safeInquiries];
-        if (inquiryData.id) {
-            newList = newList.map(i => i.id === inquiryData.id ? newInquiry : i);
-        } else {
-            newList.push(newInquiry);
-        }
-
-        updateInquiries(newList);
+        saveInquiry(newInquiry);
         alert("Inquiry saved successfully!");
         setInquiryData(initialInquiryState);
         setActiveView('inquiries_list');
@@ -273,16 +260,15 @@ const AdmissionsTab = ({
         }));
         
         // Mark inquiry as confirmed
-        const newList = safeInquiries.map(i => i.id === inquiry.id ? { ...i, status: 'confirmed' } : i);
-        updateInquiries(newList);
+        const updatedInquiry = { ...inquiry, status: 'confirmed' };
+        saveInquiry(updatedInquiry);
         
         setActiveView('admission');
     };
 
     const handleDeleteInquiry = (id) => {
         if (window.confirm("Are you sure you want to delete this inquiry?")) {
-            const newList = safeInquiries.filter(i => i.id !== id);
-            updateInquiries(newList);
+            deleteInquiry(id);
         }
     };
 

@@ -18,6 +18,10 @@ DROP TABLE IF EXISTS schools CASCADE;
 DROP TABLE IF EXISTS super_admins CASCADE;
 DROP TABLE IF EXISTS saas_info CASCADE;
 DROP TABLE IF EXISTS school_registration_requests CASCADE;
+DROP TABLE IF EXISTS attendance_records CASCADE;
+DROP TABLE IF EXISTS fee_records CASCADE;
+DROP TABLE IF EXISTS exam_results CASCADE;
+DROP TABLE IF EXISTS student_diaries CASCADE;
 
 -- 2. CORE TABLES
 CREATE TABLE school_info (
@@ -67,10 +71,9 @@ CREATE TABLE students (
     name             TEXT NOT NULL,
     grade            TEXT,
     image            TEXT,
-    fee_history      JSONB DEFAULT '[]',
-    results          JSONB DEFAULT '[]',
-    previous_results JSONB DEFAULT '[]',
-    attendance       JSONB DEFAULT '{}',
+    -- NOTE: attendance, fee_history, results, previous_results JSONB columns
+    -- have been removed. All data now lives in relational tables:
+    --   attendance_records, fee_records, exam_results
     admissions       JSONB DEFAULT '[]',
     is_active        BOOLEAN DEFAULT true,
     school_id        TEXT NOT NULL DEFAULT 'acs-001',
@@ -175,6 +178,30 @@ CREATE INDEX IF NOT EXISTS idx_exam_results_school ON exam_results(school_id);
 CREATE INDEX IF NOT EXISTS idx_exam_results_student ON exam_results(student_id);
 CREATE INDEX IF NOT EXISTS idx_exam_results_term ON exam_results(term);
 
+-- Student Diary Table
+CREATE TABLE IF NOT EXISTS student_diaries (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    school_id       TEXT    NOT NULL REFERENCES schools(school_id) ON DELETE CASCADE,
+    class           TEXT    NOT NULL,
+    section         TEXT    DEFAULT 'All',
+    student_id      TEXT    REFERENCES students(id) ON DELETE CASCADE,
+    type            TEXT    NOT NULL DEFAULT 'Homework',
+    subject         TEXT    DEFAULT 'General',
+    title           TEXT,
+    content         TEXT    NOT NULL,
+    is_urgent       BOOLEAN DEFAULT false,
+    attachments     JSONB   DEFAULT '[]'::jsonb,
+    diary_date      DATE    NOT NULL DEFAULT CURRENT_DATE,
+    acknowledgments JSONB   DEFAULT '[]'::jsonb,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_diary_school        ON student_diaries(school_id);
+CREATE INDEX IF NOT EXISTS idx_diary_school_class  ON student_diaries(school_id, class);
+CREATE INDEX IF NOT EXISTS idx_diary_date          ON student_diaries(diary_date DESC);
+CREATE INDEX IF NOT EXISTS idx_diary_student       ON student_diaries(student_id);
+
 -- 3. SAAS INFRASTRUCTURE
 CREATE TABLE schools (
     school_id        TEXT PRIMARY KEY,
@@ -269,6 +296,7 @@ ALTER TABLE metadata ADD CONSTRAINT fk_metadata_school FOREIGN KEY (school_id) R
 ALTER TABLE announcements ADD CONSTRAINT fk_announcements_school FOREIGN KEY (school_id) REFERENCES schools(school_id) ON DELETE CASCADE;
 ALTER TABLE blogs ADD CONSTRAINT fk_blogs_school FOREIGN KEY (school_id) REFERENCES schools(school_id) ON DELETE CASCADE;
 ALTER TABLE admins ADD CONSTRAINT fk_admins_school FOREIGN KEY (school_id) REFERENCES schools(school_id) ON DELETE CASCADE;
+ALTER TABLE student_diaries ADD CONSTRAINT fk_diary_school FOREIGN KEY (school_id) REFERENCES schools(school_id) ON DELETE CASCADE;
 
 -- 7. AUTO-GENERATED STUDENT IDs (Prevents Race Conditions)
 CREATE OR REPLACE FUNCTION generate_student_id() RETURNS TRIGGER AS $$

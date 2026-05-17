@@ -70,4 +70,14 @@ export const WhatsAppTemplates = {
 
     registrationApproval: (schoolName, dashboardUrl) => 
         `Congratulations! Your school *${schoolName}* has been approved on our SaaS platform. \nYou can now login to your admin portal at: ${dashboardUrl} \nWelcome aboard!`,
+
+    // ── New Smart Notification Templates ─────────────────────────────────────
+    urgentDiaryAlert: (studentName, title, content, schoolName) =>
+        `🚨 *URGENT NOTICE — ${schoolName}*\n\nDear Parent of *${studentName}*,\n\n📋 *${title}*\n${content}\n\n⚠️ Please acknowledge this message in the Student Portal.\n\n_— ${schoolName} Administration_`,
+
+    feeOverdueReminder: (studentName, months, schoolName) =>
+        `⚠️ *Fee Reminder — ${schoolName}*\n\nDear Parent of *${studentName}*,\n\nThis is a reminder that fee for the following month(s) is overdue:\n📅 *${months}*\n\nPlease clear the dues at your earliest convenience to avoid any inconvenience.\n\n_— ${schoolName} Accounts Office_`,
+
+    dailyAbsenceSummary: (studentName, date, schoolName) =>
+        `📋 *Attendance Alert — ${schoolName}*\n\nDear Parent,\n\n*${studentName}* was marked *ABSENT* on ${date}.\n\nIf this was unexpected, please contact the school office.\n\n_— ${schoolName} Administration_`,
 };

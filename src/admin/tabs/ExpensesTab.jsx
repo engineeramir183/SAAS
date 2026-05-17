@@ -1,168 +1,199 @@
-import React, { useState } from 'react';
-import { PlusCircle, Trash2, DollarSign, TrendingUp, TrendingDown, CheckSquare, Search } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { PlusCircle, Trash2, TrendingUp, TrendingDown, DollarSign, Search, X } from 'lucide-react';
+import { useSchoolData } from '../../context/SchoolDataContext';
 
-const ExpensesTab = ({ EXPENSES, updateExpenses, students, currencySymbol = 'RS' }) => {
-    const [expenses, setExpenses] = useState(EXPENSES || []);
+const CATEGORIES = ['Utilities (Elec/Water)', 'Teacher Salaries', 'Staff Wages', 'Building Rent', 'Stationery/Supplies', 'Maintenance', 'Event/Function', 'Other'];
+
+const EMPTY = { title: '', amount: '', expense_date: new Date().toISOString().split('T')[0], category: 'Utilities (Elec/Water)', status: 'Paid', notes: '' };
+
+export default function ExpensesTab({ schoolData, showSaveMessage, currencySymbol }) {
+    const sym = currencySymbol || 'RS';
+    const { expenseRecords, fetchExpenseRecords, saveExpenseRecord, deleteExpenseRecord, payrollRecords } = useSchoolData();
+    const students = schoolData?.students || [];
+
     const [showForm, setShowForm] = useState(false);
-    const [newExpense, setNewExpense] = useState({
-        title: '', amount: '', date: new Date().toISOString().split('T')[0], category: 'Utilities', status: 'Paid'
-    });
+    const [form, setForm] = useState(EMPTY);
     const [search, setSearch] = useState('');
+    const [catFilter, setCatFilter] = useState('all');
+    const [saving, setSaving] = useState(false);
 
-    const calcRevenue = () => {
+    useEffect(() => { fetchExpenseRecords(); }, []);
+
+    // Revenue from fee_records (already in context as feeHistory on students)
+    const totalRevenue = useMemo(() => {
         let total = 0;
         students.forEach(s => {
             (s.feeHistory || []).forEach(h => {
-                if(h.status === 'paid' || h.status === 'partial') {
-                    // Try to use paidAmount, otherwise fallback
-                    if (h.paidAmount !== undefined) {
-                        total += Number(h.paidAmount);
-                    } else if (h.status === 'paid') {
-                        // legacy logic fallback if paidAmount missing
-                        const t = h.tuitionFee||1000; const a = h.admissionFee||0; const an = h.annualFee||0;
-                        const e = h.examFee||0; const tr = h.transportFee||0; const l = h.labFee||0;
-                        const lt = h.lateFine||0; const d = h.discount||0;
-                        total += (t+a+an+e+tr+l+lt-d);
-                    }
+                if (h.status === 'paid' || h.status === 'partial') {
+                    total += Number(h.paidAmount || 0);
                 }
             });
         });
         return total;
-    };
+    }, [students]);
 
-    const totalRevenue = calcRevenue();
-    const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
-    const netProfit = totalRevenue - totalExpenses;
+    const totalExpenses = useMemo(() => expenseRecords.reduce((s, e) => s + Number(e.amount), 0), [expenseRecords]);
+    // Also include payroll as an expense in P&L
+    const totalPayroll = useMemo(() => payrollRecords.reduce((s, r) => s + Number(r.net_paid), 0), [payrollRecords]);
+    const netProfit = totalRevenue - totalExpenses - totalPayroll;
 
-    const handleAddExpense = async () => {
-        if(!newExpense.title || !newExpense.amount) return;
-        const entry = { id: Date.now().toString(), ...newExpense, amount: Number(newExpense.amount) };
-        const newList = [entry, ...expenses];
-        setExpenses(newList);
-        await updateExpenses(newList);
-        setShowForm(false);
-        setNewExpense({ title: '', amount: '', date: new Date().toISOString().split('T')[0], category: 'Utilities', status: 'Paid' });
+    const handleSave = async () => {
+        if (!form.title || !form.amount) return;
+        setSaving(true);
+        const { error } = await saveExpenseRecord({ ...form, amount: Number(form.amount) });
+        setSaving(false);
+        if (!error) {
+            showSaveMessage('✅ Expense saved!');
+            setShowForm(false);
+            setForm(EMPTY);
+        } else alert('Error: ' + error.message);
     };
 
     const handleDelete = async (id) => {
-        if(!window.confirm("Delete this expense record?")) return;
-        const newList = expenses.filter(e => e.id !== id);
-        setExpenses(newList);
-        await updateExpenses(newList);
+        if (!confirm('Delete this expense?')) return;
+        const { error } = await deleteExpenseRecord(id);
+        if (!error) showSaveMessage('Expense deleted.');
+        else alert('Error: ' + error.message);
     };
 
-    const filtered = expenses.filter(e => e.title.toLowerCase().includes(search.toLowerCase()) || e.category.toLowerCase().includes(search.toLowerCase()));
+    const filtered = expenseRecords.filter(e => {
+        const s = !search || e.title.toLowerCase().includes(search.toLowerCase()) || e.category.toLowerCase().includes(search.toLowerCase());
+        const c = catFilter === 'all' || e.category === catFilter;
+        return s && c;
+    });
+
+    const plColor = netProfit >= 0 ? '#16a34a' : '#dc2626';
+    const plBg = netProfit >= 0 ? '#f0fdf4' : '#fef2f2';
+    const plBorder = netProfit >= 0 ? '#86efac' : '#fca5a5';
 
     return (
-        <div className="animate-fade-in">
+        <div className="animate-fade-in" style={{ paddingBottom: '3rem' }}>
+            {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
-                    <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#1e293b' }}>📉 Expense Tracker & P&L</h2>
-                    <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '0.25rem' }}>Track outgoing costs and view overall net profit</p>
+                    <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>📉 Expense Tracker & P&L</h2>
+                    <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '0.25rem' }}>Track costs and view net profit/loss.</p>
                 </div>
-                <button onClick={() => setShowForm(!showForm)} className="btn btn-primary" style={{ gap: '0.4rem' }}>
-                    <PlusCircle size={16} /> Log Expense
+                <button onClick={() => setShowForm(v => !v)} style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white',
+                    border: 'none', borderRadius: 10, padding: '0.6rem 1.25rem', fontWeight: 700, cursor: 'pointer'
+                }}>
+                    {showForm ? <X size={16} /> : <PlusCircle size={16} />} {showForm ? 'Cancel' : 'Log Expense'}
                 </button>
             </div>
 
-            {/* Stats Dashboard */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '16px', padding: '1.5rem', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ color: '#16a34a', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Revenue</div>
-                    <div style={{ fontSize: '2rem', fontWeight: 800, color: '#15803d', marginTop: '0.5rem' }}>{currencySymbol} {totalRevenue.toLocaleString()}</div>
-                    <TrendingUp size={60} style={{ position: 'absolute', right: '-10px', bottom: '-10px', color: '#16a34a', opacity: 0.1 }} />
-                </div>
-                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '16px', padding: '1.5rem', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ color: '#dc2626', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Expenses</div>
-                    <div style={{ fontSize: '2rem', fontWeight: 800, color: '#b91c1c', marginTop: '0.5rem' }}>{currencySymbol} {totalExpenses.toLocaleString()}</div>
-                    <TrendingDown size={60} style={{ position: 'absolute', right: '-10px', bottom: '-10px', color: '#dc2626', opacity: 0.1 }} />
-                </div>
-                <div style={{ background: netProfit >= 0 ? '#eff6ff' : '#fffbeb', border: `1px solid ${netProfit >= 0 ? '#bfdbfe' : '#fde68a'}`, borderRadius: '16px', padding: '1.5rem', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ color: netProfit >= 0 ? '#2563eb' : '#d97706', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Net Profit</div>
-                    <div style={{ fontSize: '2rem', fontWeight: 800, color: netProfit >= 0 ? '#1d4ed8' : '#b45309', marginTop: '0.5rem' }}>{currencySymbol} {netProfit.toLocaleString()}</div>
-                    <DollarSign size={60} style={{ position: 'absolute', right: '-10px', bottom: '-10px', color: netProfit >= 0 ? '#2563eb' : '#d97706', opacity: 0.1 }} />
-                </div>
+            {/* P&L Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                {[
+                    { label: 'Total Revenue', val: totalRevenue, color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0', icon: TrendingUp },
+                    { label: 'Expenses', val: totalExpenses, color: '#dc2626', bg: '#fef2f2', border: '#fecaca', icon: TrendingDown },
+                    { label: 'Payroll Cost', val: totalPayroll, color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', icon: TrendingDown },
+                    { label: 'Net Profit / Loss', val: netProfit, color: plColor, bg: plBg, border: plBorder, icon: DollarSign },
+                ].map(({ label, val, color, bg, border, icon: Icon }) => (
+                    <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 16, padding: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+                        <div style={{ color, fontWeight: 700, fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</div>
+                        <div style={{ fontSize: '1.8rem', fontWeight: 800, color, marginTop: '0.4rem' }}>{sym} {val.toLocaleString()}</div>
+                        <Icon size={52} style={{ position: 'absolute', right: -8, bottom: -8, color, opacity: 0.1 }} />
+                    </div>
+                ))}
             </div>
 
+            {/* Add Form */}
             {showForm && (
-                <div className="card" style={{ marginBottom: '2rem', border: '1px solid #e2e8f0', background: '#f8fafc' }}>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', color: '#0f172a' }}>Log New Expense</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16, padding: '1.5rem', marginBottom: '1.5rem' }}>
+                    <h3 style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '1rem', color: '#0f172a' }}>Log New Expense</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '1rem' }}>
                         <div>
                             <label className="form-label">Expense Title</label>
-                            <input type="text" className="form-input" placeholder="e.g. Electric Bill" value={newExpense.title} onChange={e => setNewExpense({...newExpense, title: e.target.value})} />
+                            <input className="form-input" placeholder="e.g. Electric Bill" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} />
                         </div>
                         <div>
-                            <label className="form-label">Amount ({currencySymbol})</label>
-                            <input type="number" className="form-input" placeholder="0" value={newExpense.amount} onChange={e => setNewExpense({...newExpense, amount: e.target.value})} />
+                            <label className="form-label">Amount ({sym})</label>
+                            <input className="form-input" type="number" placeholder="0" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} />
                         </div>
                         <div>
                             <label className="form-label">Category</label>
-                            <select className="form-input" value={newExpense.category} onChange={e => setNewExpense({...newExpense, category: e.target.value})}>
-                                <option>Utilities (Elec/Water)</option>
-                                <option>Teacher Salaries</option>
-                                <option>Staff Wages</option>
-                                <option>Building Rent</option>
-                                <option>Stationery/Supplies</option>
-                                <option>Maintenance</option>
-                                <option>Event/Function</option>
-                                <option>Other</option>
+                            <select className="form-input" value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}>
+                                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
                             </select>
                         </div>
                         <div>
                             <label className="form-label">Date</label>
-                            <input type="date" className="form-input" value={newExpense.date} onChange={e => setNewExpense({...newExpense, date: e.target.value})} />
+                            <input className="form-input" type="date" value={form.expense_date} onChange={e => setForm(p => ({ ...p, expense_date: e.target.value }))} />
+                        </div>
+                        <div>
+                            <label className="form-label">Status</label>
+                            <select className="form-input" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}>
+                                <option>Paid</option><option>Pending</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="form-label">Notes (optional)</label>
+                            <input className="form-input" placeholder="Any notes..." value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
                         </div>
                     </div>
-                    <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
-                        <button onClick={handleAddExpense} className="btn btn-primary" style={{ flex: 1 }}>Save Expense Record</button>
-                        <button onClick={() => setShowForm(false)} className="btn" style={{ background: '#e2e8f0', color: '#475569' }}>Cancel</button>
-                    </div>
+                    <button onClick={handleSave} disabled={saving} style={{
+                        marginTop: '1rem', background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white',
+                        border: 'none', borderRadius: 10, padding: '0.65rem 2rem', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer'
+                    }}>{saving ? 'Saving...' : 'Save Expense'}</button>
                 </div>
             )}
 
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                <div style={{ padding: '1.2rem 1.5rem', borderBottom: '1px solid #e2e8f0', background: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>Ledger History</h3>
-                    <div className="search-box" style={{ width: '250px' }}>
-                        <Search size={16} />
-                        <input type="text" placeholder="Search expenses..." value={search} onChange={e => setSearch(e.target.value)} />
+            {/* Ledger Table */}
+            <div style={{ background: 'white', borderRadius: 16, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                    <h3 style={{ fontWeight: 800, fontSize: '1.1rem', color: '#1e293b', margin: 0 }}>Ledger History</h3>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <div style={{ position: 'relative' }}>
+                            <Search size={14} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                            <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)}
+                                style={{ padding: '0.45rem 0.75rem 0.45rem 2rem', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: '0.85rem', outline: 'none', width: 180 }} />
+                        </div>
+                        <select value={catFilter} onChange={e => setCatFilter(e.target.value)}
+                            style={{ padding: '0.45rem 0.75rem', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: '0.85rem', outline: 'none', cursor: 'pointer' }}>
+                            <option value="all">All Categories</option>
+                            {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                        </select>
                     </div>
                 </div>
-                <table className="data-table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Description</th>
-                            <th>Category</th>
-                            <th>Status</th>
-                            <th>Amount ({currencySymbol})</th>
-                            <th style={{ textAlign: 'center' }}>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filtered.map(exp => (
-                            <tr key={exp.id}>
-                                <td style={{ fontWeight: 600, color: '#475569', fontSize: '0.85rem' }}>{new Date(exp.date).toLocaleDateString('en-GB')}</td>
-                                <td><span style={{ fontWeight: 700, color: '#0f172a' }}>{exp.title}</span></td>
-                                <td><span style={{ background: '#f1f5f9', color: '#475569', padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>{exp.category}</span></td>
-                                <td><span style={{ background: '#dcfce7', color: '#16a34a', padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><CheckSquare size={12}/> {exp.status}</span></td>
-                                <td style={{ fontWeight: 800, color: '#dc2626' }}>{Number(exp.amount).toLocaleString()}</td>
-                                <td style={{ textAlign: 'center' }}>
-                                    <button onClick={() => handleDelete(exp.id)} className="action-btn delete" title="Delete Expense">
-                                        <Trash2 size={16} />
-                                    </button>
-                                </td>
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr style={{ background: '#f8fafc' }}>
+                                {['Date', 'Title', 'Category', 'Status', `Amount (${sym})`, 'Actions'].map(h => (
+                                    <th key={h} style={{ padding: '0.85rem 1rem', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#475569', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
+                                ))}
                             </tr>
-                        ))}
-                        {filtered.length === 0 && (
-                            <tr><td colSpan={6} style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8', fontStyle: 'italic' }}>No expenses found.</td></tr>
-                        )}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {filtered.map((exp, idx) => (
+                                <tr key={exp.id} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? 'white' : '#fafafa' }}>
+                                    <td style={{ padding: '0.9rem 1rem', color: '#64748b', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                                        {new Date(exp.expense_date).toLocaleDateString('en-GB')}
+                                    </td>
+                                    <td style={{ padding: '0.9rem 1rem', fontWeight: 700, color: '#1e293b' }}>{exp.title}</td>
+                                    <td style={{ padding: '0.9rem 1rem' }}>
+                                        <span style={{ background: '#f1f5f9', color: '#475569', padding: '0.2rem 0.6rem', borderRadius: 4, fontSize: '0.78rem', fontWeight: 600 }}>{exp.category}</span>
+                                    </td>
+                                    <td style={{ padding: '0.9rem 1rem' }}>
+                                        <span style={{ background: exp.status === 'Paid' ? '#dcfce7' : '#fef9c3', color: exp.status === 'Paid' ? '#15803d' : '#a16207', padding: '0.2rem 0.6rem', borderRadius: 4, fontSize: '0.78rem', fontWeight: 700 }}>{exp.status}</span>
+                                    </td>
+                                    <td style={{ padding: '0.9rem 1rem', fontWeight: 800, color: '#dc2626' }}>{Number(exp.amount).toLocaleString()}</td>
+                                    <td style={{ padding: '0.9rem 1rem' }}>
+                                        <button onClick={() => handleDelete(exp.id)} style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 6, padding: '0.3rem 0.6rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, fontSize: '0.78rem', fontWeight: 700 }}>
+                                            <Trash2 size={13} /> Delete
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {filtered.length === 0 && (
+                                <tr><td colSpan={6} style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>No expenses found.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );
-};
-
-export default ExpensesTab;
+}

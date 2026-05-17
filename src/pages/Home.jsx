@@ -172,12 +172,24 @@ const Home = ({ setCurrentPage }) => {
     const typedText = useTypingEffect(typingTexts, 90, 50, 2500);
 
     useEffect(() => {
+        // ── SEO Injection ──
+        const schoolName = schoolData?.name || 'KHR Educo';
+        document.title = `${schoolName} - Excellence in Education`;
+        
+        let metaDesc = document.querySelector('meta[name="description"]');
+        if (!metaDesc) {
+            metaDesc = document.createElement('meta');
+            metaDesc.name = "description";
+            document.head.appendChild(metaDesc);
+        }
+        metaDesc.content = `Welcome to ${schoolName}. We are dedicated to building future leaders and shaping tomorrow's world through excellence in education.`;
+
         setTimeout(() => setHeroLoaded(true), 100);
         const handleScroll = () => setScrollY(window.scrollY);
         window.addEventListener('scroll', handleScroll, { passive: true });
         fetchPublicData(); // Lazily load testimonials, faculty, facilities, blogs
         return () => window.removeEventListener('scroll', handleScroll);
-    }, []);
+    }, [schoolData]);
 
 
     const handleMouseMove = (e) => {

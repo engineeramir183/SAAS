@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { PlusCircle, Trash2, X, Printer, Save, MessageCircle, Settings } from 'lucide-react';
+import { sendWhatsAppMessage, WhatsAppTemplates } from '../../services/WhatsAppService';
+import { sendWhatsAppMessage, WhatsAppTemplates } from '../../services/WhatsAppService';
 
 
 const calculateArrears = (student, currentMonth, defaults) => {
@@ -591,8 +593,17 @@ const FeeTab = ({
                                                         ) : (
                                                             <span style={{ background: '#dcfce7', color: '#16a34a', padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 700 }}>✓ Clear</span>
                                                         )}
-                                                        {unpaidMonths.length > 0 && student.admissions?.[0]?.fatherContact && (
-                                                            <a href={`https://wa.me/92${student.admissions[0].fatherContact.replace(/\D/g, '')}?text=Dear%20Parent%20of%20${student.name},%20this%20is%20a%20reminder%20that%20fee%20dues%20are%20pending.%20Please%20submit%20as%20soon%20as%20possible.%20Regards,%20${schoolName}`} 
+                                                        {unpaidMonths.length > 0 && (student.admissions?.[0]?.fatherContact || student.admissions?.[0]?.whatsapp) && (
+                                                            <button onClick={() => {
+                                                                const phone = student.admissions[0].whatsapp || student.admissions[0].fatherContact;
+                                                                const msg = WhatsAppTemplates.feeOverdueReminder(student.name, unpaidMonths.map(m=>m.month).join(', '), schoolName);
+                                                                sendWhatsAppMessage(phone, msg, schoolSettings);
+                                                                alert('WhatsApp reminder sent to ' + student.name + ' parent.');
+                                                            }} title="Send WhatsApp Reminder"
+                                                               style={{ background: '#22c55e', color: 'white', border: 'none', padding: '0.3rem', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                                                                <MessageCircle size={14} />
+                                                            </button>
+                                                        )}?text=Dear%20Parent%20of%20${student.name},%20this%20is%20a%20reminder%20that%20fee%20dues%20are%20pending.%20Please%20submit%20as%20soon%20as%20possible.%20Regards,%20${schoolName}`} 
                                                                target="_blank" rel="noreferrer" title="Send WhatsApp Reminder"
                                                                style={{ background: '#22c55e', color: 'white', padding: '0.3rem', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                                 <MessageCircle size={14} />

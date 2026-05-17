@@ -64,9 +64,11 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
     const [weights,           setWeights]           = useState(DEFAULT_WEIGHTS);
     const [classSerialStarts, setClassSerialStarts] = useState(DEFAULT_CLASS_SERIAL_STARTS);
     const [classFeeDefaults,  setClassFeeDefaults]  = useState(DEFAULT_CLASS_FEE_DEFAULTS);
-    const [expenses,          setExpenses]          = useState([]);
+    const [expenses,          setExpensesLegacy]    = useState([]);  // legacy metadata
     const [inquiries,         setInquiries]         = useState([]);
     const [diaryEntries,      setDiaryEntries]      = useState([]);
+    const [payrollRecords,    setPayrollRecords]    = useState([]);
+    const [expenseRecords,    setExpenseRecords]    = useState([]);
     const [loading,           setLoading]           = useState(true);
     const [adminCredentials,  setAdminCredentials]  = useState({ username: '', password: '' });
 
@@ -123,7 +125,7 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 // Students — explicit columns, ordered by serial number
                 supabase
                     .from('students')
-                    .select('id, name, grade, image, serial_number, password, fee_history, results, admissions, previous_results')
+                    .select('id, name, grade, image, serial_number, password, admissions')
                     .eq('school_id', sid)
                     .eq('is_active', true)
                     .order('serial_number', { ascending: true, nullsFirst: false }),
@@ -231,8 +233,8 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                         ...s,
                         photo:           s.image,
                         feeHistory:      feeHistory,
-                        previous_results: s.previous_results,
-                        previousResults: s.previous_results,
+                        previousResults: [],       // legacy column removed — data is in exam_results table
+                        previous_results: [],
                         serialNumber:    s.serial_number,
                         results:         results,
                         admissions:      s.admissions || [],
@@ -617,9 +619,30 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
         return { error };
     };
 
-    const updateInquiries = async (newList) => {
-        const { error } = await _upsertMeta('INQUIRIES', newList);
-        if (!error) setInquiries(newList);
+    const saveInquiry = async (inq) => {
+        const payload = {
+            id: inq.id,
+            school_id: currentSchoolId,
+            inquiry_number: inq.inquiryNumber,
+            student_name: inq.studentName,
+            father_name: inq.fatherName,
+            contact: inq.contact,
+            applying_for: inq.applyingFor,
+            inquiry_date: inq.date,
+            notes: inq.notes,
+            status: inq.status,
+            fee_admission: inq.feeAdmission ? Number(inq.feeAdmission) : 0,
+            fee_paper_fund: inq.feePaperFund ? Number(inq.feePaperFund) : 0,
+            fee_monthly: inq.feeMonthly ? Number(inq.feeMonthly) : 0
+        };
+        const { error } = await supabase.from('inquiry_records').upsert(payload);
+        if (!error) await fetchData();
+        return { error };
+    };
+
+    const deleteInquiry = async (id) => {
+        const { error } = await supabase.from('inquiry_records').delete().eq('id', id).eq('school_id', currentSchoolId);
+        if (!error) await fetchData();
         return { error };
     };
 
@@ -739,6 +762,87 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
         return { error };
     };
 
+    // ─── Payroll Records CRUD ─────────────────────────────────────────────────
+    const fetchPayrollRecords = async (month) => {
+        if (!currentSchoolId) return;
+        let query = supabase
+            .from('payroll_records')
+            .select('*')
+            .eq('school_id', currentSchoolId)
+            .order('created_at', { ascending: false });
+        if (month) query = query.eq('month', month);
+        const { data, error } = await query;
+        if (!error) setPayrollRecords(data || []);
+        return { data, error };
+    };
+
+    const savePayrollRecord = async (record) => {
+        const payload = { ...record, school_id: currentSchoolId };
+        const { data, error } = await supabase
+            .from('payroll_records')
+            .upsert(payload, { onConflict: 'school_id,faculty_id,month' })
+            .select()
+            .single();
+        if (!error) {
+            setPayrollRecords(prev => {
+                const idx = prev.findIndex(r => r.faculty_id === record.faculty_id && r.month === record.month);
+                if (idx >= 0) { const updated = [...prev]; updated[idx] = data; return updated; }
+                return [data, ...prev];
+            });
+        }
+        return { data, error };
+    };
+
+    const deletePayrollRecord = async (id) => {
+        const { error } = await supabase
+            .from('payroll_records')
+            .delete()
+            .eq('id', id)
+            .eq('school_id', currentSchoolId);
+        if (!error) setPayrollRecords(prev => prev.filter(r => r.id !== id));
+        return { error };
+    };
+
+    // ─── Expense Records CRUD ─────────────────────────────────────────────────
+    const fetchExpenseRecords = async (filters = {}) => {
+        if (!currentSchoolId) return;
+        let query = supabase
+            .from('expense_records')
+            .select('*')
+            .eq('school_id', currentSchoolId)
+            .order('expense_date', { ascending: false });
+        if (filters.category) query = query.eq('category', filters.category);
+        if (filters.dateFrom) query = query.gte('expense_date', filters.dateFrom);
+        if (filters.dateTo)   query = query.lte('expense_date', filters.dateTo);
+        const { data, error } = await query;
+        if (!error) setExpenseRecords(data || []);
+        return { data, error };
+    };
+
+    const saveExpenseRecord = async (record) => {
+        const isNew = !record.id;
+        const payload = { ...record, school_id: currentSchoolId };
+        let data, error;
+        if (isNew) {
+            ({ data, error } = await supabase.from('expense_records').insert(payload).select().single());
+            if (!error) setExpenseRecords(prev => [data, ...prev]);
+        } else {
+            ({ data, error } = await supabase.from('expense_records').update(payload).eq('id', record.id).eq('school_id', currentSchoolId).select().single());
+            if (!error) setExpenseRecords(prev => prev.map(r => r.id === record.id ? data : r));
+        }
+        return { data, error };
+    };
+
+    const deleteExpenseRecord = async (id) => {
+        const { error } = await supabase
+            .from('expense_records')
+            .delete()
+            .eq('id', id)
+            .eq('school_id', currentSchoolId);
+        if (!error) setExpenseRecords(prev => prev.filter(r => r.id !== id));
+        return { error };
+    };
+
     const changeAdminPassword = async (newUsername, newPassword) => {
         const { error } = await supabase
             .from('admins')
@@ -797,19 +901,28 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
             updateClassSerialStarts,
             updateClassFeeDefaults,
             updateExpenses,
-            updateInquiries,
+            saveInquiry, deleteInquiry,
             saveAttendanceRecords,
             deleteAttendanceRecords,
             saveFeeRecords,
             deleteFeeRecords,
             saveExamResults,
             changeAdminPassword,
-            // ── Student Diary ──────────────────────────────────────────────────
+            // ── Student Diary ─────────────────────────────────────────────────
             diaryEntries,
             fetchDiaryEntries,
             saveDiaryEntry,
             deleteDiaryEntry,
             acknowledgeDiaryEntry,
+            // ── Financial Suite ──────────────────────────────────────────────
+            payrollRecords,
+            fetchPayrollRecords,
+            savePayrollRecord,
+            deletePayrollRecord,
+            expenseRecords,
+            fetchExpenseRecords,
+            saveExpenseRecord,
+            deleteExpenseRecord,
         }}>
             {children}
         </SchoolDataContext.Provider>
