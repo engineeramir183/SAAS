@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { PlusCircle, Trash2, X, Printer, Save, MessageCircle, Settings } from 'lucide-react';
 import { sendWhatsAppMessage, WhatsAppTemplates } from '../../services/WhatsAppService';
-import { sendWhatsAppMessage, WhatsAppTemplates } from '../../services/WhatsAppService';
 
 
 const calculateArrears = (student, currentMonth, defaults) => {
@@ -603,11 +602,6 @@ const FeeTab = ({
                                                                style={{ background: '#22c55e', color: 'white', border: 'none', padding: '0.3rem', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                                                                 <MessageCircle size={14} />
                                                             </button>
-                                                        )}?text=Dear%20Parent%20of%20${student.name},%20this%20is%20a%20reminder%20that%20fee%20dues%20are%20pending.%20Please%20submit%20as%20soon%20as%20possible.%20Regards,%20${schoolName}`} 
-                                                               target="_blank" rel="noreferrer" title="Send WhatsApp Reminder"
-                                                               style={{ background: '#22c55e', color: 'white', padding: '0.3rem', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                                <MessageCircle size={14} />
-                                                            </a>
                                                         )}
                                                     </div>
                                                 </td>
