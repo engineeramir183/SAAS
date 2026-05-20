@@ -64,7 +64,7 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
     const [weights,           setWeights]           = useState(DEFAULT_WEIGHTS);
     const [classSerialStarts, setClassSerialStarts] = useState(DEFAULT_CLASS_SERIAL_STARTS);
     const [classFeeDefaults,  setClassFeeDefaults]  = useState(DEFAULT_CLASS_FEE_DEFAULTS);
-    const [expenses,          setExpensesLegacy]    = useState([]);  // legacy metadata
+    const [expenses,          setExpenses]          = useState([]);  // legacy metadata
     const [inquiries,         setInquiries]         = useState([]);
     const [diaryEntries,      setDiaryEntries]      = useState([]);
     const [payrollRecords,    setPayrollRecords]    = useState([]);
@@ -205,12 +205,42 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
 
                 // Group results by student
                 const resByStudent = {};
+                const weightsObj = metaMap['WEIGHTS'] || {};
                 (resRecords || []).forEach(r => {
                     if (!resByStudent[r.student_id]) resByStudent[r.student_id] = [];
+                    
+                    // Determine total marks for this subject and term
+                    let total = 100;
+                    if (weightsObj) {
+                        if (weightsObj[r.term] && typeof weightsObj[r.term] === 'object' && weightsObj[r.term][r.subject] !== undefined && weightsObj[r.term][r.subject] !== '') {
+                            total = Number(weightsObj[r.term][r.subject]);
+                        } else if (typeof weightsObj[r.subject] === 'number') {
+                            total = Number(weightsObj[r.subject]);
+                        }
+                    }
+                    if (!total || total <= 0) total = 100;
+                    
+                    const isAbsent = r.is_absent || (typeof r.marks_obtained === 'string' && r.marks_obtained.trim().toUpperCase() === 'A');
+                    const obtained = isAbsent ? 'A' : Number(r.marks_obtained || 0);
+                    const percentage = isAbsent ? 0 : Math.round((obtained / total) * 100);
+                    
+                    const grade = percentage >= 95 ? 'A++' :
+                                  percentage >= 90 ? 'A+' :
+                                  percentage >= 85 ? 'A' :
+                                  percentage >= 80 ? 'B++' :
+                                  percentage >= 75 ? 'B+' :
+                                  percentage >= 70 ? 'B' :
+                                  percentage >= 60 ? 'C' :
+                                  percentage >= 50 ? 'D' :
+                                  percentage >= 40 ? 'E' : 'U';
+
                     resByStudent[r.student_id].push({
                         term: r.term,
                         subject: r.subject,
-                        obtained: r.is_absent ? 'A' : r.marks_obtained,
+                        obtained: obtained,
+                        total: total,
+                        percentage: percentage,
+                        grade: grade,
                         remarks: r.remarks
                     });
                 });

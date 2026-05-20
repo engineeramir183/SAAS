@@ -7,20 +7,9 @@ import {
 import { useSchoolData } from '../context/SchoolDataContext';
 
 const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStudent }) => {
-    const { schoolData, TERMS, fetchDiaryEntries, diaryEntries, acknowledgeDiaryEntry } = useSchoolData();
+    const { schoolData, TERMS, fetchDiaryEntries, diaryEntries, acknowledgeDiaryEntry, loading } = useSchoolData();
     const [activeTab, setActiveTab] = useState('overview');
     const [selectedPrevTerm, setSelectedPrevTerm] = useState(0);
-    const classTerms = (TERMS && !Array.isArray(TERMS) ? (TERMS[student?.grade] || []) : (TERMS || []));
-    const [selectedTerm, setSelectedTerm] = useState(classTerms[0] || '');
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [diaryLoading, setDiaryLoading] = useState(false);
-    const [ackLoading, setAckLoading] = useState({});
-
-    const handleLogout = () => {
-        setIsLoggedIn(false);
-        setLoggedInStudent(null);
-        setCurrentPage('home');
-    };
 
     // Load diary when student navigates to the diary tab
     useEffect(() => {
@@ -35,11 +24,83 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
         }
     }, [activeTab, student?.grade]);
 
+    if (loading) {
+        return (
+            <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '100vh',
+                background: '#0f172a',
+                color: 'white',
+                gap: '1.25rem'
+            }}>
+                <div style={{
+                    width: '50px',
+                    height: '50px',
+                    border: '4px solid #1e293b',
+                    borderTopColor: '#3b82f6',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                }} />
+                <style>{`
+                    @keyframes spin {
+                        to { transform: rotate(360deg); }
+                    }
+                `}</style>
+                <div style={{ fontWeight: 600, fontSize: '1.1rem', letterSpacing: '0.5px' }}>Loading Student Portal...</div>
+            </div>
+        );
+    }
+
     if (!student) return null;
 
-    // Use live data from context if available (updated by teacher), otherwise use the student prop
+    const classTerms = (TERMS && !Array.isArray(TERMS) ? (TERMS[student?.grade] || []) : (TERMS || []));
+    const [selectedTerm, setSelectedTerm] = useState(classTerms[0] || '');
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [diaryLoading, setDiaryLoading] = useState(false);
+    const [ackLoading, setAckLoading] = useState({});
+
+    const handleLogout = () => {
+        setIsLoggedIn(false);
+        setLoggedInStudent(null);
+        setCurrentPage('home');
+    };
+
+    // Use live data from context if available (updated by teacher)
     const studentsData = schoolData?.students;
-    const liveStudent = studentsData ? studentsData.find(s => s.id === student.id) || student : student;
+    const liveStudent = studentsData ? studentsData.find(s => s.id === student.id) : null;
+
+    if (loading || !liveStudent) {
+        return (
+            <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '100vh',
+                background: '#0f172a',
+                color: 'white',
+                gap: '1.25rem'
+            }}>
+                <div style={{
+                    width: '50px',
+                    height: '50px',
+                    border: '4px solid #1e293b',
+                    borderTopColor: '#3b82f6',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                }} />
+                <style>{`
+                    @keyframes spin {
+                        to { transform: rotate(360deg); }
+                    }
+                `}</style>
+                <div style={{ fontWeight: 600, fontSize: '1.1rem', letterSpacing: '0.5px' }}>Loading Student Portal...</div>
+            </div>
+        );
+    }
 
     // Get results for a specific term
     const getTermResults = (termLabel) => {
@@ -60,7 +121,7 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
     const weakestSubject = sortedResults[sortedResults.length - 1] || { subject: 'N/A', percentage: 0, obtained: 0, total: 100, grade: '-' };
 
     // Attendance ring helpers
-    const attendancePercent = liveStudent.attendance.percentage;
+    const attendancePercent = liveStudent.attendance?.percentage || 0;
     const radius = 54;
     const circumference = 2 * Math.PI * radius;
     const offset = circumference - (attendancePercent / 100) * circumference;
@@ -378,19 +439,19 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                                     }}>
                                         <div>
                                             <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981' }}>
-                                                {liveStudent.attendance.present}
+                                                {liveStudent?.attendance?.present || 0}
                                             </div>
                                             <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Present</div>
                                         </div>
                                         <div>
                                             <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ef4444' }}>
-                                                {liveStudent.attendance.absent}
+                                                {liveStudent?.attendance?.absent || 0}
                                             </div>
                                             <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Absent</div>
                                         </div>
                                         <div>
                                             <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#3b82f6' }}>
-                                                {liveStudent.attendance.total}
+                                                {liveStudent?.attendance?.total || 0}
                                             </div>
                                             <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Total</div>
                                         </div>

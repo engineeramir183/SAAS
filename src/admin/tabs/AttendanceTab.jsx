@@ -9,7 +9,7 @@ import { sendWhatsAppMessage, WhatsAppTemplates } from '../../services/WhatsAppS
    PRINT HELPER  – opens a new window with a
    fully-styled, printer-ready HTML document.
 ───────────────────────────────────────────── */
-function openPrintWindow(htmlBody, title = 'Attendance Report') {
+function openPrintWindow(htmlBody, title = 'Attendance Report', schoolName = 'School') {
     const win = window.open('', '_blank', 'width=900,height=700');
     if (!win) {
         alert("Popup blocked! Please allow popups for this site.");
@@ -607,17 +607,17 @@ const AttendanceTab = ({
         const [yr, mo] = printMonth.split('-').map(Number);
 
         if (printMode === 'daily-class') {
-            openPrintWindow(buildDailyClassHTML(students, selectedClass, filterDate, sName, genderTab), 'Daily Attendance Report');
+            openPrintWindow(buildDailyClassHTML(students, selectedClass, filterDate, sName, genderTab), 'Daily Attendance Report', sName);
         } else if (printMode === 'monthly-class') {
-            openPrintWindow(buildMonthlyClassHTML(students, selectedClass, yr, mo, sName, genderTab), 'Monthly Attendance Report');
+            openPrintWindow(buildMonthlyClassHTML(students, selectedClass, yr, mo, sName, genderTab), 'Monthly Attendance Report', sName);
         } else if (printMode === 'student-daily') {
             const st = students.find(s => s.id === selectedStudentId);
             if (!st) return alert('Please select a student.');
-            openPrintWindow(buildStudentDailyHTML(st, filterDate, sName), `${st.name} - Daily Report`);
+            openPrintWindow(buildStudentDailyHTML(st, filterDate, sName), `${st.name} - Daily Report`, sName);
         } else if (printMode === 'student-monthly') {
             const st = students.find(s => s.id === selectedStudentId);
             if (!st) return alert('Please select a student.');
-            openPrintWindow(buildStudentMonthlyHTML(st, yr, mo, sName), `${st.name} - Monthly Report`);
+            openPrintWindow(buildStudentMonthlyHTML(st, yr, mo, sName), `${st.name} - Monthly Report`, sName);
         }
         setPrintMode(null);
     };
@@ -903,9 +903,9 @@ const AttendanceTab = ({
                                 {/* ── ABSENT REPORTS ── */}
                                 <div style={{ borderTop: '1px solid #f1f5f9', padding: '0.5rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#fef2f2' }}>🚫 Absent Reports</div>
                                 {[
-                                    { label: 'Absent — This Class', sub: `${selectedClass} on ${filterDate}`, action: () => openPrintWindow(buildStatusClassHTML(students, selectedClass, filterDate, schoolName || 'School', 'absent'), `Absent - ${selectedClass}`) },
-                                    { label: 'Absent — Section Wise', sub: `Matric / Inter on ${filterDate}`, action: () => openPrintWindow(buildStatusSectionHTML(students, sections, filterDate, schoolName || 'School', 'absent'), 'Section-Wise Absent Report') },
-                                    { label: 'Absent — Whole College', sub: `All classes on ${filterDate}`, action: () => openPrintWindow(buildStatusCollegeHTML(students, filterDate, schoolName || 'School', 'absent'), 'College-Wide Absent Report') },
+                                    { label: 'Absent — This Class', sub: `${selectedClass} on ${filterDate}`, action: () => openPrintWindow(buildStatusClassHTML(students, selectedClass, filterDate, schoolName || 'School', 'absent'), `Absent - ${selectedClass}`, schoolName || 'School') },
+                                    { label: 'Absent — Section Wise', sub: `Matric / Inter on ${filterDate}`, action: () => openPrintWindow(buildStatusSectionHTML(students, sections, filterDate, schoolName || 'School', 'absent'), 'Section-Wise Absent Report', schoolName || 'School') },
+                                    { label: 'Absent — Whole College', sub: `All classes on ${filterDate}`, action: () => openPrintWindow(buildStatusCollegeHTML(students, filterDate, schoolName || 'School', 'absent'), 'College-Wide Absent Report', schoolName || 'School') },
                                 ].map((opt, i) => (
                                     <button key={`abs-${i}`} onClick={() => { opt.action(); setShowPrintMenu(false); }}
                                         style={{ display: 'block', width: '100%', padding: '0.6rem 0.9rem', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s' }}
@@ -919,9 +919,9 @@ const AttendanceTab = ({
                                 {/* ── PRESENT REPORTS ── */}
                                 <div style={{ borderTop: '1px solid #f1f5f9', padding: '0.5rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#f0fdf4' }}>✓ Present Reports</div>
                                 {[
-                                    { label: 'Present — This Class', sub: `${selectedClass} on ${filterDate}`, action: () => openPrintWindow(buildStatusClassHTML(students, selectedClass, filterDate, schoolName || 'School', 'present'), `Present - ${selectedClass}`) },
-                                    { label: 'Present — Section Wise', sub: `Matric / Inter on ${filterDate}`, action: () => openPrintWindow(buildStatusSectionHTML(students, sections, filterDate, schoolName || 'School', 'present'), 'Section-Wise Present Report') },
-                                    { label: 'Present — Whole College', sub: `All classes on ${filterDate}`, action: () => openPrintWindow(buildStatusCollegeHTML(students, filterDate, schoolName || 'School', 'present'), 'College-Wide Present Report') },
+                                    { label: 'Present — This Class', sub: `${selectedClass} on ${filterDate}`, action: () => openPrintWindow(buildStatusClassHTML(students, selectedClass, filterDate, schoolName || 'School', 'present'), `Present - ${selectedClass}`, schoolName || 'School') },
+                                    { label: 'Present — Section Wise', sub: `Matric / Inter on ${filterDate}`, action: () => openPrintWindow(buildStatusSectionHTML(students, sections, filterDate, schoolName || 'School', 'present'), 'Section-Wise Present Report', schoolName || 'School') },
+                                    { label: 'Present — Whole College', sub: `All classes on ${filterDate}`, action: () => openPrintWindow(buildStatusCollegeHTML(students, filterDate, schoolName || 'School', 'present'), 'College-Wide Present Report', schoolName || 'School') },
                                 ].map((opt, i) => (
                                     <button key={`prs-${i}`} onClick={() => { opt.action(); setShowPrintMenu(false); }}
                                         style={{ display: 'block', width: '100%', padding: '0.6rem 0.9rem', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s' }}

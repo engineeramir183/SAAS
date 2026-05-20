@@ -36,7 +36,7 @@ const DiaryTab = lazy(() => import('../admin/tabs/DiaryTab'));
 
 
 const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
-    const { schoolData, CLASSES, SUBJECTS, TERMS, SECTIONS, WEIGHTS, CLASS_SERIAL_STARTS, CLASS_FEE_DEFAULTS, EXPENSES, INQUIRIES, fetchData, fetchPublicData, setStudents, setFaculty, updateSchoolInfo, updateSchoolSettings, setAnnouncements, updateClasses, updateSubjects, updateTerms, updateSections, updateWeights, updateClassSerialStarts, updateClassFeeDefaults, updateExpenses, saveInquiry, deleteInquiry, adminCredentials, changeAdminPassword, currencySymbol, schoolSettings, completeOnboarding, loading, currentSchoolId } = useSchoolData();
+    const { schoolData, CLASSES, SUBJECTS, TERMS, SECTIONS, WEIGHTS, CLASS_SERIAL_STARTS, CLASS_FEE_DEFAULTS, EXPENSES, INQUIRIES, fetchData, fetchPublicData, setStudents, setFaculty, updateSchoolInfo, updateSchoolSettings, setAnnouncements, updateClasses, updateSubjects, updateTerms, updateSections, updateWeights, updateClassSerialStarts, updateClassFeeDefaults, updateExpenses, saveInquiry, deleteInquiry, adminCredentials, changeAdminPassword, currencySymbol, schoolSettings, completeOnboarding, loading, currentSchoolId, saveAttendanceRecords, deleteAttendanceRecords } = useSchoolData();
     
     // NOTE: loading check moved below all hooks to comply with React Rules of Hooks
 
@@ -1626,7 +1626,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
         const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
         
-        const { error } = await schoolContext.saveAttendanceRecords([{
+        const { error } = await saveAttendanceRecords([{
             student_id: studentId,
             date: today,
             status: status
@@ -1653,7 +1653,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         const student = students.find(s => s.id === studentId);
         if (!student) return;
         
-        const { error } = await schoolContext.deleteAttendanceRecords([studentId], dateStr);
+        const { error } = await deleteAttendanceRecords([studentId], dateStr);
         if (!error) {
             showSaveMessage(`Record for ${dateStr} removed.`);
         }
@@ -3065,7 +3065,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         showSaveMessage={showSaveMessage}
                                         schoolName={schoolName}
                                         schoolSettings={schoolSettings}
-                                        saveAttendanceRecords={schoolContext.saveAttendanceRecords}
+                                        saveAttendanceRecords={saveAttendanceRecords}
                                     />
                                 )}
 
