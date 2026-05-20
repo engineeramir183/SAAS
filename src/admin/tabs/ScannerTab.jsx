@@ -5,6 +5,7 @@ import { sendWhatsAppMessage, WhatsAppTemplates } from '../../services/WhatsAppS
 
 const ScannerTab = ({ students, setStudents, showSaveMessage, schoolName = 'School', schoolSettings, saveAttendanceRecords }) => {
     const scannerRef = useRef(null);
+    const scannerInstanceRef = useRef(null);
     const [scannerInstance, setScannerInstance] = useState(null);
     const [scanStatus, setScanStatus] = useState('idle'); // idle, scanning, success, error
     const [lastScanned, setLastScanned] = useState(null);
@@ -43,14 +44,22 @@ const ScannerTab = ({ students, setStudents, showSaveMessage, schoolName = 'Scho
 
     useEffect(() => {
         // Load html5-qrcode dynamically so we don't break SSR or initial load
-        let Html5Qrcode;
         import('html5-qrcode').then((module) => {
-            Html5Qrcode = module.Html5Qrcode;
+            const Html5QrcodeClass = module.Html5Qrcode || module.default?.Html5Qrcode || (module.default && module.default.Html5Qrcode) || module.default;
             
-            Html5Qrcode.getCameras().then(devices => {
+            if (!Html5QrcodeClass || (typeof Html5QrcodeClass.getCameras !== 'function' && (!module.default || typeof module.default.getCameras !== 'function'))) {
+                console.error("Html5Qrcode class failed to load", module);
+                setHasCameras(false);
+                setErrorMsg('Failed to initialize scanning library.');
+                return;
+            }
+
+            const ActualClass = typeof Html5QrcodeClass.getCameras === 'function' ? Html5QrcodeClass : module.default;
+
+            ActualClass.getCameras().then(devices => {
                 if (devices && devices.length) {
                     setHasCameras(true);
-                    startScanner(Html5Qrcode);
+                    startScanner(ActualClass);
                 } else {
                     setHasCameras(false);
                     setErrorMsg('No cameras found on this device.');
@@ -59,14 +68,21 @@ const ScannerTab = ({ students, setStudents, showSaveMessage, schoolName = 'Scho
                 setHasCameras(false);
                 setErrorMsg('Camera access denied or unavailable: ' + err.message);
             });
+        }).catch(err => {
+            setHasCameras(false);
+            setErrorMsg('Failed to load dynamic camera components.');
+            console.error(err);
         });
 
         // Cleanup on unmount
         return () => {
-            if (scannerInstance) {
-                scannerInstance.stop().then(() => {
-                    scannerInstance.clear();
-                }).catch(e => console.log('Scanner cleanup error', e));
+            if (scannerInstanceRef.current) {
+                const inst = scannerInstanceRef.current;
+                if (typeof inst.stop === 'function') {
+                    inst.stop().then(() => {
+                        inst.clear();
+                    }).catch(e => console.log('Scanner cleanup error', e));
+                }
             }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -77,22 +93,27 @@ const ScannerTab = ({ students, setStudents, showSaveMessage, schoolName = 'Scho
     const startScanner = (Html5QrcodeClass) => {
         if (!scannerRef.current) return;
         
-        const html5QrCode = new Html5QrcodeClass("qr-reader");
-        setScannerInstance(html5QrCode);
-        
-        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-        
-        html5QrCode.start({ facingMode: "environment" }, config, async (decodedText) => {
-            if (isProcessing) return; // Prevent double scans
-            isProcessing = true;
-            await handleScan(decodedText);
-            // 2 second cooldown before next scan
-            setTimeout(() => { isProcessing = false; }, 2000);
-        }, (errorMessage) => {
-            // Background scan errors (normal when no QR is in frame)
-        }).catch((err) => {
-            setErrorMsg("Error starting scanner: " + err.message);
-        });
+        try {
+            const html5QrCode = new Html5QrcodeClass("qr-reader");
+            setScannerInstance(html5QrCode);
+            scannerInstanceRef.current = html5QrCode;
+            
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            
+            html5QrCode.start({ facingMode: "environment" }, config, async (decodedText) => {
+                if (isProcessing) return; // Prevent double scans
+                isProcessing = true;
+                await handleScan(decodedText);
+                // 2 second cooldown before next scan
+                setTimeout(() => { isProcessing = false; }, 2000);
+            }, (errorMessage) => {
+                // Background scan errors (normal when no QR is in frame)
+            }).catch((err) => {
+                setErrorMsg("Error starting scanner: " + err.message);
+            });
+        } catch (err) {
+            setErrorMsg("Scanner initialization failed: " + err.message);
+        }
     };
 
     const handleScan = async (studentId) => {
