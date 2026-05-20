@@ -72,6 +72,37 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
     const [loading,           setLoading]           = useState(true);
     const [adminCredentials,  setAdminCredentials]  = useState({ username: '', password: '' });
 
+    // ─── Paginated helper to bypass PostgREST max rows limit ───────────────────
+    const fetchRelationalTable = async (table, sid) => {
+        let allData = [];
+        let start = 0;
+        const limit = 1000;
+        let done = false;
+        
+        while (!done) {
+            const { data: chunk, error } = await supabase
+                .from(table)
+                .select('*')
+                .eq('school_id', sid)
+                .range(start, start + limit - 1);
+                
+            if (error) {
+                console.error(`Error loading ${table}:`, error);
+                done = true;
+            } else if (!chunk || chunk.length === 0) {
+                done = true;
+            } else {
+                allData = [...allData, ...chunk];
+                if (chunk.length < limit) {
+                    done = true;
+                } else {
+                    start += limit;
+                }
+            }
+        }
+        return allData;
+    };
+
     // ─── Core fetch — every query is scoped to currentSchoolId ───────────────
     // ─── Core fetch — loads only business-critical data on every app start ──────
     // Faculty, facilities, testimonials, blogs are loaded separately via
@@ -83,7 +114,7 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 setLoading(true);
             }
 
-            // Fire only the 6 critical queries in parallel
+            // Fire only the critical queries in parallel
             const [
                 { data: schoolRow },
                 { data: info },
@@ -91,9 +122,9 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 { data: announcements },
                 { data: studentsRes },
                 { data: admins },
-                { data: attRecords },
-                { data: feeRecords },
-                { data: resRecords }
+                attRecords,
+                feeRecords,
+                resRecords
             ] = await Promise.all([
                 // Master school settings (currency, logo, etc.)
                 supabase
@@ -138,23 +169,14 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                     .eq('role', 'admin')
                     .limit(1),
                     
-                // Fetch Relational Attendance
-                supabase
-                    .from('attendance_records')
-                    .select('*')
-                    .eq('school_id', sid),
+                // Fetch Relational Attendance (paginated)
+                fetchRelationalTable('attendance_records', sid),
 
-                // Fetch Relational Fees
-                supabase
-                    .from('fee_records')
-                    .select('*')
-                    .eq('school_id', sid),
+                // Fetch Relational Fees (paginated)
+                fetchRelationalTable('fee_records', sid),
 
-                // Fetch Relational Results
-                supabase
-                    .from('exam_results')
-                    .select('*')
-                    .eq('school_id', sid)
+                // Fetch Relational Results (paginated)
+                fetchRelationalTable('exam_results', sid)
             ]);
 
             // ── Update school settings ────────────────────────────────────────
