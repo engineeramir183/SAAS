@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Download, Printer, X, ChevronDown, ChevronUp, ChevronRight, Edit3, Save, Check, Users, Filter } from 'lucide-react';
+import { Search, Download, Printer, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Edit3, Save, Check, Users, Filter } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { useSchoolData } from '../../context/SchoolDataContext';
 import { ActivityLogService } from '../../services/ActivityLogService';
@@ -456,6 +456,7 @@ const AttendanceTab = ({
 }) => {
     const { currentSchoolId, adminCredentials, saveAttendanceRecords, deleteAttendanceRecords } = useSchoolData();
     const [genderTab, setGenderTab] = useState('all');
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
     const [checkedClasses, setCheckedClasses] = useState(selectedClass ? [selectedClass] : []);
     const [expandedSections, setExpandedSections] = useState(() => {
@@ -938,9 +939,20 @@ const AttendanceTab = ({
             </div>
 
             
-            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', gap: isSidebarCollapsed ? '0rem' : '1.5rem', alignItems: 'flex-start', position: 'relative', transition: 'gap 0.3s ease' }}>
                 {/* ── Collapsible Section Sidebar ── */}
-                <div style={{ width: '260px', flexShrink: 0, background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.25rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.06)' }}>
+                <div style={{
+                    width: isSidebarCollapsed ? '0px' : '260px',
+                    flexShrink: 0,
+                    background: 'white',
+                    borderRadius: '16px',
+                    border: isSidebarCollapsed ? 'none' : '1px solid #e2e8f0',
+                    padding: isSidebarCollapsed ? '0px' : '1.25rem',
+                    boxShadow: isSidebarCollapsed ? 'none' : '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.06)',
+                    overflow: 'hidden',
+                    transition: 'all 0.3s ease',
+                    opacity: isSidebarCollapsed ? 0 : 1,
+                }}>
                     <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', borderBottom: '2px solid #f1f5f9', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Filter size={18} color="#2563eb" /> Sections & Classes
                     </h3>
@@ -996,8 +1008,8 @@ const AttendanceTab = ({
                                                             type="checkbox"
                                                             checked={isChecked}
                                                             onChange={(e) => {
-                                                                e.stopPropagation();
-                                                                handleClassCheckboxChange(cls, e.target.checked);
+                                                                 e.stopPropagation();
+                                                                 handleClassCheckboxChange(cls, e.target.checked);
                                                             }}
                                                             onClick={e => e.stopPropagation()}
                                                             style={{ marginRight: '0.75rem', width: '15px', height: '15px', cursor: 'pointer', accentColor: '#2563eb' }}
@@ -1019,7 +1031,36 @@ const AttendanceTab = ({
                     </div>
                 </div>
 
-                <div style={{ flex: 1, minWidth: 0 }}>
+                {/* ── Sidebar Collapse Toggle Button ── */}
+                <button
+                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '20px',
+                        height: '42px',
+                        background: '#2563eb',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '0 8px 8px 0',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 10px rgba(37,99,235,0.25)',
+                        position: 'absolute',
+                        left: isSidebarCollapsed ? '0px' : '260px',
+                        top: '120px',
+                        zIndex: 100,
+                        transition: 'left 0.3s ease, background-color 0.2s',
+                        outline: 'none',
+                    }}
+                    title={isSidebarCollapsed ? "Show Sidebar" : "Hide Sidebar"}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#1d4ed8'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = '#2563eb'}
+                >
+                    {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+                </button>
+
+                <div style={{ flex: 1, minWidth: 0, paddingLeft: isSidebarCollapsed ? '1.5rem' : '0px', transition: 'padding-left 0.3s ease' }}>
     {/* ── Gender Tabs ── */}
             <div style={{ display: 'flex', marginBottom: '1.5rem', borderRadius: '12px 12px 0 0', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
                 {genderTabs.map(tab => (
