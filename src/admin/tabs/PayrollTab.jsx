@@ -7,27 +7,204 @@ import { useSchoolData } from '../../context/SchoolDataContext';
 
 function printPayslip(member, rec, schoolName, sym) {
     if (!rec) { alert('No payroll record found.'); return; }
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Payslip</title>
-<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:sans-serif;padding:30px;background:#f1f5f9}
-.slip{max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.1)}
-.hdr{background:linear-gradient(135deg,#1e3a5f,#2563eb);color:white;padding:28px;text-align:center}
-.hdr h1{font-size:22px;font-weight:800}.hdr p{font-size:12px;opacity:.8;margin-top:4px}
-.body{padding:28px}.row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:14px}
-.row:last-child{border:none;font-weight:800;font-size:16px;color:#16a34a}
-.lbl{color:#64748b}.val{font-weight:700;color:#1e293b}
-@media print{body{padding:0;background:white}.slip{box-shadow:none}}
-</style></head><body><div class="slip">
-<div class="hdr"><h1>${schoolName}</h1><p>Salary Payslip — ${rec.month}</p></div>
-<div class="body">
-<div class="row"><span class="lbl">Employee</span><span class="val">${member.name}</span></div>
-<div class="row"><span class="lbl">Role</span><span class="val">${member.role||'Staff'}</span></div>
-<div class="row"><span class="lbl">Payment Date</span><span class="val">${rec.paid_on||'—'}</span></div>
-<div class="row"><span class="lbl">Base Salary</span><span class="val">${sym} ${Number(rec.base_salary).toLocaleString()}</span></div>
-<div class="row"><span class="lbl">Allowance</span><span class="val">+ ${sym} ${Number(rec.allowance).toLocaleString()}</span></div>
-<div class="row"><span class="lbl">Deduction</span><span class="val">− ${sym} ${Number(rec.deduction).toLocaleString()}</span></div>
-<div class="row"><span>Net Paid</span><span>${sym} ${Number(rec.net_paid).toLocaleString()}</span></div>
-</div></div>
-<script>window.onload=()=>window.print();</script></body></html>`;
+    const html = `<!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Payslip - ${member.name} - ${rec.month}</title>
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+            * { box-sizing: border-box; }
+            body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #0f172a; padding: 40px; margin: 0; }
+            
+            .slip { 
+                max-width: 600px; 
+                margin: 0 auto; 
+                border: 1px solid #cbd5e1; 
+                background: white;
+                border-radius: 12px; 
+                padding: 32px; 
+                box-shadow: 0 10px 25px rgba(15,23,42,0.05); 
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .top-accent { 
+                height: 6px; 
+                background: #0f172a; 
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+            }
+            
+            .header { 
+                text-align: center; 
+                border-bottom: 2px solid #0f172a; 
+                padding-bottom: 18px; 
+                margin-bottom: 24px; 
+            }
+            
+            .school { 
+                font-size: 22px; 
+                font-weight: 800; 
+                color: #0f172a; 
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                margin-bottom: 4px; 
+            }
+            
+            .title { 
+                font-size: 11px; 
+                color: #64748b; 
+                font-weight: 800; 
+                text-transform: uppercase; 
+                letter-spacing: 1.5px; 
+            }
+            
+            .details-grid { 
+                display: grid; 
+                grid-template-columns: 1fr 1fr; 
+                gap: 16px; 
+                margin-bottom: 28px; 
+            }
+            
+            .label { 
+                font-size: 9px; 
+                color: #64748b; 
+                text-transform: uppercase; 
+                letter-spacing: 0.5px; 
+                font-weight: 800; 
+                margin-bottom: 2px;
+            }
+            
+            .value { 
+                font-size: 13.5px; 
+                font-weight: 700; 
+                color: #0f172a; 
+            }
+            
+            .calc-table { 
+                width: 100%; 
+                border-collapse: collapse; 
+                margin-bottom: 28px; 
+            }
+            
+            .calc-table th { 
+                text-align: left; 
+                padding: 10px 12px; 
+                font-size: 10px; 
+                text-transform: uppercase; 
+                color: #64748b; 
+                border-bottom: 2px solid #cbd5e1; 
+                font-weight: 800;
+                letter-spacing: 0.5px;
+            }
+            
+            .calc-table td { 
+                padding: 12px; 
+                font-size: 13px; 
+                font-weight: 600; 
+                color: #334155; 
+                border-bottom: 1px solid #f1f5f9; 
+            }
+            
+            .calc-table .amt { 
+                text-align: right; 
+                font-weight: 700;
+            }
+            
+            .net-row td { 
+                font-size: 16px; 
+                font-weight: 800; 
+                color: #16a34a; 
+                background: #f0fdf4; 
+                border-top: 1.5px solid #0f172a;
+                border-bottom: 1.5px solid #0f172a; 
+            }
+            
+            .footer-sig { 
+                display: grid; 
+                grid-template-columns: 1fr 1fr; 
+                gap: 40px; 
+                margin-top: 45px; 
+                text-align: center; 
+            }
+            
+            .sig-line { 
+                border-top: 1.5px solid #cbd5e1; 
+                padding-top: 8px; 
+                font-size: 10.5px; 
+                color: #64748b; 
+                font-weight: 700; 
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            
+            .btn-print { 
+                margin: 0 auto 20px auto; 
+                display: block; 
+                padding: 10px 22px; 
+                background: #0f172a; 
+                color: white; 
+                border: none; 
+                border-radius: 6px; 
+                cursor: pointer; 
+                font-weight: 700; 
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                box-shadow: 0 4px 12px rgba(15,23,42,0.15);
+                transition: background 0.15s ease;
+            }
+            
+            .btn-print:hover {
+                background: #1e293b;
+            }
+            
+            @media print { 
+                .btn-print { display: none; }
+                body { padding: 0; background: white; } 
+                .slip { box-shadow: none; border: 1px solid #cbd5e1; } 
+            }
+        </style>
+    </head>
+    <body>
+        <button class="btn-print" onclick="window.print()">Print Payslip</button>
+        <div class="slip">
+            <div class="top-accent"></div>
+            <div class="header">
+                <div class="school">${schoolName}</div>
+                <div class="title">Official Salary Payslip — ${rec.month}</div>
+            </div>
+            
+            <div class="details-grid">
+                <div><div class="label">Employee Name</div><div class="value">${member.name}</div></div>
+                <div><div class="label">Designation</div><div class="value">${member.role || 'Staff'}</div></div>
+                <div><div class="label">Department</div><div class="value">${member.department || 'General'}</div></div>
+                <div><div class="label">Payment Status</div><div class="value" style="color: #16a34a; text-transform: uppercase; font-size: 12px; font-weight: 800;">PAID on ${rec.paid_on || '—'}</div></div>
+            </div>
+
+            <table class="calc-table">
+                <thead><tr><th>Earnings & Deductions</th><th class="amt">Amount</th></tr></thead>
+                <tbody>
+                    <tr><td>Basic Salary</td><td class="amt">${sym} ${Number(rec.base_salary).toLocaleString()}</td></tr>
+                    <tr><td>Allowances & Bonuses</td><td class="amt" style="color:#2563eb;">+ ${sym} ${Number(rec.allowance).toLocaleString()}</td></tr>
+                    <tr><td>Deductions & Unpaid Leaves</td><td class="amt" style="color:#dc2626;">- ${sym} ${Number(rec.deduction).toLocaleString()}</td></tr>
+                    <tr class="net-row"><td>Net Salary Paid</td><td class="amt">${sym} ${Number(rec.net_paid).toLocaleString()}</td></tr>
+                </tbody>
+            </table>
+
+            <div class="footer-sig">
+                <div class="sig-line">Employer Signature</div>
+                <div class="sig-line">Employee Signature</div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 35px; font-size: 9px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Generated on ${new Date().toLocaleDateString()}</div>
+        </div>
+        <script>window.onload = () => { window.print(); }</script>
+    </body>
+    </html>`;
     const w = window.open('', '_blank');
     w.document.write(html);
     w.document.close();

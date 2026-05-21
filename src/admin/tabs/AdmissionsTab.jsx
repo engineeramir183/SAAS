@@ -85,54 +85,176 @@ const AdmissionsTab = ({
 
         const sections = ['Bank Copy', 'Office Copy', 'Student Copy'];
         let html = `<html><head><style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-            body { font-family: 'Inter', sans-serif; margin: 0; padding: 1.5rem; font-size: 13px; color: #1e293b; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+            * { box-sizing: border-box; }
+            body { font-family: 'Inter', sans-serif; margin: 0; padding: 1.5rem; font-size: 12px; color: #0f172a; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
             .wrapper { display: flex; justify-content: space-between; gap: 1.5rem; }
-            .slip { flex: 1; border: 2px dashed #94a3b8; padding: 1.5rem; border-radius: 12px; background: #ffffff; position: relative; }
-            .header-banner { background: #1e3a8a; color: white; padding: 10px; text-align: center; border-radius: 6px; margin-bottom: 12px; }
-            .school { font-weight: 800; font-size: 16px; letter-spacing: 0.5px; margin-bottom: 2px; }
-            .copy-badge { display: inline-block; background: #fef08a; color: #854d0e; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 99px; text-transform: uppercase; margin-top: 4px; border: 1px solid #facc15; }
-            .info-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin-bottom: 15px; background: #f8fafc; }
-            .row { display: flex; justify-content: space-between; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px dotted #cbd5e1; }
-            .row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
-            .label { color: #64748b; font-size: 11px; font-weight: 600; text-transform: uppercase; }
-            .val { font-weight: 700; color: #0f172a; font-size: 12px; }
-            .fees-box { margin-bottom: 20px; }
-            .fee-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f1f5f9; }
-            .fee-label { font-weight: 600; color: #334155; }
-            .fee-val { font-weight: 700; color: #1e293b; }
-            .total-row { display: flex; justify-content: space-between; padding: 10px 12px; background: #f1f5f9; border-radius: 6px; margin-top: 10px; border: 1px solid #cbd5e1; }
-            .total-label { font-weight: 800; font-size: 14px; color: #1e3a8a; }
-            .total-val { font-weight: 800; font-size: 16px; color: #1e3a8a; }
-            .signatures { display: flex; justify-content: space-between; margin-top: 40px; font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; }
-            .sig-line { border-top: 1px solid #94a3b8; width: 45%; text-align: center; padding-top: 5px; }
+            
+            .slip { 
+                flex: 1; 
+                border: 2px dashed #94a3b8; 
+                padding: 1.5rem; 
+                border-radius: 8px; 
+                background: #ffffff; 
+                position: relative; 
+                display: flex;
+                flex-direction: column;
+            }
+            
+            .header-banner { 
+                background: #0f172a; 
+                color: white; 
+                padding: 12px; 
+                text-align: center; 
+                border-radius: 6px; 
+                margin-bottom: 12px; 
+            }
+            
+            .school { 
+                font-weight: 800; 
+                font-size: 14px; 
+                letter-spacing: 0.5px; 
+                margin-bottom: 2px; 
+                text-transform: uppercase;
+            }
+            
+            .copy-badge { 
+                display: inline-block; 
+                border: 1.5px solid #0f172a; 
+                color: #0f172a; 
+                font-size: 9px; 
+                font-weight: 800; 
+                padding: 4px 14px; 
+                border-radius: 4px; 
+                text-transform: uppercase; 
+                margin-top: 4px; 
+                letter-spacing: 1px;
+            }
+            
+            .info-box { 
+                border: 1px solid #cbd5e1; 
+                border-radius: 6px; 
+                padding: 10px 12px; 
+                margin-bottom: 15px; 
+                background: #f8fafc; 
+            }
+            
+            .row { 
+                display: flex; 
+                justify-content: space-between; 
+                margin-bottom: 6px; 
+                padding-bottom: 6px; 
+                border-bottom: 1px solid #e2e8f0; 
+            }
+            .row:last-child { 
+                border-bottom: none; 
+                margin-bottom: 0; 
+                padding-bottom: 0; 
+            }
+            
+            .label { 
+                color: #64748b; 
+                font-size: 9.5px; 
+                font-weight: 700; 
+                text-transform: uppercase; 
+                letter-spacing: 0.3px;
+            }
+            
+            .val { 
+                font-weight: 700; 
+                color: #0f172a; 
+                font-size: 11px; 
+            }
+            
+            .fees-box { 
+                margin-bottom: 20px; 
+            }
+            
+            .fee-row { 
+                display: flex; 
+                justify-content: space-between; 
+                padding: 6px 0; 
+                border-bottom: 1px solid #f1f5f9; 
+            }
+            
+            .fee-label { 
+                font-weight: 600; 
+                color: #334155; 
+            }
+            
+            .fee-val { 
+                font-weight: 700; 
+                color: #0f172a; 
+            }
+            
+            .total-row { 
+                display: flex; 
+                justify-content: space-between; 
+                padding: 10px 12px; 
+                background: #f8fafc; 
+                border-radius: 6px; 
+                margin-top: auto; 
+                border: 1.5px solid #0f172a; 
+            }
+            
+            .total-label { 
+                font-weight: 800; 
+                font-size: 11px; 
+                color: #0f172a; 
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            
+            .total-val { 
+                font-weight: 800; 
+                font-size: 13px; 
+                color: #0f172a; 
+            }
+            
+            .signatures { 
+                display: flex; 
+                justify-content: space-between; 
+                margin-top: 35px; 
+                font-size: 9px; 
+                font-weight: 700; 
+                color: #64748b; 
+                text-transform: uppercase; 
+                letter-spacing: 0.5px;
+            }
+            
+            .sig-line { 
+                border-top: 1px solid #cbd5e1; 
+                width: 45%; 
+                text-align: center; 
+                padding-top: 6px; 
+            }
         </style></head><body onload="setTimeout(()=>{window.print();},600)"><div class="wrapper">`;
         
         sections.forEach(copy => {
             html += `<div class="slip">
                 <div class="header-banner">
                     <div class="school">${schoolData?.name || 'School Name'}</div>
-                    <div style="font-size:10px; opacity:0.9">ADMISSION VOUCHER</div>
+                    <div style="font-size:9px; font-weight: 700; opacity:0.95; letter-spacing: 2px; text-transform: uppercase; margin-top: 2px;">Admission Voucher</div>
                 </div>
                 <div style="text-align:center; margin-bottom: 15px;">
                     <span class="copy-badge">${copy}</span>
                 </div>
                 <div class="info-box">
-                    <div class="row"><span class="label">Date:</span><span class="val">${new Date().toLocaleDateString()}</span></div>
-                    <div class="row"><span class="label">Voucher #:</span><span class="val">${newId}</span></div>
-                    <div class="row"><span class="label">Student Name:</span><span class="val">${newInquiry.studentName}</span></div>
-                    <div class="row"><span class="label">Class:</span><span class="val">${newInquiry.applyingFor}</span></div>
+                    <div class="row"><span class="label">Date</span><span class="val">${new Date().toLocaleDateString()}</span></div>
+                    <div class="row"><span class="label">Voucher #</span><span class="val">${newId}</span></div>
+                    <div class="row"><span class="label">Student Name</span><span class="val">${newInquiry.studentName}</span></div>
+                    <div class="row"><span class="label">Class</span><span class="val">${newInquiry.applyingFor}</span></div>
                 </div>
                 
                 <div class="fees-box">
-                    <div style="font-size:10px; font-weight:800; color:#94a3b8; text-transform:uppercase; margin-bottom:8px;">Fee Particulars</div>
+                    <div style="font-size:9.5px; font-weight:800; color:#64748b; text-transform:uppercase; margin-bottom:8px; letter-spacing: 0.5px;">Fee Particulars</div>
                     <div class="fee-row"><span class="fee-label">Admission Fee</span><span class="fee-val">Rs. ${Number(voucherFees.admission || 0).toLocaleString()}</span></div>
                     <div class="fee-row"><span class="fee-label">Paper Fund</span><span class="fee-val">Rs. ${Number(voucherFees.paperFund || 0).toLocaleString()}</span></div>
                     <div class="fee-row"><span class="fee-label">Monthly Fee</span><span class="fee-val">Rs. ${Number(voucherFees.monthly || 0).toLocaleString()}</span></div>
                 </div>
                 
                 <div class="total-row">
-                    <span class="total-label">Total Payable:</span>
+                    <span class="total-label">Total Payable</span>
                     <span class="total-val">Rs. ${total.toLocaleString()}</span>
                 </div>
                 
@@ -173,41 +295,80 @@ const AdmissionsTab = ({
         const printWindow = window.open('', '', 'width=900,height=600');
         let tableRows = filtered.slice().reverse().map(i => `
             <tr>
-                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${new Date(i.date).toLocaleDateString()}</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #475569;">${i.inquiryNumber || '-'}</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">${i.studentName}</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${i.contact}</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${i.applyingFor}</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">
-                    Adm: ${i.feeAdmission ? Number(i.feeAdmission).toLocaleString() : '-'}<br/>
-                    Mon: ${i.feeMonthly ? Number(i.feeMonthly).toLocaleString() : '-'}<br/>
-                    Pap: ${i.feePaperFund ? Number(i.feePaperFund).toLocaleString() : '-'}
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${new Date(i.date).toLocaleDateString()}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #475569; font-weight: 600;">${i.inquiryNumber || '-'}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a;">${i.studentName}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">${i.contact}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #0f172a;">${i.applyingFor}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #334155;">
+                    <div style="display:grid; grid-template-columns: auto 1fr; gap: 4px;">
+                        <span>Adm:</span><strong style="color:#0f172a;">Rs. ${i.feeAdmission ? Number(i.feeAdmission).toLocaleString() : '0'}</strong>
+                        <span>Mon:</span><strong style="color:#0f172a;">Rs. ${i.feeMonthly ? Number(i.feeMonthly).toLocaleString() : '0'}</strong>
+                        <span>Pap:</span><strong style="color:#0f172a;">Rs. ${i.feePaperFund ? Number(i.feePaperFund).toLocaleString() : '0'}</strong>
+                    </div>
                 </td>
-                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${i.status.toUpperCase()}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">
+                    <span style="display:inline-block; padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; background: ${i.status === 'completed' ? '#f0fdf4' : '#fffbeb'}; color: ${i.status === 'completed' ? '#16a34a' : '#b45309'}; border: 1px solid ${i.status === 'completed' ? '#bbf7d0' : '#fef3c7'};">
+                        ${i.status}
+                    </span>
+                </td>
             </tr>
         `).join('');
 
-        if (filtered.length === 0) tableRows = '<tr><td colspan="7" style="text-align:center; padding: 1rem;">No inquiries found for this filter.</td></tr>';
+        if (filtered.length === 0) tableRows = '<tr><td colspan="7" style="text-align:center; padding: 2rem; color: #64748b; font-weight: 600;">No inquiries found for this filter.</td></tr>';
 
         printWindow.document.write(`
             <html>
                 <head>
                     <title>${title}</title>
-                    <style>body { font-family: sans-serif; padding: 2rem; }</style>
+                    <style>
+                        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+                        * { box-sizing: border-box; }
+                        body { font-family: 'Inter', sans-serif; padding: 30px; margin: 0; color: #0f172a; background: #fff; }
+                        h2 { font-size: 20px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #0f172a; }
+                        h3 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #475569; border-bottom: 2px solid #0f172a; padding-bottom: 10px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; text-align: left; }
+                        th { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; padding: 12px 10px; background: #f8fafc; border-bottom: 2px solid #cbd5e1; }
+                        tr:nth-child(even) { background: #fdfefe; }
+                        @media print {
+                            body { padding: 0; }
+                            .btn-print { display: none; }
+                        }
+                        .btn-print { 
+                            position: fixed; 
+                            bottom: 24px; 
+                            right: 24px; 
+                            padding: 10px 20px; 
+                            background: #0f172a; 
+                            color: white; 
+                            border: none; 
+                            border-radius: 6px; 
+                            font-weight: 700; 
+                            font-size: 12px; 
+                            cursor: pointer; 
+                            box-shadow: 0 4px 12px rgba(15,23,42,0.15); 
+                            z-index: 1000; 
+                            text-transform: uppercase;
+                            letter-spacing: 0.5px;
+                        }
+                    </style>
                 </head>
                 <body>
-                    <h2 style="text-align:center; margin-bottom: 0;">${schoolData?.name || 'School Name'}</h2>
-                    <h3 style="text-align:center; color: #475569; margin-top: 5px;">${title} (Total: ${filtered.length})</h3>
-                    <table style="width: 100%; border-collapse: collapse; margin-top: 2rem; text-align: left;">
+                    <button class="btn-print" onclick="window.print()">Print List</button>
+                    <div style="text-align:center; margin-bottom: 25px;">
+                        <h2 style="margin: 0 0 6px 0;">${schoolData?.name || 'School Name'}</h2>
+                        <h3>${title} (Total RecordCount: ${filtered.length})</h3>
+                    </div>
+                    <table>
                         <thead>
-                            <tr style="background: #f8fafc;">
-                                <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Date</th>
-                                <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Inq #</th>
-                                <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Student Name</th>
-                                <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Contact</th>
-                                <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Class</th>
-                                <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Fee</th>
-                                <th style="padding: 10px 8px; border-bottom: 2px solid #cbd5e1;">Status</th>
+                            <tr>
+                                <th style="width: 12%">Date</th>
+                                <th style="width: 12%">Inquiry #</th>
+                                <th style="width: 25%">Student Name</th>
+                                <th style="width: 18%">Contact</th>
+                                <th style="width: 10%">Class</th>
+                                <th style="width: 13%">Fee Offer</th>
+                                <th style="width: 10%">Status</th>
                             </tr>
                         </thead>
                         <tbody>${tableRows}</tbody>

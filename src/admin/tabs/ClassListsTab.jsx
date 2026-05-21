@@ -124,19 +124,152 @@ const ClassListsTab = ({
         }
 
         let html = `<!DOCTYPE html><html><head><title>ID Cards - ${className}</title><style>
-            @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap');
-            body { font-family: 'Outfit', sans-serif; background: #f1f5f9; padding: 20px; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
-            .id-card { width: 54mm; height: 86mm; background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; position: relative; border: 1px solid #cbd5e1; display: flex; flex-direction: column; }
-            .header { background: #1e3a8a; color: white; text-align: center; padding: 10px 5px; font-weight: 800; font-size: 13px; line-height: 1.2; }
-            .photo-box { width: 70px; height: 70px; margin: 15px auto; border-radius: 50%; border: 3px solid #1e3a8a; overflow: hidden; background: #e2e8f0; display: flex; align-items: center; justify-content: center; }
-            .photo-box img { width: 100%; height: 100%; object-fit: cover; }
-            .name { text-align: center; font-weight: 800; font-size: 15px; color: #0f172a; margin: 0 5px; padding-bottom: 5px; border-bottom: 2px solid #e2e8f0; }
-            .details { padding: 10px; font-size: 11px; font-weight: 600; color: #334155; display: grid; gap: 4px; }
-            .label { color: #64748b; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
-            .footer { background: #dc2626; color: white; text-align: center; padding: 6px; font-size: 9px; font-weight: 700; margin-top: auto; }
-            @media print { body { background: white; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .id-card { box-shadow: none; border: 1px dashed #cbd5e1; page-break-inside: avoid; } .btn-print { display: none; } }
-            .btn-print { position: fixed; bottom: 20px; right: 20px; padding: 15px 30px; background: #2563eb; color: white; border: none; border-radius: 999px; font-weight: bold; font-size: 16px; cursor: pointer; box-shadow: 0 10px 15px -3px rgba(37,99,235,0.4); z-index: 1000; }
-        </style></head><body><button class="btn-print" onclick="window.print()">🖨️ Print ID Cards</button>`;
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+            * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
+            body { background: #f8fafc; padding: 30px; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin: 0; }
+            
+            .id-card { 
+                width: 54mm; 
+                height: 86mm; 
+                background: white; 
+                border-radius: 8px; 
+                box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08); 
+                overflow: hidden; 
+                position: relative; 
+                border: 1px solid #e2e8f0; 
+                display: flex; 
+                flex-direction: column; 
+            }
+            
+            .header { 
+                background: #0f172a; 
+                color: white; 
+                text-align: center; 
+                padding: 10px 6px; 
+                font-weight: 800; 
+                font-size: 10px; 
+                line-height: 1.3; 
+                letter-spacing: 0.8px;
+                text-transform: uppercase;
+                border-bottom: 2px solid #cbd5e1;
+            }
+            
+            .photo-box { 
+                width: 68px; 
+                height: 80px; 
+                margin: 12px auto 6px auto; 
+                border-radius: 4px; 
+                border: 1.5px solid #cbd5e1; 
+                overflow: hidden; 
+                background: #f8fafc; 
+                display: flex; 
+                align-items: center; 
+                justify-content: center; 
+                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            }
+            
+            .photo-box img { 
+                width: 100%; 
+                height: 100%; 
+                object-fit: cover; 
+            }
+            
+            .name { 
+                text-align: center; 
+                font-weight: 800; 
+                font-size: 12px; 
+                color: #0f172a; 
+                margin: 0 8px; 
+                padding-bottom: 4px; 
+                border-bottom: 1px solid #f1f5f9; 
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            
+            .details { 
+                padding: 6px 12px; 
+                font-size: 9.5px; 
+                font-weight: 600; 
+                color: #334155; 
+                display: flex;
+                flex-direction: column;
+                gap: 4px; 
+            }
+            
+            .details-row {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 0.5px solid #f1f5f9;
+                padding-bottom: 2px;
+            }
+            .details-row:last-child {
+                border-bottom: none;
+            }
+            
+            .label { 
+                color: #64748b; 
+                font-size: 7.5px; 
+                text-transform: uppercase; 
+                letter-spacing: 0.3px; 
+                font-weight: 700;
+            }
+            
+            .value {
+                color: #0f172a;
+                font-weight: 700;
+            }
+            
+            .qr-container {
+                position: absolute; 
+                bottom: 24px; 
+                right: 12px; 
+                z-index: 5;
+            }
+            
+            .footer { 
+                background: #0f172a; 
+                color: white; 
+                text-align: center; 
+                padding: 5px; 
+                font-size: 8px; 
+                font-weight: 800; 
+                margin-top: auto; 
+                letter-spacing: 1px;
+                text-transform: uppercase;
+            }
+            
+            @media print { 
+                body { background: white; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
+                .id-card { box-shadow: none; border: 1px dashed #cbd5e1; page-break-inside: avoid; } 
+                .btn-print { display: none; } 
+            }
+            
+            .btn-print { 
+                position: fixed; 
+                bottom: 24px; 
+                right: 24px; 
+                padding: 12px 24px; 
+                background: #0f172a; 
+                color: white; 
+                border: none; 
+                border-radius: 6px; 
+                font-weight: 700; 
+                font-size: 13px; 
+                cursor: pointer; 
+                box-shadow: 0 4px 12px rgba(15,23,42,0.2); 
+                z-index: 1000; 
+                transition: background 0.15s ease;
+                letter-spacing: 0.5px;
+                text-transform: uppercase;
+            }
+            .btn-print:hover {
+                background: #1e293b;
+            }
+        </style></head><body><button class="btn-print" onclick="window.print()">Print ID Cards</button>`;
 
         targetStudents.forEach(s => {
             const bForm = s.admissions?.[0]?.bForm || 'Not Provided';
@@ -145,21 +278,33 @@ const ClassListsTab = ({
             
             html += `<div class="id-card">
                 <div class="header">
-                    ${schoolLogo ? `<img src="${schoolLogo}" style="height:30px;margin-bottom:5px;display:block;margin-left:auto;margin-right:auto;" />` : ''}
-                    ${schoolName?.toUpperCase() || 'SCHOOL'}
+                    ${schoolLogo ? `<img src="${schoolLogo}" style="height:22px;margin-bottom:3px;display:block;margin-left:auto;margin-right:auto;" />` : ''}
+                    ${schoolName || 'School Name'}
                 </div>
                 <div class="photo-box"><img src="${photoSrc}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=e2e8f0&color=64748b'" /></div>
                 <div class="name">${s.name}</div>
-                <div class="details">
-                    <div><div class="label">Roll Number</div><div style="color:#2563eb;font-weight:800">${s.id}</div></div>
-                    <div><div class="label">Class</div><div style="font-weight:800">${s.grade}</div></div>
-                    <div><div class="label">B-Form / CNIC</div><div>${bForm}</div></div>
-                    <div><div class="label">Gender</div><div>${gender}</div></div>
+                <div class="details" style="width: 60%;">
+                    <div class="details-row">
+                        <span class="label">Roll Number</span>
+                        <span class="value" style="color: #0f172a; font-weight: 800;">${s.id}</span>
+                    </div>
+                    <div class="details-row">
+                        <span class="label">Class</span>
+                        <span class="value">${s.grade}</span>
+                    </div>
+                    <div class="details-row" style="flex-direction: column; align-items: flex-start; gap: 1px;">
+                        <span class="label">B-Form / CNIC</span>
+                        <span class="value" style="font-size: 8.5px;">${bForm}</span>
+                    </div>
+                    <div class="details-row">
+                        <span class="label">Gender</span>
+                        <span class="value">${gender}</span>
+                    </div>
                 </div>
-                <div style="position: absolute; bottom: 25px; right: 15px;">
-                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=45x45&data=${s.id}" alt="QR Code" style="border:1px solid #e2e8f0; border-radius: 4px; padding: 2px; background: white;" />
+                <div class="qr-container">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=42x42&data=${s.id}" alt="QR" style="border:1px solid #cbd5e1; border-radius: 4px; padding: 2px; background: white; display: block;" />
                 </div>
-                <div class="footer">STUDENT IDENTITY CARD</div>
+                <div class="footer">Student Identity Card</div>
             </div>`;
         });
 

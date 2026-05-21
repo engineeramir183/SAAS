@@ -72,46 +72,172 @@ const FeeModal = ({ student, record, onClose, updateStudentFeeRecord, classDefau
 
     const handlePrintReceipt = () => {
         const html = `<!DOCTYPE html><html><head><title>Fee Receipt - ${student.name}</title><style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-            body { font-family: 'Inter', sans-serif; padding: 20mm; color: #1e293b; background: #f8fafc; margin: 0; }
-            .receipt { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 30px; max-width: 400px; margin: 0 auto; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); position: relative; }
-            h2 { text-align: center; color: #1e3a8a; margin-top: 0; font-weight: 800; font-size: 20px; }
-            .row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; font-weight: 600; }
-            .total-row { display: flex; justify-content: space-between; margin-top: 15px; padding-top: 15px; border-top: 2px solid #e2e8f0; font-weight: 800; font-size: 16px; }
-            .btn-print { margin: 20px auto; display: block; padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
-            @media print { .btn-print { display: none; } body { background: white; padding: 0; } .receipt { box-shadow: none; border: none; } }
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+            * { box-sizing: border-box; }
+            body { font-family: 'Inter', sans-serif; padding: 20mm; color: #0f172a; background: #f8fafc; margin: 0; }
+            
+            .receipt { 
+                background: white; 
+                border: 1px solid #cbd5e1; 
+                border-radius: 8px; 
+                padding: 24px; 
+                max-width: 420px; 
+                margin: 0 auto; 
+                box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05); 
+                position: relative; 
+            }
+            
+            .receipt-header {
+                text-align: center;
+                border-bottom: 2px solid #0f172a;
+                padding-bottom: 12px;
+                margin-bottom: 16px;
+            }
+            
+            .school-logo {
+                width: 50px;
+                height: 50px;
+                object-fit: contain;
+                margin-bottom: 6px;
+            }
+            
+            .school-name {
+                margin: 0;
+                font-size: 18px;
+                font-weight: 800;
+                color: #0f172a;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            
+            .receipt-badge {
+                display: inline-block;
+                border: 1.5px solid #0f172a;
+                color: #0f172a;
+                font-size: 9.5px;
+                font-weight: 800;
+                padding: 4px 12px;
+                border-radius: 4px;
+                text-transform: uppercase;
+                margin-top: 6px;
+                letter-spacing: 1px;
+            }
+            
+            .receipt-row {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 6px 0;
+                font-size: 11.5px;
+                font-weight: 600;
+                border-bottom: 1px solid #f1f5f9;
+            }
+            .receipt-row:last-child {
+                border-bottom: none;
+            }
+            
+            .label {
+                color: #64748b;
+                font-size: 9.5px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+            }
+            
+            .value {
+                color: #0f172a;
+                font-weight: 700;
+            }
+            
+            .status-badge {
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-size: 9px;
+                font-weight: 800;
+                text-transform: uppercase;
+                border: 1px solid;
+            }
+            
+            .total-row {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 10px 12px;
+                background: #f8fafc;
+                border: 1.5px solid #0f172a;
+                border-radius: 6px;
+                font-weight: 800;
+                font-size: 12.5px;
+                margin-top: 14px;
+            }
+            
+            .btn-print { 
+                margin: 20px auto; 
+                display: block; 
+                padding: 10px 22px; 
+                background: #0f172a; 
+                color: white; 
+                border: none; 
+                border-radius: 6px; 
+                cursor: pointer; 
+                font-weight: 700; 
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                box-shadow: 0 4px 12px rgba(15,23,42,0.15);
+                transition: background 0.15s ease;
+            }
+            .btn-print:hover {
+                background: #1e293b;
+            }
+            
+            @media print { 
+                .btn-print { display: none; } 
+                body { background: white; padding: 0; } 
+                .receipt { box-shadow: none; border: 1px solid #cbd5e1; } 
+            }
             </style></head>
             <body>
-            <button class="btn-print" onclick="window.print()">🖨️ Print Receipt</button>
+            <button class="btn-print" onclick="window.print()">Print Receipt</button>
             <div class="receipt">
-            <div style="text-align:center; margin-bottom:20px;">
-                <img src="${schoolLogo}" style="width:60px;" onerror="this.style.display='none'" />
-                <h2>${schoolName}</h2>
-                <div style="font-size:12px; color:#64748b; font-weight:700;">Fee Receipt — ${record.month}</div>
+            <div class="receipt-header">
+                ${schoolLogo ? `<img class="school-logo" src="${schoolLogo}" onerror="this.style.display='none'" />` : ''}
+                <h2 class="school-name">${schoolName}</h2>
+                <span class="receipt-badge">Fee Receipt — ${record.month}</span>
             </div>
-            <div class="row"><span style="color:#64748b;">Student Name:</span> <strong style="color:#0f172a;">${student.name}</strong></div>
-            <div class="row"><span style="color:#64748b;">Student ID:</span> <strong style="color:#0f172a;">${student.id}</strong></div>
-            <div class="row"><span style="color:#64748b;">Status:</span> <strong style="text-transform:uppercase; color:${formData.status === 'paid' ? '#16a34a' : (formData.status === 'partial' ? '#b45309' : '#dc2626')};">${formData.status}</strong></div>
+            
+            <div class="receipt-row"><span class="label">Student Name</span> <span class="value">${student.name}</span></div>
+            <div class="receipt-row"><span class="label">Student ID</span> <span class="value">${student.id}</span></div>
+            <div class="receipt-row"><span class="label">Status</span> 
+                <span class="status-badge" style="
+                    background: ${formData.status === 'paid' ? '#f0fdf4' : (formData.status === 'partial' ? '#fffbeb' : '#fdf2f2')};
+                    color: ${formData.status === 'paid' ? '#16a34a' : (formData.status === 'partial' ? '#b45309' : '#dc2626')};
+                    border-color: ${formData.status === 'paid' ? '#bbf7d0' : (formData.status === 'partial' ? '#fef3c7' : '#fecaca')};
+                ">${formData.status}</span>
+            </div>
+            
+            <div style="height: 10px;"></div>
+            <div style="font-size: 9.5px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Breakdown</div>
+            
+            ${Number(formData.tuitionFee) > 0 ? `<div class="receipt-row"><span>Tuition Fee</span> <span>${currencySymbol} ${Number(formData.tuitionFee).toLocaleString()}</span></div>` : ''}
+            ${Number(formData.admissionFee) > 0 ? `<div class="receipt-row"><span>Admission Fee</span> <span>${currencySymbol} ${Number(formData.admissionFee).toLocaleString()}</span></div>` : ''}
+            ${Number(formData.annualFee) > 0 ? `<div class="receipt-row"><span>Annual Charges</span> <span>${currencySymbol} ${Number(formData.annualFee).toLocaleString()}</span></div>` : ''}
+            ${Number(formData.examFee) > 0 ? `<div class="receipt-row"><span>Exam Funds</span> <span>${currencySymbol} ${Number(formData.examFee).toLocaleString()}</span></div>` : ''}
+            ${Number(formData.transportFee) > 0 ? `<div class="receipt-row"><span>Transport Fee</span> <span>${currencySymbol} ${Number(formData.transportFee).toLocaleString()}</span></div>` : ''}
+            ${Number(formData.labFee) > 0 ? `<div class="receipt-row"><span>Lab / Other</span> <span>${currencySymbol} ${Number(formData.labFee).toLocaleString()}</span></div>` : ''}
+            
+            ${Number(formData.lateFine) > 0 ? `<div class="receipt-row" style="color:#dc2626;"><span>Late Fine</span> <span>+ ${currencySymbol} ${Number(formData.lateFine).toLocaleString()}</span></div>` : ''}
+            ${Number(formData.discount) > 0 ? `<div class="receipt-row" style="color:#16a34a;"><span>Concession</span> <span>- ${currencySymbol} ${Number(formData.discount).toLocaleString()}</span></div>` : ''}
+            
+            <div class="total-row"><span style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Net Payable</span> <span>${currencySymbol} ${Number(netPayable).toLocaleString()}</span></div>
+            <div class="receipt-row" style="margin-top:10px;"><span class="label">Amount Paid</span> <span class="value">${currencySymbol} ${Number(formData.paidAmount).toLocaleString()}</span></div>
+            <div class="receipt-row" style="color:#dc2626; font-weight:800;"><span class="label" style="color:#dc2626;">Balance Due</span> <span style="font-size:14px; font-weight:800;">${currencySymbol} ${Number(balance).toLocaleString()}</span></div>
+            
             <hr style="border:0; border-top:1px dashed #cbd5e1; margin: 15px 0;" />
+            <div class="receipt-row" style="font-size:10.5px;"><span class="label">Payment Method</span> <span>${formData.paymentMethod}</span></div>
+            <div class="receipt-row" style="font-size:10.5px;"><span class="label">Processed Date</span> <span>${formData.paymentDate}</span></div>
             
-            ${Number(formData.tuitionFee) > 0 ? `<div class="row"><span>Tuition Fee</span> <span>${currencySymbol} ${formData.tuitionFee}</span></div>` : ''}
-            ${Number(formData.admissionFee) > 0 ? `<div class="row"><span>Admission Fee</span> <span>${currencySymbol} ${formData.admissionFee}</span></div>` : ''}
-            ${Number(formData.annualFee) > 0 ? `<div class="row"><span>Annual Charges</span> <span>${currencySymbol} ${formData.annualFee}</span></div>` : ''}
-            ${Number(formData.examFee) > 0 ? `<div class="row"><span>Exam Funds</span> <span>${currencySymbol} ${formData.examFee}</span></div>` : ''}
-            ${Number(formData.transportFee) > 0 ? `<div class="row"><span>Transport Fee</span> <span>${currencySymbol} ${formData.transportFee}</span></div>` : ''}
-            ${Number(formData.labFee) > 0 ? `<div class="row"><span>Lab / Other</span> <span>${currencySymbol} ${formData.labFee}</span></div>` : ''}
-            
-            ${Number(formData.lateFine) > 0 ? `<div class="row" style="color:#dc2626;"><span>Late Fine</span> <span>+ ${currencySymbol} ${formData.lateFine}</span></div>` : ''}
-            ${Number(formData.discount) > 0 ? `<div class="row" style="color:#16a34a;"><span>Concession</span> <span>- ${currencySymbol} ${formData.discount}</span></div>` : ''}
-            
-            <div class="total-row"><span>NET PAYABLE</span> <span>${currencySymbol} ${netPayable}</span></div>
-            <div class="row" style="margin-top:10px;"><span>Amount Paid</span> <span>${currencySymbol} ${formData.paidAmount}</span></div>
-            <div class="row" style="color:#dc2626; font-weight:800;"><span>Balance Due</span> <span style="font-size:16px;">${currencySymbol} ${balance}</span></div>
-            
-            <hr style="border:0; border-top:1px dashed #cbd5e1; margin: 15px 0;" />
-            <div class="row" style="font-size:11px;"><span style="color:#64748b">Payment Method:</span> <span>${formData.paymentMethod}</span></div>
-            <div class="row" style="font-size:11px;"><span style="color:#64748b">Processed Date:</span> <span>${formData.paymentDate}</span></div>
-            <div style="text-align:center; font-size:10px; margin-top:30px; color:#94a3b8; font-weight:600;">System Generated Receipt</div>
+            <div style="text-align:center; font-size:9px; margin-top:24px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">System Generated Receipt</div>
             </div></body></html>`;
         const win = window.open('', '_blank');
         win.document.write(html);
@@ -272,58 +398,209 @@ const FeeTab = ({
         const balance = netPayable - paidAmount;
         const status = h.status || 'unpaid';
 
-        return `<div class="receipt" style="page-break-inside: avoid; margin-bottom: 40px; border: 1px dashed #cbd5e1; padding: 20px; border-radius: 8px;">
-            <div style="text-align:center; margin-bottom:15px;">
-                <img src="${schoolLogo}" style="width:50px;margin-bottom:6px;" onerror="this.style.display='none'" />
-                <h2 style="margin:0; font-size:18px;">${schoolName}</h2>
-                <div style="font-size:12px; color:#64748b; font-weight:700;">Fee Receipt — ${h.month}</div>
+        return `<div class="receipt">
+            <div class="receipt-header">
+                ${schoolLogo ? `<img class="school-logo" src="${schoolLogo}" onerror="this.style.display='none'" />` : ''}
+                <h2 class="school-name">${schoolName}</h2>
+                <span class="receipt-badge">Fee Receipt — ${h.month}</span>
             </div>
-            <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:600; margin-bottom:5px;">
-                <span>Student: <strong style="color:#0f172a;">${student.name}</strong> (${student.id})</span>
-                <span>Class: <strong>${student.grade}</strong></span>
-            </div>
-            <div style="font-size:12px; font-weight:600; margin-bottom:15px;">Status: <strong style="text-transform:uppercase; color:${status === 'paid' ? '#16a34a' : '#dc2626'};">${status}</strong></div>
-            <hr style="border:0; border-top:1px dashed #cbd5e1; margin: 10px 0;" />
-            <div style="font-size:12px; display:flex; justify-content:space-between; margin-bottom:4px;"><span>Tuition Fee</span> <span>${currencySymbol} ${tuition}</span></div>
-            ${Number(admission) > 0 ? `<div style="font-size:12px; display:flex; justify-content:space-between; margin-bottom:4px;"><span>Admission Fee</span> <span>${currencySymbol} ${admission}</span></div>` : ''}
-            ${Number(annual) > 0 ? `<div style="font-size:12px; display:flex; justify-content:space-between; margin-bottom:4px;"><span>Annual Charges</span> <span>${currencySymbol} ${annual}</span></div>` : ''}
-            ${Number(exam) > 0 ? `<div style="font-size:12px; display:flex; justify-content:space-between; margin-bottom:4px;"><span>Exam Funds</span> <span>${currencySymbol} ${exam}</span></div>` : ''}
-            ${Number(transport) > 0 ? `<div style="font-size:12px; display:flex; justify-content:space-between; margin-bottom:4px;"><span>Transport Fee</span> <span>${currencySymbol} ${transport}</span></div>` : ''}
-            ${Number(lab) > 0 ? `<div style="font-size:12px; display:flex; justify-content:space-between; margin-bottom:4px;"><span>Lab/Other</span> <span>${currencySymbol} ${lab}</span></div>` : ''}
-            ${Number(late) > 0 ? `<div style="font-size:12px; display:flex; justify-content:space-between; margin-bottom:4px; color:#dc2626;"><span>Late Fine</span> <span>+ ${currencySymbol} ${late}</span></div>` : ''}
-            ${Number(discount) > 0 ? `<div style="font-size:12px; display:flex; justify-content:space-between; margin-bottom:4px; color:#16a34a;"><span>Concession</span> <span>- ${currencySymbol} ${discount}</span></div>` : ''}
-            ${previousArrears > 0 ? `<div style="font-size:12px; display:flex; justify-content:space-between; margin-bottom:4px; color:#dc2626; font-weight:700;"><span>Previous Arrears</span> <span>+ ${currencySymbol} ${previousArrears}</span></div>` : ''}
-            <div style="font-weight:800; font-size:14px; display:flex; justify-content:space-between; margin-top:10px; padding-top:10px; border-top:2px solid #e2e8f0;"><span>NET PAYABLE</span> <span>${currencySymbol} ${netPayable}</span></div>
-            <div style="font-size:12px; display:flex; justify-content:space-between; margin-top:5px;"><span>Amount Paid</span> <span>${currencySymbol} ${paidAmount}</span></div>
-            <div style="font-weight:700; font-size:12px; display:flex; justify-content:space-between; margin-top:5px; color:#dc2626;"><span>Balance Due</span> <span>${currencySymbol} ${balance}</span></div>
             
-            <hr style="border:0; border-top:1px dashed #cbd5e1; margin: 10px 0;" />
-            <div style="background:#f8fafc; padding:8px; border-radius:6px; font-size:11px;">
-                <div style="font-weight:800; color:#1e3a8a; margin-bottom:4px; text-transform:uppercase;">Pay Online Using:</div>
+            <div class="receipt-row"><span class="label">Student Name</span> <span class="value">${student.name}</span></div>
+            <div class="receipt-row"><span class="label">Student ID</span> <span class="value">${student.id}</span></div>
+            <div class="receipt-row"><span class="label">Status</span> 
+                <span class="status-badge" style="
+                    background: ${status === 'paid' ? '#f0fdf4' : (status === 'partial' ? '#fffbeb' : '#fdf2f2')};
+                    color: ${status === 'paid' ? '#16a34a' : (status === 'partial' ? '#b45309' : '#dc2626')};
+                    border-color: ${status === 'paid' ? '#bbf7d0' : (status === 'partial' ? '#fef3c7' : '#fecaca')};
+                ">${status.toUpperCase()}</span>
+            </div>
+            
+            <div style="height: 10px;"></div>
+            <div style="font-size: 9.5px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Breakdown</div>
+            
+            ${Number(tuition) > 0 ? `<div class="receipt-row"><span>Tuition Fee</span> <span>${currencySymbol} ${Number(tuition).toLocaleString()}</span></div>` : ''}
+            ${Number(admission) > 0 ? `<div class="receipt-row"><span>Admission Fee</span> <span>${currencySymbol} ${Number(admission).toLocaleString()}</span></div>` : ''}
+            ${Number(annual) > 0 ? `<div class="receipt-row"><span>Annual Charges</span> <span>${currencySymbol} ${Number(annual).toLocaleString()}</span></div>` : ''}
+            ${Number(exam) > 0 ? `<div class="receipt-row"><span>Exam Funds</span> <span>${currencySymbol} ${Number(exam).toLocaleString()}</span></div>` : ''}
+            ${Number(transport) > 0 ? `<div class="receipt-row"><span>Transport Fee</span> <span>${currencySymbol} ${Number(transport).toLocaleString()}</span></div>` : ''}
+            ${Number(lab) > 0 ? `<div class="receipt-row"><span>Lab / Other</span> <span>${currencySymbol} ${Number(lab).toLocaleString()}</span></div>` : ''}
+            
+            ${Number(late) > 0 ? `<div class="receipt-row" style="color:#dc2626;"><span>Late Fine</span> <span>+ ${currencySymbol} ${Number(late).toLocaleString()}</span></div>` : ''}
+            ${Number(discount) > 0 ? `<div class="receipt-row" style="color:#16a34a;"><span>Concession</span> <span>- ${currencySymbol} ${Number(discount).toLocaleString()}</span></div>` : ''}
+            ${Number(previousArrears) > 0 ? `<div class="receipt-row" style="color:#dc2626; font-weight:700;"><span>Previous Arrears</span> <span>+ ${currencySymbol} ${Number(previousArrears).toLocaleString()}</span></div>` : ''}
+            
+            <div class="total-row"><span style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Net Payable</span> <span>${currencySymbol} ${Number(netPayable).toLocaleString()}</span></div>
+            <div class="receipt-row" style="margin-top:10px;"><span class="label">Amount Paid</span> <span class="value">${currencySymbol} ${Number(paidAmount).toLocaleString()}</span></div>
+            <div class="receipt-row" style="color:#dc2626; font-weight:800;"><span class="label" style="color:#dc2626;">Balance Due</span> <span style="font-size:14px; font-weight:800;">${currencySymbol} ${Number(balance).toLocaleString()}</span></div>
+            
+            <hr style="border:0; border-top:1px dashed #cbd5e1; margin: 15px 0;" />
+            <div class="receipt-row" style="font-size:10.5px;"><span class="label">Payment Method</span> <span>${h.paymentMethod || 'Cash'}</span></div>
+            <div class="receipt-row" style="font-size:10.5px;"><span class="label">Processed Date</span> <span>${h.paymentDate || '—'}</span></div>
+            
+            <div class="receipt-footer">
                 ${schoolSettings?.bank_account ? `<div style="margin-bottom:2px;">Bank: ${schoolSettings.bank_name} / ${schoolSettings.bank_account}</div>` : ''}
                 ${schoolSettings?.easypaisa_number ? `<div style="margin-bottom:2px;">EasyPaisa: ${schoolSettings.easypaisa_number}</div>` : ''}
                 ${schoolSettings?.jazzcash_number ? `<div style="margin-bottom:2px;">JazzCash: ${schoolSettings.jazzcash_number}</div>` : ''}
-                ${schoolSettings?.payment_instructions ? `<div style="font-style:italic; margin-top:4px; font-size:10px; color:#64748b;">* ${schoolSettings.payment_instructions}</div>` : ''}
+                ${schoolSettings?.payment_instructions ? `<div style="font-style:italic; margin-top:4px; font-size:8px; color:#64748b;">* ${schoolSettings.payment_instructions}</div>` : ''}
+                <div style="text-align:center; font-size:9px; margin-top:14px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">System Generated Receipt</div>
             </div>
-            <div style="text-align:center; font-size:10px; color:#94a3b8; margin-top:10px;">System Generated Receipt</div>
         </div>`;
     };
 
     const printBulkChallans = (month) => {
         let printHTML = `<!DOCTYPE html><html><head><title>Bulk Invoices - ${selectedClass} - ${month}</title>
             <style>
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-                body { font-family: 'Inter', sans-serif; padding: 0; color: #1e293b; background: white; margin: 0; }
-                .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px; }
-                @media print { .btn-print { display: none; } body { padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+                * { box-sizing: border-box; }
+                body { font-family: 'Inter', sans-serif; padding: 10mm; color: #0f172a; background: #f8fafc; margin: 0; }
+                
+                .grid { 
+                    display: grid; 
+                    grid-template-columns: 1fr 1fr; 
+                    gap: 20px; 
+                    padding: 0; 
+                }
+                
+                .receipt { 
+                    background: white; 
+                    border: 1px solid #cbd5e1; 
+                    border-radius: 8px; 
+                    padding: 20px; 
+                    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05); 
+                    position: relative; 
+                    page-break-inside: avoid;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                }
+                
+                .receipt-header {
+                    text-align: center;
+                    border-bottom: 2px solid #0f172a;
+                    padding-bottom: 10px;
+                    margin-bottom: 12px;
+                }
+                
+                .school-logo {
+                    width: 40px;
+                    height: 40px;
+                    object-fit: contain;
+                    margin-bottom: 4px;
+                }
+                
+                .school-name {
+                    margin: 0;
+                    font-size: 16px;
+                    font-weight: 800;
+                    color: #0f172a;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+                
+                .receipt-badge {
+                    display: inline-block;
+                    border: 1.5px solid #0f172a;
+                    color: #0f172a;
+                    font-size: 9px;
+                    font-weight: 800;
+                    padding: 3px 10px;
+                    border-radius: 4px;
+                    text-transform: uppercase;
+                    margin-top: 4px;
+                    letter-spacing: 1px;
+                }
+                
+                .receipt-row {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 5px 0;
+                    font-size: 11px;
+                    font-weight: 600;
+                    border-bottom: 1px solid #f1f5f9;
+                }
+                .receipt-row:last-child {
+                    border-bottom: none;
+                }
+                
+                .label {
+                    color: #64748b;
+                    font-size: 9px;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                    letter-spacing: 0.3px;
+                }
+                
+                .value {
+                    color: #0f172a;
+                    font-weight: 700;
+                }
+                
+                .status-badge {
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    font-size: 8px;
+                    font-weight: 800;
+                    text-transform: uppercase;
+                    border: 1px solid;
+                }
+                
+                .total-row {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 8px 10px;
+                    background: #f8fafc;
+                    border: 1.5px solid #0f172a;
+                    border-radius: 6px;
+                    font-weight: 800;
+                    font-size: 12px;
+                    margin-top: 10px;
+                }
+                
+                .receipt-footer {
+                    background: #f8fafc; 
+                    padding: 8px; 
+                    border-radius: 6px; 
+                    font-size: 10px;
+                    margin-top: 10px;
+                    border: 1px solid #e2e8f0;
+                }
+                
+                .btn-print { 
+                    margin: 0 auto 20px auto; 
+                    display: block; 
+                    padding: 10px 22px; 
+                    background: #0f172a; 
+                    color: white; 
+                    border: none; 
+                    border-radius: 6px; 
+                    cursor: pointer; 
+                    font-weight: 700; 
+                    font-size: 12px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    box-shadow: 0 4px 12px rgba(15,23,42,0.15);
+                    transition: background 0.15s ease;
+                }
+                .btn-print:hover {
+                    background: #1e293b;
+                }
+                
+                @media print { 
+                    .btn-print { display: none; } 
+                    body { background: white; padding: 0; } 
+                    .receipt { box-shadow: none; border: 1px solid #cbd5e1; } 
+                }
             </style></head>
-            <body><button class="btn-print" onclick="window.print()" style="margin:20px; padding:10px 20px; background:#2563eb; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">🖨️ Print All Invoices</button>
+            <body><button class="btn-print" onclick="window.print()">Print All Invoices</button>
             <div class="grid">`;
         
         classStudents.forEach(student => {
             const h = (student.feeHistory || []).find(hf => hf.month === month) || { month, status: 'unpaid' };
             printHTML += generateReceiptHTML(student, h, classDefaults);
         });
+        
         printHTML += `</div></body></html>`;
         const win = window.open('', '_blank');
         win.document.write(printHTML);
@@ -334,19 +611,116 @@ const FeeTab = ({
     const printClassFeeReport = (month) => {
         let printHTML = `<!DOCTYPE html><html><head><title>Class Fee Summary - ${selectedClass} - ${month}</title>
             <style>
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-                body { font-family: 'Inter', sans-serif; padding: 30px; color: #1e293b; background: white; margin: 0; }
-                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                th { background: #f1f5f9; padding: 12px; text-align: left; border: 1px solid #cbd5e1; font-weight: 700; font-size: 12px; text-transform: uppercase; }
-                td { padding: 10px 12px; border: 1px solid #cbd5e1; font-size: 13px; }
-                h2 { color: #1e3a8a; margin-top: 0; text-align: center; margin-bottom: 5px; }
-                .summary { display: flex; justify-content: space-between; margin-top: 30px; border-top: 2px solid #e2e8f0; padding-top: 20px; font-weight: 700; font-size: 16px; }
-                @media print { .btn-print { display: none; } body { padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+                * { box-sizing: border-box; }
+                body { font-family: 'Inter', sans-serif; padding: 30px; color: #0f172a; background: white; margin: 0; }
+                
+                .report-header {
+                    text-align: center;
+                    border-bottom: 2px solid #0f172a;
+                    padding-bottom: 16px;
+                    margin-bottom: 24px;
+                }
+                .school-name {
+                    margin: 0;
+                    font-size: 24px;
+                    font-weight: 800;
+                    color: #0f172a;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+                .report-title {
+                    font-size: 14px;
+                    color: #475569;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                    margin-top: 6px;
+                    letter-spacing: 1px;
+                }
+                
+                table { 
+                    width: 100%; 
+                    border-collapse: collapse; 
+                    margin-top: 20px; 
+                    border: 1px solid #cbd5e1;
+                }
+                th { 
+                    background: #0f172a; 
+                    color: white;
+                    padding: 12px 14px; 
+                    text-align: left; 
+                    border: 1px solid #cbd5e1; 
+                    font-weight: 700; 
+                    font-size: 11px; 
+                    text-transform: uppercase; 
+                    letter-spacing: 0.5px;
+                }
+                td { 
+                    padding: 10px 14px; 
+                    border: 1px solid #cbd5e1; 
+                    font-size: 12.5px; 
+                    color: #334155;
+                }
+                tr:nth-child(even) td {
+                    background: #f8fafc;
+                }
+                
+                .summary-container { 
+                    display: grid;
+                    grid-template-columns: repeat(3, 1fr);
+                    gap: 16px;
+                    margin-top: 30px; 
+                    border: 1.5px solid #0f172a; 
+                    background: #f8fafc;
+                    padding: 16px; 
+                    border-radius: 6px;
+                }
+                .summary-card {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 4px;
+                }
+                .summary-lbl {
+                    font-size: 9.5px;
+                    font-weight: 800;
+                    color: #64748b;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+                .summary-val {
+                    font-size: 18px;
+                    font-weight: 800;
+                    color: #0f172a;
+                }
+                
+                .btn-print { 
+                    margin-bottom: 20px; 
+                    padding: 10px 22px; 
+                    background: #0f172a; 
+                    color: white; 
+                    border: none; 
+                    border-radius: 6px; 
+                    font-weight: 700; 
+                    font-size: 12px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    cursor: pointer;
+                    box-shadow: 0 4px 12px rgba(15,23,42,0.15);
+                    transition: background 0.15s ease;
+                }
+                .btn-print:hover {
+                    background: #1e293b;
+                }
+                
+                @media print { 
+                    .btn-print { display: none; } 
+                    body { padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
+                }
             </style></head>
-            <body><button class="btn-print" onclick="window.print()" style="margin-bottom:20px; padding:10px 20px; background:#10b981; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">🖨️ Print Report</button>
-            <div style="text-align:center; margin-bottom: 20px;">
-                <h2>${schoolName}</h2>
-                <div style="font-size: 16px; font-weight: 600;">Monthly Fee Report - ${selectedClass} (${month})</div>
+            <body><button class="btn-print" onclick="window.print()">Print Report</button>
+            <div class="report-header">
+                <h1 class="school-name">${schoolName}</h1>
+                <div class="report-title">Monthly Fee Report — Class ${selectedClass} (${month})</div>
             </div>
             <table>
                 <thead><tr><th>Student</th><th>Current Fee</th><th>Arrears</th><th>Total Due</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
@@ -377,23 +751,45 @@ const FeeTab = ({
             grandBalance += balance;
 
             printHTML += `<tr>
-                <td><strong>${student.name}</strong><br><span style="color:#64748b; font-size:11px;">${student.id}</span></td>
-                <td>${currencySymbol} ${currentFee}</td>
-                <td style="color:${previousArrears > 0 ? '#dc2626' : 'inherit'}">${currencySymbol} ${previousArrears}</td>
-                <td style="font-weight:700">${currencySymbol} ${totalDue}</td>
-                <td style="color:#16a34a">${currencySymbol} ${paid}</td>
-                <td style="color:${balance > 0 ? '#dc2626' : 'inherit'}; font-weight:700;">${currencySymbol} ${balance}</td>
-                <td><strong style="text-transform:uppercase; color:${h.status === 'paid' ? '#16a34a' : (h.status === 'partial' ? '#b45309' : '#dc2626')};">${h.status || 'unpaid'}</strong></td>
+                <td><strong>${student.name}</strong><br><span style="color:#64748b; font-size:10px; font-weight: 600;">ID: ${student.id}</span></td>
+                <td>${currencySymbol} ${Number(currentFee).toLocaleString()}</td>
+                <td style="color:${previousArrears > 0 ? '#dc2626' : 'inherit'}; font-weight:${previousArrears > 0 ? '700' : 'normal'};">${currencySymbol} ${Number(previousArrears).toLocaleString()}</td>
+                <td style="font-weight:700">${currencySymbol} ${Number(totalDue).toLocaleString()}</td>
+                <td style="color:#16a34a; font-weight:700;">${currencySymbol} ${Number(paid).toLocaleString()}</td>
+                <td style="color:${balance > 0 ? '#dc2626' : '#16a34a'}; font-weight:700;">${currencySymbol} ${Number(balance).toLocaleString()}</td>
+                <td><span style="
+                    font-size: 9px;
+                    font-weight: 800;
+                    text-transform: uppercase;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    border: 1px solid;
+                    background: ${h.status === 'paid' ? '#f0fdf4' : (h.status === 'partial' ? '#fffbeb' : '#fdf2f2')};
+                    color: ${h.status === 'paid' ? '#16a34a' : (h.status === 'partial' ? '#b45309' : '#dc2626')};
+                    border-color: ${h.status === 'paid' ? '#bbf7d0' : (h.status === 'partial' ? '#fef3c7' : '#fecaca')};
+                ">${(h.status || 'unpaid').toUpperCase()}</span></td>
             </tr>`;
         });
         
         printHTML += `</tbody></table>
-            <div class="summary">
-                <div>Total Expected: ${currencySymbol} ${grandTotal}</div>
-                <div style="color:#16a34a">Total Collected: ${currencySymbol} ${grandPaid}</div>
-                <div style="color:#dc2626">Total Arrears: ${currencySymbol} ${grandBalance}</div>
+            <div class="summary-container">
+                <div class="summary-card">
+                    <span class="summary-lbl">Total Expected</span>
+                    <span class="summary-val">${currencySymbol} ${Number(grandTotal).toLocaleString()}</span>
+                </div>
+                <div class="summary-card">
+                    <span class="summary-lbl" style="color: #16a34a;">Total Collected</span>
+                    <span class="summary-val" style="color: #16a34a;">${currencySymbol} ${Number(grandPaid).toLocaleString()}</span>
+                </div>
+                <div class="summary-card">
+                    <span class="summary-lbl" style="color: #dc2626;">Total Outstanding</span>
+                    <span class="summary-val" style="color: #dc2626;">${currencySymbol} ${Number(grandBalance).toLocaleString()}</span>
+                </div>
             </div>
-            <div style="margin-top: 30px; text-align: right; font-size: 12px; color: #64748b;">Generated Date: ${new Date().toLocaleDateString()}</div>
+            <div style="margin-top: 40px; display: flex; justify-content: space-between; font-size: 11px; color: #64748b; font-weight: 600;">
+                <span>Generated Date: ${new Date().toLocaleDateString()}</span>
+                <span>System Registrar Signature: _______________________</span>
+            </div>
             </body></html>`;
         
         const win = window.open('', '_blank');
@@ -410,29 +806,111 @@ const FeeTab = ({
 
         let printHTML = `<!DOCTYPE html><html><head><title>Defaulters List - ${selectedClass}</title>
             <style>
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-                body { font-family: 'Inter', sans-serif; padding: 30px; color: #1e293b; background: white; margin: 0; }
-                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                th, { background: #f1f5f9; padding: 12px; text-align: left; border: 1px solid #cbd5e1; font-weight: 700; }
-                td { padding: 10px 12px; border: 1px solid #cbd5e1; font-size: 13px; }
-                h2 { color: #dc2626; margin-top: 0; text-align: center; }
-                @media print { .btn-print { display: none; } body { padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+                * { box-sizing: border-box; }
+                body { font-family: 'Inter', sans-serif; padding: 30px; color: #0f172a; background: white; margin: 0; }
+                
+                .report-header {
+                    text-align: center;
+                    border-bottom: 2px solid #dc2626;
+                    padding-bottom: 16px;
+                    margin-bottom: 24px;
+                }
+                .school-name {
+                    margin: 0;
+                    font-size: 24px;
+                    font-weight: 800;
+                    color: #0f172a;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+                .report-title {
+                    font-size: 14px;
+                    color: #dc2626;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                    margin-top: 6px;
+                    letter-spacing: 1px;
+                }
+                
+                table { 
+                    width: 100%; 
+                    border-collapse: collapse; 
+                    margin-top: 20px; 
+                    border: 1px solid #cbd5e1;
+                }
+                th { 
+                    background: #dc2626; 
+                    color: white;
+                    padding: 12px 14px; 
+                    text-align: left; 
+                    border: 1px solid #cbd5e1; 
+                    font-weight: 700; 
+                    font-size: 11px; 
+                    text-transform: uppercase; 
+                    letter-spacing: 0.5px;
+                }
+                td { 
+                    padding: 10px 14px; 
+                    border: 1px solid #cbd5e1; 
+                    font-size: 12.5px; 
+                    color: #334155;
+                }
+                tr:nth-child(even) td {
+                    background: #fdf2f2;
+                }
+                
+                .btn-print { 
+                    margin-bottom: 20px; 
+                    padding: 10px 22px; 
+                    background: #dc2626; 
+                    color: white; 
+                    border: none; 
+                    border-radius: 6px; 
+                    font-weight: 700; 
+                    font-size: 12px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    cursor: pointer;
+                    box-shadow: 0 4px 12px rgba(220,38,38,0.15);
+                    transition: background 0.15s ease;
+                }
+                .btn-print:hover {
+                    background: #b91c1c;
+                }
+                
+                @media print { 
+                    .btn-print { display: none; } 
+                    body { padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
+                }
             </style></head>
-            <body><button class="btn-print" onclick="window.print()" style="margin-bottom:20px; padding:10px 20px; background:#dc2626; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">🖨️ Print Defaulters List</button>
-            <h2>Fee Defaulters List - ${selectedClass}</h2>
+            <body><button class="btn-print" onclick="window.print()">Print Defaulters List</button>
+            <div class="report-header">
+                <h1 class="school-name">${schoolName}</h1>
+                <div class="report-title">Fee Defaulters List — Class ${selectedClass}</div>
+            </div>
             <table>
-                <thead><tr><th>#</th><th>Student Name</th><th>Father's Name</th><th>Phone Number</th><th>Unpaid Months</th></tr></thead>
+                <thead><tr><th style="width: 50px;">#</th><th>Student Details</th><th>Father's Details</th><th>Phone Number</th><th>Defaulter Months</th></tr></thead>
                 <tbody>`;
         
         defaulters.forEach((student, index) => {
-            const unpaidMonths = (student.feeHistory || []).filter(h => h.status === 'unpaid' || h.status === 'partial').map(h => h.month).join(', ');
-            const fatherName = student.admissions?.[0]?.fatherName || 'N/A';
-            const phone = student.admissions?.[0]?.fatherContact || 'N/A';
-            printHTML += `<tr><td>${index + 1}</td><td><strong>${student.name}</strong><br><span style="color:#64748b; font-size:11px;">(${student.id})</span></td><td>${fatherName}</td><td>${phone}</td><td style="color:#dc2626; font-weight:600;">${unpaidMonths}</td></tr>`;
+            const unpaidMonths = (student.feeHistory || []).filter(h => h.status === 'unpaid' || h.status === 'partial').map(h => h.month.toUpperCase()).join(', ');
+            const fatherName = student.admissions?.[0]?.fatherName || '—';
+            const phone = student.admissions?.[0]?.fatherContact || student.admissions?.[0]?.contact || '—';
+            printHTML += `<tr>
+                <td>${index + 1}</td>
+                <td><strong>${student.name}</strong><br><span style="color:#64748b; font-size:10px; font-weight: 600;">ID: ${student.id}</span></td>
+                <td><strong>${fatherName}</strong></td>
+                <td><strong>${phone}</strong></td>
+                <td style="color:#dc2626; font-weight:700;">${unpaidMonths}</td>
+            </tr>`;
         });
         
         printHTML += `</tbody></table>
-            <div style="margin-top: 30px; text-align: right; font-weight: 700;">Generated Date: ${new Date().toLocaleDateString()}</div>
+            <div style="margin-top: 40px; display: flex; justify-content: space-between; font-size: 11px; color: #64748b; font-weight: 600;">
+                <span>Total Defaulters: <strong>${defaulters.length}</strong></span>
+                <span>Generated Date: ${new Date().toLocaleDateString()}</span>
+            </div>
             </body></html>`;
         
         const win = window.open('', '_blank');

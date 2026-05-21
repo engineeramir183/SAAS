@@ -542,49 +542,66 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         const genderLabel = gbGenderTab === 'all' ? 'All Students' : (gbGenderTab === 'boys' ? 'Boys' : 'Girls');
 
         const gradeColors = (pct) => {
-            if (pct === 'Absent' || pct === 'ABS' || pct === 'A') return { bg: '#f3f4f6', text: '#4b5563', border: '#1e293b' };
-            if (pct === null || pct === undefined || pct === '') return { bg: '#f8fafc', text: '#64748b', border: '#1e293b' };
+            if (pct === 'Absent' || pct === 'ABS' || pct === 'A') return { bg: '#f3f4f6', text: '#4b5563' };
+            if (pct === null || pct === undefined || pct === '') return { bg: '#f8fafc', text: '#64748b' };
             const num = Number(pct);
-            if (isNaN(num)) return { bg: '#f8fafc', text: '#64748b', border: '#1e293b' };
-            if (num >= 95) return { bg: '#f5f3ff', text: '#6d28d9', border: '#1e293b' }; // A++ (Violet)
-            if (num >= 90) return { bg: '#f3e8ff', text: '#7c3aed', border: '#1e293b' }; // A+ (Purple)
-            if (num >= 85) return { bg: '#ecfdf5', text: '#059669', border: '#1e293b' }; // A (Emerald)
-            if (num >= 80) return { bg: '#f0fdf4', text: '#16a34a', border: '#1e293b' }; // B++ (Green)
-            if (num >= 75) return { bg: '#f0fdfa', text: '#0d9488', border: '#1e293b' }; // B+ (Teal)
-            if (num >= 70) return { bg: '#eff6ff', text: '#2563eb', border: '#1e293b' }; // B (Blue)
-            if (num >= 60) return { bg: '#fef3c7', text: '#b45309', border: '#1e293b' }; // C (Amber)
-            if (num >= 50) return { bg: '#fffbeb', text: '#d97706', border: '#1e293b' }; // D (Yellow)
-            if (num >= 40) return { bg: '#fff7ed', text: '#ea580c', border: '#1e293b' }; // E (Orange)
-            return { bg: '#fee2e2', text: '#dc2626', border: '#1e293b' }; // U (Red)
+            if (isNaN(num)) return { bg: '#f8fafc', text: '#64748b' };
+            if (num >= 95) return { bg: '#f5f3ff', text: '#6d28d9' }; // A++ (Violet)
+            if (num >= 90) return { bg: '#f3e8ff', text: '#7c3aed' }; // A+ (Purple)
+            if (num >= 85) return { bg: '#ecfdf5', text: '#059669' }; // A (Emerald)
+            if (num >= 80) return { bg: '#f0fdf4', text: '#16a34a' }; // B++ (Green)
+            if (num >= 75) return { bg: '#f0fdfa', text: '#0d9488' }; // B+ (Teal)
+            if (num >= 70) return { bg: '#eff6ff', text: '#2563eb' }; // B (Blue)
+            if (num >= 60) return { bg: '#fef3c7', text: '#b45309' }; // C (Amber)
+            if (num >= 50) return { bg: '#fffbeb', text: '#d97706' }; // D (Yellow)
+            if (num >= 40) return { bg: '#fff7ed', text: '#ea580c' }; // E (Orange)
+            return { bg: '#fee2e2', text: '#dc2626' }; // U (Red)
         };
 
         // Build rows
         const rows = classStudents.map((s, idx) => {
             const res = getTermResults(s, termLabel);
             const overall = res.length ? calcOverallPct(res) : null;
-            const gc = overall !== null ? gradeColors(overall) : { bg: '#f1f5f9', text: '#64748b', border: '#cbd5e1' };
+            const gc = overall !== null ? gradeColors(overall) : { bg: '#f8fafc', text: '#64748b' };
             const subCells = subs.map(sub => {
                 const r = res.find(r => r.subject === sub);
                 const ob = r ? r.obtained : null;
                 const total = getSubjectTotal(sub, termLabel);
                 const numOb = ob === 'A' ? 0 : ob;
                 const pct = numOb !== null ? Math.round((numOb / total) * 100) : null;
-                const sc = pct !== null ? gradeColors(pct) : { bg: '#f8fafc', text: '#1e293b', border: '#1e293b' };
-                const displayOb = ob === 'A' ? 'Absent' : ob;
+                const sc = pct !== null ? gradeColors(pct) : { bg: '#f8fafc', text: '#64748b' };
+                const displayOb = ob === 'A' ? 'ABS' : ob;
                 const displayGrade = ob === 'A' ? 'Absent' : (pct !== null ? calcGrade(pct) : '');
-                return `<td style="text-align:center; padding:6px 4px; border:2px solid #1e293b; background:${sc.bg}; color:${sc.text}; font-weight:600; font-size:12px;">${ob !== null ? `${displayOb}<br/><span style='font-size:10px;font-weight:400'>${displayGrade}</span>` : '—'}</td>`;
+                
+                let displayHTML = '—';
+                if (ob !== null) {
+                    if (ob === 'A') {
+                        displayHTML = `<span style="font-weight:700; color:#dc2626">ABS</span>`;
+                    } else {
+                        displayHTML = `<span style="font-weight:700">${ob}</span><br/><span style='font-size:9px;font-weight:700;background:${sc.bg};color:${sc.text};padding:1px 4px;border-radius:2px;border:1px solid ${sc.text}30'>${displayGrade}</span>`;
+                    }
+                }
+                
+                return `<td style="text-align:center; padding:8px 6px; border:1px solid #cbd5e1; background:${ob !== null ? sc.bg : '#f8fafc'}; color:#334155; font-size:11px;">${displayHTML}</td>`;
             }).join('');
+            
+            let overallHTML = '—';
+            if (overall !== null) {
+                const gradeVal = calcGrade(overall);
+                overallHTML = `<span style="font-size:12px;font-weight:800">${overall}%</span><br/><span style='font-size:9.5px;font-weight:800;background:${gc.bg};color:${gc.text};padding:2px 6px;border-radius:3px;border:1px solid ${gc.text}30'>${gradeVal}</span>`;
+            }
+            
             return `
-                <tr style="background:${idx % 2 === 0 ? '#fff' : '#f8fafc'}">
-                    <td style="padding:8px 10px; border:2px solid #1e293b; font-weight:600; font-size:12px; color:#1e293b;">${idx + 1}</td>
-                    <td style="padding:8px 10px; border:2px solid #1e293b; font-weight:700; font-size:12px; color:#1e293b;">${s.name}</td>
-                    <td style="padding:8px 4px; border:2px solid #1e293b; font-size:11px; color:#1e293b; text-align:center">${s.id}</td>
+                <tr style="background:${idx % 2 === 0 ? '#ffffff' : '#f8fafc'}">
+                    <td style="padding:10px; border:1px solid #cbd5e1; font-weight:600; font-size:11px; color:#64748b; text-align:center;">${idx + 1}</td>
+                    <td style="padding:10px; border:1px solid #cbd5e1; font-weight:700; font-size:12px; color:#0f172a;">${s.name.toUpperCase()}</td>
+                    <td style="padding:10px; border:1px solid #cbd5e1; font-size:11px; font-weight:600; color:#475569; text-align:center;">${s.id}</td>
                     ${subCells}
-                    <td style="text-align:center; padding:6px 8px; border:2px solid #1e293b; background:${gc.bg}; color:${gc.text}; font-weight:800; font-size:13px;">
-                        ${overall !== null ? `${overall}%<br/><span style='font-size:11px'>${calcGrade(overall)}</span>` : '—'}
+                    <td style="text-align:center; padding:10px 8px; border:1px solid #cbd5e1; background:${overall !== null ? gc.bg : '#f8fafc'}; color:#334155;">
+                        ${overallHTML}
                     </td>
-                    <td style="text-align:center; padding:6px 8px; border:2px solid #1e293b; font-weight:700; font-size:12px; color:${overall !== null && overall >= 40 ? '#15803d' : '#dc2626'}">
-                        ${overall !== null ? (overall >= 40 ? 'PASS' : 'FAIL') : '—'}
+                    <td style="text-align:center; padding:10px 8px; border:1px solid #cbd5e1; font-weight:800; font-size:11px;">
+                        ${overall !== null ? `<span style="padding:3px 8px; border-radius:4px; font-size:10px; font-weight:800; border:1px solid ${overall >= 40 ? '#a7f3d0' : '#fecaca'}; background:${overall >= 40 ? '#ecfdf5' : '#fef2f2'}; color:${overall >= 40 ? '#047857' : '#b91c1c'}">${overall >= 40 ? 'PASS' : 'FAIL'}</span>` : '—'}
                     </td>
                 </tr>`;
         }).join('');
@@ -596,7 +613,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         const topStudent = withResults.sort((a, b) => calcOverallPct(getTermResults(b, termLabel)) - calcOverallPct(getTermResults(a, termLabel)))[0];
 
         const subHeaders = subs.map(sub =>
-            `<th style="padding:8px 4px; background:#1e3a5f; color:white; font-size:11px; text-align:center; min-width:80px; border:2px solid #0f172a">${sub}<br/><span style='font-weight:400;font-size:10px'>/${getSubjectTotal(sub, termLabel)}</span></th>`
+            `<th style="padding:10px 6px; background:#0f172a; color:white; font-size:10px; font-weight:800; text-align:center; min-width:85px; border:1px solid #cbd5e1">${sub.toUpperCase()}<br/><span style='font-weight:500;font-size:8.5px;color:#94a3b8'>Total: ${getSubjectTotal(sub, termLabel)}</span></th>`
         ).join('');
 
         const html = `<!DOCTYPE html>
@@ -605,41 +622,44 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 <meta charset="UTF-8" />
 <title>Result Report - ${selectedClass} - ${termLabel}</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f1f5f9; color: #1e293b; padding: 20px; text-align: center; display: block; overflow-x: auto; }
-  @page { size: A4 landscape; margin: 12mm; }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+  body { background: #dde3f0; color: #0f172a; padding: 30px; text-align: center; display: block; overflow-x: auto; }
+  @page { size: A4 landscape; margin: 12mm 0; }
   @media print {
     .no-print { display: none !important; }
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 0; background: #fff; overflow: visible; display: block; }
-    .report-container { box-shadow: none !important; margin: 0 !important; width: 100% !important; min-width: 100% !important; display: block !important; }
-    .table-wrap { overflow-x: visible !important; width: 100% !important; }
-    table { page-break-inside: auto; }
+    .report-container { box-shadow: none !important; margin: 0 !important; width: 100% !important; min-width: 100% !important; display: block !important; border: none !important; }
+    .table-wrap { overflow-x: visible !important; width: 100% !important; padding: 20px 0 0 0 !important; }
+    table { page-break-inside: auto; width: 100% !important; }
     tr { page-break-inside: avoid; page-break-after: auto; }
   }
-  .report-container { display: inline-block; min-width: 100%; min-width: max-content; background: #fff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin: 0 auto; text-align: left; }
-  .header { background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); color: white; padding: 24px 28px; border-radius: 8px 8px 0 0; text-align: center; }
-  .header h1 { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
-  .header p { font-size: 13px; opacity: 0.9; }
-  .meta-bar { display: flex; justify-content: center; gap: 30px; background: #f8fafc; padding: 16px 28px; border-bottom: 2px solid #e2e8f0; flex-wrap: wrap; text-align: center; }
-  .meta-item { display: flex; flex-direction: column; }
-  .meta-label { font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.05em; }
-  .meta-value { font-size: 14px; font-weight: 700; color: #1e293b; }
-  .stats-bar { display: flex; justify-content: center; gap: 16px; padding: 14px 28px; background: #fff; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; }
-  .stat-card { flex: 1; min-width: 100px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; text-align: center; }
-  .stat-num { font-size: 22px; font-weight: 800; color: #1e3a5f; }
-  .stat-lbl { font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; margin-top: 2px; }
-  .table-wrap { width: 100%; padding: 20px 28px 28px; }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; border: 2px solid #0f172a; margin: 0; }
-  thead tr th { position: sticky; top: 0; z-index: 10; }
-  .footer { text-align: center; padding: 16px 28px; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; }
-  .print-btn { position: fixed; bottom: 24px; right: 24px; background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.4); }
-  .print-btn:hover { background: #1d4ed8; }
+  .report-container { display: inline-block; min-width: 100%; max-width: 1100px; background: #fff; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #cbd5e1; margin: 0 auto; text-align: left; overflow: hidden; }
+  .header { background: #0f172a; color: white; padding: 24px 30px; text-align: center; border-bottom: 3px solid #1e3a8a; }
+  .header h1 { font-size: 24px; font-weight: 800; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .header p { font-size: 11px; opacity: 0.85; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #cbd5e1; }
+  .meta-bar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; background: #f8fafc; padding: 16px 30px; border-bottom: 1px solid #cbd5e1; text-align: center; }
+  .meta-item { display: flex; flex-direction: column; gap: 4px; }
+  .meta-label { font-size: 8.5px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.5px; }
+  .meta-value { font-size: 12px; font-weight: 700; color: #0f172a; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; }
+  .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr) 2fr; gap: 16px; padding: 20px 30px; background: #fff; border-bottom: 1px solid #cbd5e1; }
+  .stat-card { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px 14px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
+  .stat-card.top-performer { border: 1px solid #c084fc; background: #faf5ff; }
+  .stat-num { font-size: 22px; font-weight: 800; color: #1e3a8a; }
+  .stat-lbl { font-size: 8.5px; color: #64748b; font-weight: 700; text-transform: uppercase; margin-top: 4px; letter-spacing: 0.5px; }
+  .table-wrap { width: 100%; padding: 24px 30px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #cbd5e1; margin: 0; }
+  thead tr th { background: #0f172a; color: white; padding: 10px 8px; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; border: 1px solid #cbd5e1; }
+  tbody tr td { border: 1px solid #cbd5e1; padding: 8px 10px; color: #334155; }
+  .footer { text-align: center; padding: 16px 30px; font-size: 9.5px; color: #94a3b8; border-top: 1px solid #cbd5e1; background: #f8fafc; font-weight: 500; }
+  .print-btn { position: fixed; bottom: 24px; right: 24px; background: #1e3a8a; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(30,58,138,0.3); text-transform: uppercase; letter-spacing: 1px; transition: all 0.2s ease; border: 1px solid #1e3a8a; }
+  .print-btn:hover { background: #0f172a; transform: translateY(-1px); }
 </style>
 </head>
 <body>
 <div class="report-container">
 <div class="header">
-  <h1>📊 ${schoolName}</h1>
+  <h1>${schoolName}</h1>
   <p>Result Report &nbsp;|&nbsp; ${sectionName ? sectionName + ' — ' : ''}${selectedClass} &nbsp;|&nbsp; ${termLabel} &nbsp;|&nbsp; Generated: ${printDate}</p>
 </div>
 <div class="meta-bar">
@@ -654,30 +674,30 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 <div class="stats-bar">
   <div class="stat-card"><div class="stat-num" style="color:#15803d">${passCount}</div><div class="stat-lbl">Passed</div></div>
   <div class="stat-card"><div class="stat-num" style="color:#dc2626">${withResults.length - passCount}</div><div class="stat-lbl">Failed</div></div>
-  <div class="stat-card"><div class="stat-num" style="color:#1d4ed8">${withResults.length ? Math.round((passCount / withResults.length) * 100) : 0}%</div><div class="stat-lbl">Pass Rate</div></div>
+  <div class="stat-card"><div class="stat-num" style="color:#1e3a8a">${withResults.length ? Math.round((passCount / withResults.length) * 100) : 0}%</div><div class="stat-lbl">Pass Rate</div></div>
   <div class="stat-card"><div class="stat-num">${avgPct}%</div><div class="stat-lbl">Class Average</div></div>
-  ${topStudent ? `<div class="stat-card" style="flex:2;"><div class="stat-num" style="font-size:16px;color:#7c3aed">${topStudent.name}</div><div class="stat-lbl">🏆 Top Student — ${calcOverallPct(getTermResults(topStudent, termLabel))}%</div></div>` : ''}
+  ${topStudent ? `<div class="stat-card top-performer" style="flex:2;"><div class="stat-num" style="font-size:15px;color:#7c3aed">${topStudent.name.toUpperCase()}</div><div class="stat-lbl">Top Performer — ${calcOverallPct(getTermResults(topStudent, termLabel))}%</div></div>` : ''}
 </div>
 <div class="table-wrap">
 <table>
   <thead>
     <tr>
-      <th style="padding:8px 10px; background:#1e3a5f; color:white; text-align:left; font-size:11px; border:2px solid #0f172a">#</th>
-      <th style="padding:8px 10px; background:#1e3a5f; color:white; text-align:left; font-size:11px; min-width:160px; border:2px solid #0f172a">Student Name</th>
-      <th style="padding:8px 4px; background:#1e3a5f; color:white; text-align:center; font-size:11px; min-width:90px; border:2px solid #0f172a">ID</th>
+      <th style="padding:10px 8px; background:#0f172a; color:white; text-align:center; font-size:10px; border:1px solid #cbd5e1">#</th>
+      <th style="padding:10px 8px; background:#0f172a; color:white; text-align:left; font-size:10px; min-width:160px; border:1px solid #cbd5e1">Student Name</th>
+      <th style="padding:10px 8px; background:#0f172a; color:white; text-align:center; font-size:10px; min-width:90px; border:1px solid #cbd5e1">ID</th>
       ${subHeaders}
-      <th style="padding:8px 8px; background:#0f2744; color:#fbbf24; text-align:center; font-size:11px; min-width:70px; border:2px solid #0f172a">Overall</th>
-      <th style="padding:8px 8px; background:#0f2744; color:#fbbf24; text-align:center; font-size:11px; min-width:55px; border:2px solid #0f172a">Result</th>
+      <th style="padding:10px 8px; background:#1e3a8a; color:white; text-align:center; font-size:10px; min-width:70px; border:1px solid #cbd5e1">Overall</th>
+      <th style="padding:10px 8px; background:#1e3a8a; color:white; text-align:center; font-size:10px; min-width:55px; border:1px solid #cbd5e1">Result</th>
     </tr>
   </thead>
   <tbody>${rows}</tbody>
 </table>
 </div>
 <div class="footer">
-  ${schoolName} &nbsp;|&nbsp; ${selectedClass} &nbsp;|&nbsp; ${termLabel} &nbsp;|&nbsp; Printed: ${printDate} &nbsp;|&nbsp; Total Students: ${classStudents.length}
+  ${schoolName.toUpperCase()} &nbsp;|&nbsp; ${selectedClass} &nbsp;|&nbsp; ${termLabel} &nbsp;|&nbsp; Printed: ${printDate} &nbsp;|&nbsp; Total Students: ${classStudents.length}
 </div>
 </div>
-<button class="print-btn no-print" onclick="window.print()">🖨️ Print / Save PDF</button>
+<button class="print-btn no-print" onclick="window.print()">Print / Save PDF</button>
 </body>
 </html>`;
 
@@ -702,17 +722,17 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 <div class="card">
                     <div class="card-header">
                         <h1>${schoolName}</h1>
-                        <p>Student Login Credentials 🔒</p>
+                        <p>Student Login Credentials</p>
                     </div>
                     <div class="card-body">
-                        <h2>${s.name}</h2>
+                        <h2>${s.name.toUpperCase()}</h2>
                         <div class="detail-row">
                             <span class="detail-label">Father's Name</span>
-                            <span class="detail-value">${s.admissions?.[0]?.fatherName || '—'}</span>
+                            <span class="detail-value">${(s.admissions?.[0]?.fatherName || '—').toUpperCase()}</span>
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">Class</span>
-                            <span class="detail-value">${s.grade}</span>
+                            <span class="detail-value">${s.grade.toUpperCase()}</span>
                         </div>
                         <div class="credentials-box">
                             <div class="cred-item">
@@ -721,11 +741,11 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                             </div>
                             <div class="cred-item">
                                 <span class="cred-label">Password</span>
-                                <span class="cred-value">${s.password || (s.id + '123')}</span>
+                                <span class="cred-value" style="font-family:monospace;">${s.password || (s.id + '123')}</span>
                             </div>
                         </div>
-                        <p style="margin-top: 25px; font-size: 13px; color: #64748b; text-align: center;">
-                            Please keep these credentials secure. You can use them to access the Student Portal to view your attendance, results, and fee status.
+                        <p style="margin-top: 25px; font-size: 13px; color: #64748b; text-align: center; line-height: 1.5;">
+                            Please keep these credentials secure. You can use them to access the Student Portal to view your attendance, academic results, and fee status.
                         </p>
                     </div>
                 </div>
@@ -739,8 +759,9 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 <meta charset="UTF-8" />
 <title>Student Credentials - ${classToExport}</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #e2e8f0; color: #1e293b; }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+  body { background: #dde3f0; color: #0f172a; }
   @page { size: A4 portrait; margin: 0; }
   @media print {
     .no-print { display: none !important; }
@@ -748,27 +769,27 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     .page { page-break-after: always; height: 100vh; display: flex; align-items: center; justify-content: center; }
   }
   .page { height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-  .card { width: 100%; max-width: 600px; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border: 2px solid #e2e8f0; }
-  .card-header { background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); color: white; padding: 40px; text-align: center; }
-  .card-header h1 { font-size: 32px; font-weight: 800; margin-bottom: 10px; }
-  .card-header p { font-size: 16px; opacity: 0.9; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; }
+  .card { width: 100%; max-width: 600px; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #cbd5e1; }
+  .card-header { background: #0f172a; color: white; padding: 40px; text-align: center; border-bottom: 3px solid #1e3a8a; }
+  .card-header h1 { font-size: 30px; font-weight: 800; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .card-header p { font-size: 12px; opacity: 0.85; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: #cbd5e1; }
   .card-body { padding: 40px; }
-  .card-body h2 { font-size: 28px; font-weight: 800; color: #0f172a; margin-bottom: 30px; text-align: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; }
-  .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed #e2e8f0; margin-bottom: 15px; }
-  .detail-label { font-size: 14px; font-weight: 700; color: #64748b; text-transform: uppercase; }
-  .detail-value { font-size: 18px; font-weight: 700; color: #1e293b; }
-  .credentials-box { margin-top: 30px; background: #f8fafc; border: 2px solid #cbd5e1; border-radius: 12px; padding: 25px; }
+  .card-body h2 { font-size: 24px; font-weight: 800; color: #0f172a; margin-bottom: 30px; text-align: center; border-bottom: 2px solid #cbd5e1; padding-bottom: 20px; }
+  .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed #cbd5e1; margin-bottom: 15px; }
+  .detail-label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+  .detail-value { font-size: 15px; font-weight: 700; color: #0f172a; }
+  .credentials-box { margin-top: 30px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 25px; }
   .cred-item { margin-bottom: 20px; }
   .cred-item:last-child { margin-bottom: 0; }
-  .cred-label { display: block; font-size: 13px; font-weight: 800; color: #3b82f6; text-transform: uppercase; margin-bottom: 8px; }
-  .cred-value { display: block; font-size: 24px; font-weight: 800; color: #0f172a; background: white; padding: 12px 16px; border-radius: 8px; border: 1px solid #e2e8f0; letter-spacing: 1px; }
-  .print-btn { position: fixed; bottom: 24px; right: 24px; background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-  .print-btn:hover { background: #1d4ed8; }
+  .cred-label { display: block; font-size: 11px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; }
+  .cred-value { display: block; font-size: 22px; font-weight: 800; color: #0f172a; background: white; padding: 12px 16px; border-radius: 6px; border: 1px solid #cbd5e1; letter-spacing: 1px; }
+  .print-btn { position: fixed; bottom: 24px; right: 24px; background: #1e3a8a; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(30,58,138,0.3); text-transform: uppercase; letter-spacing: 1px; transition: all 0.2s ease; border: 1px solid #1e3a8a; }
+  .print-btn:hover { background: #0f172a; transform: translateY(-1px); }
 </style>
 </head>
 <body>
   ${pages}
-  <button class="print-btn no-print" onclick="window.print()">🖨️ Print Passwords PDF</button>
+  <button class="print-btn no-print" onclick="window.print()">Print Passwords PDF</button>
 </body>
 </html>`;
 
@@ -998,266 +1019,456 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         // 2. Print Logic
 
         // Helper to create boxed character spans
-        const boxChars = (str, length, spacing = 0) => {
+        const boxChars = (str, length) => {
             const chars = (str || '').replace(/[^A-Z0-9 ]/gi, '').toUpperCase().split('');
             let html = '';
             for (let i = 0; i < length; i++) {
-                html += `<span style="display:inline-block;width:20px;height:20px;border:1px solid #000;text-align:center;line-height:20px;font-weight:700;margin-right:${spacing}px;font-size:11px;">${chars[i] === ' ' ? '&nbsp;' : (chars[i] || '')}</span>`;
+                html += `<span class="cbox">${chars[i] === ' ' ? '&nbsp;' : (chars[i] || '')}</span>`;
             }
             return html;
         };
 
-        const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Admission Form - ${d.studentName || 'New Student'}</title>
-            <style>
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-                * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
-                body { margin: 0; padding: 0; background: #f0f0f0; }
-                .page { 
-                    width: 210mm; 
-                    height: 297mm; 
-                    margin: 0 auto; 
-                    background: #fff; 
-                    padding: 12mm 15mm; 
-                    position: relative; 
-                    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-                }
-                .header-container {
-                    display: flex;
-                    align-items: center;
-                    border: 2.5px solid #1e3a8a;
-                    padding: 15px 25px;
-                    border-radius: 12px;
-                    margin-bottom: 25px;
-                    position: relative;
-                    background: linear-gradient(135deg, #ffffff, #f8fafc);
-                }
-                .header-logo {
-                    width: 100px;
-                    height: auto;
-                    margin-right: 25px;
-                }
-                .header-text {
-                    flex: 1;
-                    text-align: center;
-                }
-                .header-text h1 {
-                    margin: 0;
-                    font-size: 32px;
-                    color: #1e3a8a;
-                    font-weight: 800;
-                    letter-spacing: 1px;
-                    text-transform: uppercase;
-                }
-                .header-text p {
-                    margin: 4px 0;
-                    font-size: 13px;
-                    color: #1e40af;
-                    font-weight: 600;
-                }
-                .header-contact {
-                    font-size: 16px;
-                    font-weight: 800;
-                    color: #1e3a8a;
-                    margin-top: 5px;
-                }
-                .section-title { 
-                    background: #f97316; 
-                    color: #fff; 
-                    display: inline-block; 
-                    padding: 4px 15px; 
-                    font-weight: 800; 
-                    border-radius: 4px; 
-                    margin: 22px 0 12px; 
-                    font-size: 14px; 
-                    text-transform: uppercase;
-                }
-                .field-row { display: flex; align-items: center; margin-bottom: 11px; font-size: 12px; }
-                .field-label { width: 130px; font-weight: 700; font-size: 10px; text-transform: uppercase; color: #334155; }
-                .boxed-row { display: flex; gap: 1px; }
-                .photo-box { 
-                    position: absolute; 
-                    top: 175px; 
-                    right: 15mm; 
-                    width: 35mm; 
-                    height: 44mm; 
-                    border: 2px dashed #64748b; 
-                    display: flex; 
-                    flex-direction: column; 
-                    align-items: center; 
-                    justify-content: center; 
-                    text-align: center; 
-                    padding: 5px;
-                    background: #f8fafc;
-                }
-                .photo-box b { font-size: 12px; color: #64748b; }
-                .photo-box span { font-size: 9px; color: #94a3b8; }
-                .checkbox-group { display: flex; gap: 12px; }
-                .checkbox { display: flex; align-items: center; gap: 4px; font-weight: 600; }
-                .box { width: 13px; height: 13px; border: 1.5px solid #000; }
-                .underline { border-bottom: 1.5px solid #e2e8f0; flex: 1; padding: 0 5px; min-height: 18px; font-weight: 700; color: #1e293b; }
-                .meta-header { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 20px; }
-                
-                @media print {
-                    @page { size: A4; margin: 0; }
-                    body { 
-                        background: #fff; 
-                        padding: 0; 
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                        color-adjust: exact !important;
-                    }
-                    .page { border: none; box-shadow: none; width: 100%; height: 100vh; padding: 10mm 15mm; }
-                    .no-print { display: none; }
-                }
-            </style>
-        </head>
-        <body onload="setTimeout(()=>{window.print();},600)">
-            <div class="no-print" style="text-align:center; padding: 16px 20px; background: #1e3a8a; border-bottom: 3px solid #1e40af; display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap;">
-                <span style="color:white; font-weight:700; font-size:14px;">📄 To save as PDF: In the print dialog → change <strong>Destination</strong> to <em>"Save as PDF"</em> → click Save</span>
-                <button onclick="window.print()" style="padding: 10px 24px; background: white; color: #1e3a8a; border: none; border-radius: 8px; cursor: pointer; font-weight: 800; font-size: 14px;">🖨️ Print / Save as PDF</button>
-            </div>
-            <div class="page">
-                <div class="header-container">
-                    <img src="${schoolSettings?.logo_url || '/logo.png'}" class="header-logo" onerror="this.style.display='none'" />
-                    <div class="header-text">
-                        <h1>${schoolName}</h1>
-                        <p>${schoolData?.contact?.address || 'School Address'}</p>
-                        <div class="header-contact">📞 ${schoolData?.contact?.phone || schoolData?.contact?.whatsapp || 'Contact Number'}</div>
-                    </div>
-                </div>
 
-                <div class="meta-header">
-                    <div>APPLYING FOR: <span style="color:#1e3a8a; border-bottom:1px solid #1e3a8a; min-width:80px; display:inline-block">${d.applyingFor}</span></div>
-                    ${d.serialNumber ? `<div>SERIAL #: <span style="color:#7c3aed; font-weight:900">${d.serialNumber}</span></div>` : ''}
-                    <div>DATE: <span style="color:#1e3a8a; border-bottom:1px solid #1e3a8a; min-width:80px; display:inline-block">${d.applicationDate}</span></div>
-                </div>
-
-                <div style="text-align:center; margin: 10px 0;">
-                    <span style="background:#1e3a8a; color:#fff; padding:6px 40px; border-radius:6px; font-weight:900; font-size:18px; letter-spacing:1px; border:2px solid #1e3a8a; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">ADMISSION FORM</span>
-                </div>
-
-                <div class="photo-box">
-                    ${d.photo ? `<img src="${d.photo}" style="width:100%;height:100%;object-fit:cover;" />` : `
-                    <b>Photograph</b>
-                    <span>(Passport Size)</span>
-                    `}
-                </div>
-
-                <div class="section-title" style="background:#1e3a8a; margin-top: 10px;">Student's Information</div>
-                <p style="font-size:9px; color:#64748b; margin:-4px 0 8px; font-weight:600;">USE CAPITAL LETTERS ONLY</p>
-
-                <div class="field-row">
-                    <div class="field-label">Student Name:</div>
-                    <div class="boxed-row">${boxChars(d.studentName, 25)}</div>
-                </div>
-
-                <div class="field-row">
-                    <div class="field-label">B-Form No:</div>
-                    <div class="boxed-row">
-                        ${boxChars(d.bForm.substring(0, 5), 5)}
-                        <span style="margin:0 2px; font-weight:bold;">-</span>
-                        ${boxChars(d.bForm.substring(5, 12), 7)}
-                        <span style="margin:0 2px; font-weight:bold;">-</span>
-                        ${boxChars(d.bForm.substring(12, 13), 1)}
-                    </div>
-                </div>
-
-                <div class="field-row">
-                    <div class="field-label">Date of Birth:</div>
-                    <div class="boxed-row">
-                        ${boxChars(d.dob.split('-')[2] || '', 2)}
-                        <span style="margin:0 2px; font-weight:bold;">-</span>
-                        ${boxChars(d.dob.split('-')[1] || '', 2)}
-                        <span style="margin:0 2px; font-weight:bold;">-</span>
-                        ${boxChars(d.dob.split('-')[0] || '', 4)}
-                    </div>
-                    <div style="margin-left: 15px; font-weight:800; font-size:10px; color:#475569;">NATIONALITY: <span class="underline" style="min-width:100px; display:inline-block">${d.nationality || 'PAKISTANI'}</span></div>
-                </div>
-
-                <div class="field-row" style="margin-top:2px;">
-                    <div class="field-label">Gender:</div>
-                    <div class="checkbox-group">
-                        <div class="checkbox"><div class="box" style="${d.gender === 'Male' ? 'background:#1e3a8a' : ''}"></div> MALE</div>
-                        <div class="checkbox"><div class="box" style="${d.gender === 'Female' ? 'background:#1e3a8a' : ''}"></div> FEMALE</div>
-                    </div>
-                    <div style="margin-left: 30px; font-weight:800; font-size:10px; color:#475569;">RELIGION: <span class="underline" style="min-width:130px; display:inline-block">${d.religion || 'ISLAM'}</span></div>
-                </div>
-
-
-                <div class="section-title" style="background:#b91c1c">Parents Information</div>
-                <div class="field-row">
-                    <div class="field-label">Father Name:</div>
-                    <div class="boxed-row">${boxChars(d.fatherName, 25)}</div>
-                </div>
-                <div class="field-row">
-                    <div class="field-label">Father CNIC:</div>
-                    <div class="boxed-row">
-                        ${boxChars(d.fatherCnic.substring(0, 5), 5)}
-                        <span style="margin:0 2px; font-weight:bold;">-</span>
-                        ${boxChars(d.fatherCnic.substring(5, 12), 7)}
-                        <span style="margin:0 2px; font-weight:bold;">-</span>
-                        ${boxChars(d.fatherCnic.substring(12, 13), 1)}
-                    </div>
-                    <div style="margin-left:15px; font-weight:800; font-size:10px; color:#475569;">CONTACT: <span class="underline" style="min-width:130px; display:inline-block">${d.contact}</span></div>
-                </div>
-                <div class="field-row" style="margin-top:5px;">
-                    <div class="field-label">Address:</div>
-                    <span class="underline">${d.address}</span>
-                    <div style="margin-left:15px; font-weight:800; font-size:10px; color:#475569;">WHATSAPP: <span class="underline" style="min-width:120px; display:inline-block">${d.whatsapp}</span></div>
-                </div>
-
-                <div class="section-title" style="background:#1e293b; padding: 3px 20px;">UNDERTAKING</div>
-                <div style="font-size:10px; line-height:1.5; color:#334155; padding: 0 10px;">
-                    <b>I solemnly declare that:</b>
-                    <div style="margin-left:15px;">
-                        • I will abide by all rules and regulations of the school.<br>
-                        • I will pay all dues/fees promptly as per schedule.<br>
-                        • <span style="color:#b91c1c; font-weight:700;">All information provided above is correct and true.</span><br>
-                        • Fees once paid are <span style="font-weight:700;">non-refundable</span> in any situation.<br>
-                        • Admission is provisional until all required documents are submitted.
-                    </div>
-                </div>
-                
-                <div style="display:flex; justify-content:flex-end; margin-top:20px;">
-                    <div style="text-align:center; width:180px; border-top:1.5px solid #1e293b; padding-top:5px; font-size:11px; font-weight:800; color:#1e293b;">PARENT'S SIGNATURE</div>
-                </div>
-
-                <div class="section-title" style="background:#4338ca">Required Documents</div>
-                <div style="display:flex; gap:30px; font-size:10px; font-weight:700; margin-left:10px; color:#4338ca;">
-                    <div class="checkbox"><div class="box" style="${d.docs.photos ? 'background:#4338ca' : ''}"></div> 4 PASSPORT PHOTOS</div>
-                    <div class="checkbox"><div class="box" style="${d.docs.bform ? 'background:#4338ca' : ''}"></div> COPY OF B-FORM</div>
-                    <div class="checkbox"><div class="box" style="${d.docs.cnic ? 'background:#4338ca' : ''}"></div> COPY OF PARENT CNIC</div>
-                </div>
-
-                <div style="display:flex; justify-content:flex-end; margin-top:15px;">
-                    <div style="text-align:center; width:180px; border-top:1.5px solid #1e293b; padding-top:5px; font-size:11px; font-weight:800; color:#b91c1c;">PRINCIPAL'S SIGNATURE</div>
-                </div>
-
-                <!-- Footer Line -->
-                <div style="position:absolute; bottom:15mm; left:20mm; right:20mm; height:1px; background:#e2e8f0;"></div>
-            </div>
-        </body>
-        </html>`;
-
+        // 2. Print Logic
+        const html = buildAdmissionFormHTML(d);
         const printWin = window.open('', '_blank');
-        printWin.document.write(html);
+        printWin.document.write(`<!DOCTYPE html><html><head><title>Admission Form - ${d.studentName || 'New Student'}</title><style>${ADMISSION_FORM_CSS}</style></head><body onload="setTimeout(()=>{window.print();},600)"><div class="no-print" style="text-align:center;padding:14px 20px;background:#0f172a;border-bottom:3px solid #1e293b;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;"><span style="color:white;font-weight:700;font-size:13px;">📄 To save as PDF: change <strong>Destination</strong> to <em>"Save as PDF"</em> in the print dialog</span><button onclick="window.print()" style="padding:9px 22px;background:white;color:#0f172a;border:none;border-radius:8px;cursor:pointer;font-weight:800;font-size:13px;">🖨️ Print / Save as PDF</button></div>${html}</body></html>`);
         printWin.document.close();
     };
 
-    // ── Shared: build a single admission form page HTML from student data ──
+    // ── Global CSS for Admission Forms ──
+    const ADMISSION_FORM_CSS = `
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { margin: 0; padding: 0; background: #dde3f0; color: #0f172a; }
+
+        .page { 
+            width: 210mm; 
+            min-height: 297mm; 
+            margin: 0 auto; 
+            background: #fff; 
+            padding: 10mm 12mm 10mm 12mm; 
+            position: relative; 
+            box-shadow: 0 0 24px rgba(0,0,0,0.1); 
+            overflow: hidden; 
+            box-sizing: border-box;
+            page-break-after: always;
+        }
+
+        .header-box {
+            border: 2.5px solid #1e3a8a;
+            border-radius: 14px;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            background: #fff;
+        }
+        
+        .header-logo-container {
+            width: 70px;
+            height: 70px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        
+        .header-logo-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        .header-text-container {
+            flex-grow: 1;
+            text-align: center;
+        }
+        
+        .school-title {
+            color: #1e3a8a;
+            font-size: 25px;
+            font-weight: 900;
+            letter-spacing: 0.5px;
+            margin: 0 0 2px 0;
+            text-transform: uppercase;
+        }
+        
+        .school-address {
+            color: #1e3a8a;
+            font-size: 10px;
+            font-weight: 700;
+            margin: 0 0 3px 0;
+        }
+        
+        .school-phone {
+            color: #e11d48; /* Magenta/Pinkish Red */
+            font-size: 12px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .metadata-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 10px;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 12px;
+            padding: 0 4px;
+        }
+        
+        .meta-val-underlined {
+            color: #1e3a8a;
+            font-weight: 800;
+            border-bottom: 2px solid #1e3a8a;
+            padding: 0 6px 1px 6px;
+            display: inline-block;
+        }
+        
+        .meta-val-highlight {
+            color: #7c3aed; /* Bold purple/violet */
+            font-weight: 900;
+            font-size: 11px;
+            padding: 0 4px;
+        }
+
+        .title-badge-container {
+            display: flex;
+            justify-content: center;
+            margin: 6px 0 16px 0;
+        }
+        
+        .title-badge {
+            background-color: #1e3a8a;
+            color: white;
+            padding: 7px 32px;
+            font-weight: 800;
+            font-size: 14px;
+            border-radius: 6px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .photo-box-dashed {
+            width: 105px;
+            height: 135px;
+            border: 1.5px dashed #475569;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 3px;
+            background: #fff;
+            overflow: hidden;
+        }
+        
+        .photo-box-dashed img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .ph-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .ph-bold {
+            font-weight: 700;
+            color: #64748b;
+            font-size: 10.5px;
+            text-transform: uppercase;
+        }
+        
+        .ph-sub {
+            color: #94a3b8;
+            font-size: 7.5px;
+            margin-top: 2px;
+        }
+
+        .section-badge {
+            color: white;
+            font-weight: 800;
+            font-size: 11.5px;
+            padding: 4px 14px;
+            border-radius: 5px;
+            width: fit-content;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+            margin-top: 14px;
+        }
+        
+        .section-student { background-color: #1e3a8a; }
+        .section-health { background-color: #0f766e; }
+        .section-parents { background-color: #b91c1c; }
+        .section-undertaking { background-color: #1e293b; }
+        .section-documents { background-color: #3b82f6; }
+
+        .section-subtitle {
+            font-size: 7.5px;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            margin-top: -3px;
+            margin-bottom: 10px;
+            letter-spacing: 0.3px;
+        }
+
+        /* Character grid boxes */
+        .char-box-row {
+            display: inline-flex;
+            align-items: center;
+            gap: 0px;
+        }
+        
+        .char-box {
+            width: 15.5px;
+            height: 17.5px;
+            border: 1px solid #475569;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 800;
+            color: #0f172a;
+            background: #fff;
+            margin-right: 1.5px;
+            text-transform: uppercase;
+        }
+        
+        .char-separator {
+            font-weight: 900;
+            color: #475569;
+            margin: 0 4px;
+            font-size: 11px;
+        }
+
+        /* Grid fields layout */
+        .fields-table {
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+        }
+        
+        .fields-table-row {
+            display: flex;
+            align-items: center;
+        }
+        
+        .fields-table-lbl {
+            font-size: 9px;
+            font-weight: 800;
+            color: #0f172a;
+            width: 105px;
+            flex-shrink: 0;
+            text-transform: uppercase;
+        }
+        
+        .fields-table-val {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+        }
+        
+        .fields-table-val-split {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+        }
+        
+        .inline-lbl {
+            font-size: 9px;
+            font-weight: 800;
+            color: #0f172a;
+            text-transform: uppercase;
+        }
+        
+        .inline-val-underlined {
+            border-bottom: 1.5px solid #cbd5e1;
+            padding-bottom: 2px;
+            font-size: 10.5px;
+            font-weight: 700;
+            color: #0f172a;
+            padding-left: 6px;
+            flex-grow: 1;
+            min-height: 15px;
+        }
+
+        /* Checkboxes styling */
+        .checkbox-group {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .checkbox-item-custom {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 800;
+            font-size: 9px;
+            color: #0f172a;
+        }
+        
+        .chk-box-custom {
+            width: 11px;
+            height: 11px;
+            border: 1.5px solid #0f172a;
+            border-radius: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            flex-shrink: 0;
+        }
+        
+        .chk-box-custom.checked {
+            background: #1e3a8a;
+            border-color: #1e3a8a;
+            position: relative;
+        }
+        
+        .chk-box-custom.checked::after {
+            content: '';
+            width: 2.5px;
+            height: 5px;
+            border: solid white;
+            border-width: 0 1.5px 1.5px 0;
+            transform: rotate(45deg);
+            position: absolute;
+            top: 1px;
+        }
+        
+        .section-health .chk-box-custom.checked {
+            background: #0f766e;
+            border-color: #0f766e;
+        }
+
+        /* Medical Table */
+        .medical-table {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .medical-row {
+            display: flex;
+            align-items: center;
+        }
+        
+        .med-lbl {
+            font-size: 9px;
+            font-weight: 800;
+            color: #0f172a;
+            width: 125px;
+            flex-shrink: 0;
+        }
+        
+        .med-details-lbl {
+            font-size: 9px;
+            font-weight: 800;
+            color: #0f172a;
+            margin-left: 15px;
+            margin-right: 5px;
+        }
+        
+        .med-details-val {
+            flex-grow: 1;
+            border-bottom: 1.5px solid #cbd5e1;
+            padding-bottom: 2px;
+            font-size: 10px;
+            font-weight: 700;
+            color: #0f172a;
+            min-height: 15px;
+            padding-left: 6px;
+        }
+
+        /* Undertaking block */
+        .undertaking-container {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            padding: 8px 12px;
+            border-radius: 4px;
+        }
+        
+        .undertaking-bullet-list {
+            margin: 4px 0 0 14px;
+            padding: 0;
+            list-style-type: disc;
+            font-size: 8.5px;
+            line-height: 1.5;
+            color: #334155;
+        }
+        
+        .undertaking-bullet-list li {
+            margin-bottom: 2px;
+        }
+
+        .docs-checklist-custom {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            padding: 4px 0;
+        }
+
+        /* Signatures block */
+        .signature-block {
+            text-align: center;
+            width: 100%;
+        }
+        
+        .signature-line {
+            border-bottom: 1.5px solid #0f172a;
+            margin-bottom: 5px;
+            height: 30px;
+        }
+        
+        .signature-lbl {
+            font-size: 9px;
+            font-weight: 800;
+            color: #1e3a8a;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        
+        .signature-lbl.principal-lbl {
+            color: #b91c1c;
+        }
+
+        .bottom-accent { 
+            height: 5px; 
+            background: #1e3a8a; 
+            position: absolute; 
+            bottom: 0; 
+            left: 0; 
+            right: 0; 
+        }
+
+        @media print {
+            @page { size: A4; margin: 0; }
+            body { background: #fff; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+            .page { border: none; box-shadow: none; width: 100%; min-height: 100vh; padding: 10mm 12mm 10mm 12mm; }
+            .no-print { display: none !important; }
+        }
+    `;
+
     const buildAdmissionFormHTML = (d) => {
-        const boxChars = (str, length, spacing = 0) => {
-            const chars = (str || '').replace(/[^A-Z0-9 ]/gi, '').toUpperCase().split('');
-            let html = '';
-            for (let i = 0; i < length; i++) {
-                html += `<span style="display:inline-block;width:20px;height:20px;border:1px solid #000;text-align:center;line-height:20px;font-weight:700;margin-right:${spacing}px;font-size:11px;">${chars[i] === ' ' ? '&nbsp;' : (chars[i] || '')}</span>`;
-            }
-            return html;
-        };
         const bForm = d.bForm || d.admissions?.[0]?.bForm || '';
         const fatherCnic = d.fatherCnic || d.admissions?.[0]?.fatherCnic || '';
         const adm = d.admissions?.[0] || {};
@@ -1269,104 +1480,315 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         const gender = d.gender || adm.gender || '';
         const religion = d.religion || adm.religion || 'ISLAM';
         const photo = d.photo || d.image || '';
+        
         const allergies = d.allergies || adm.allergies || 'No';
         const allergiesDetails = d.allergiesDetails || adm.allergiesDetails || '';
         const chronicCondition = d.chronicCondition || adm.chronicCondition || 'No';
         const chronicConditionDetails = d.chronicConditionDetails || adm.chronicConditionDetails || '';
         const medication = d.medication || adm.medication || 'No';
         const medicationDetails = d.medicationDetails || adm.medicationDetails || '';
+        
         const fatherName = d.fatherName || adm.fatherName || '';
         const contact = d.contact || adm.contact || '';
         const address = d.address || adm.address || '';
         const whatsapp = d.whatsapp || adm.whatsapp || '';
         const serialNumber = d.serialNumber || d.serial_number || '';
         const docs = d.docs || { photos: false, bform: false, cnic: false };
+
+        const formatDate = (val) => {
+            if (!val) return '';
+            if (val.includes('-')) {
+                const parts = val.split('-');
+                if (parts.length === 3) {
+                    if (parts[0].length === 4) {
+                        return `${parts[0]}-${parts[1]}-${parts[2]}`;
+                    }
+                }
+            }
+            return val;
+        };
+
+        const renderCharBoxes = (str, totalBoxes) => {
+            const chars = (str || '').replace(/[^A-Z0-9 ]/gi, '').toUpperCase().split('');
+            let html = '<div class="char-box-row">';
+            for (let i = 0; i < totalBoxes; i++) {
+                const char = chars[i] || '';
+                html += `<span class="char-box">${char === ' ' ? '&nbsp;' : char}</span>`;
+            }
+            html += '</div>';
+            return html;
+        };
+
+        const renderCNICBoxes = (cnicVal) => {
+            const digits = (cnicVal || '').replace(/[^0-9]/g, '').split('');
+            let html = '<div class="char-box-row">';
+            for (let i = 0; i < 5; i++) {
+                html += `<span class="char-box">${digits[i] || '&nbsp;'}</span>`;
+            }
+            html += '<span class="char-separator">-</span>';
+            for (let i = 5; i < 12; i++) {
+                html += `<span class="char-box">${digits[i] || '&nbsp;'}</span>`;
+            }
+            html += '<span class="char-separator">-</span>';
+            html += `<span class="char-box">${digits[12] || '&nbsp;'}</span>`;
+            html += '</div>';
+            return html;
+        };
+
+        const renderDOBBoxes = (dobVal) => {
+            let day = '', month = '', year = '';
+            if (dobVal && dobVal.includes('-')) {
+                const parts = dobVal.split('-');
+                if (parts.length === 3) {
+                    if (parts[0].length === 4) {
+                        year = parts[0];
+                        month = parts[1];
+                        day = parts[2];
+                    } else {
+                        day = parts[0];
+                        month = parts[1];
+                        year = parts[2];
+                    }
+                }
+            }
+            const dayDigits = day.split('');
+            const monthDigits = month.split('');
+            const yearDigits = year.split('');
+
+            let html = '<div class="char-box-row">';
+            for (let i = 0; i < 2; i++) {
+                html += `<span class="char-box">${dayDigits[i] || '&nbsp;'}</span>`;
+            }
+            html += '<span class="char-separator">-</span>';
+            for (let i = 0; i < 2; i++) {
+                html += `<span class="char-box">${monthDigits[i] || '&nbsp;'}</span>`;
+            }
+            html += '<span class="char-separator">-</span>';
+            for (let i = 0; i < 4; i++) {
+                html += `<span class="char-box">${yearDigits[i] || '&nbsp;'}</span>`;
+            }
+            html += '</div>';
+            return html;
+        };
+
         return `
         <div class="page">
-            <div class="header-container">
-                <img src="${schoolSettings?.logo_url || '/logo.png'}" class="header-logo" onerror="this.style.display='none'" />
-                <div class="header-text">
-                    <h1>${schoolName}</h1>
-                    <p>${schoolData?.contact?.address || 'School Address'}</p>
-                    <div class="header-contact">📞 ${schoolData?.contact?.phone || schoolData?.contact?.whatsapp || 'Contact Number'}</div>
+            <div class="header-box">
+                <div class="header-logo-container">
+                    <img src="${schoolSettings?.logo_url || '/logo.png'}" class="header-logo-img" onerror="this.style.display='none'" />
+                </div>
+                <div class="header-text-container">
+                    <div class="school-title">${schoolName || 'ACS SCHOOL & COLLEGE'}</div>
+                    <div class="school-address">${schoolData?.contact?.address || 'Main Jhang Road Near Attock Petrol Pump, Painsra, Faisalabad'}</div>
+                    <div class="school-phone">📞 ${schoolData?.contact?.phone || schoolData?.contact?.whatsapp || '0300-1333275'}</div>
                 </div>
             </div>
-            <div class="meta-header">
-                <div>APPLYING FOR: <span style="color:#1e3a8a;border-bottom:1px solid #1e3a8a;min-width:80px;display:inline-block">${applyingFor}</span></div>
-                ${d.inquiryNumber ? `<div>INQUIRY #: <span style="color:#e11d48;font-weight:900">${d.inquiryNumber}</span></div>` : ''}
-                ${serialNumber ? `<div>SERIAL #: <span style="color:#7c3aed;font-weight:900">${serialNumber}</span></div>` : ''}
-                <div>DATE: <span style="color:#1e3a8a;border-bottom:1px solid #1e3a8a;min-width:80px;display:inline-block">${applicationDate}</span></div>
+            
+            <div class="metadata-row">
+                <div>APPLYING FOR: <span class="meta-val-underlined" style="min-width: 120px;">${applyingFor.toUpperCase()}</span></div>
+                <div>SERIAL #: <span class="meta-val-highlight">${serialNumber || d.inquiryNumber || '0'}</span></div>
+                <div>DATE: <span class="meta-val-underlined">${formatDate(applicationDate)}</span></div>
             </div>
-            <div style="text-align:center;margin:10px 0">
-                <span style="background:#1e3a8a;color:#fff;padding:6px 40px;border-radius:6px;font-weight:900;font-size:18px;letter-spacing:1px;border:2px solid #1e3a8a">ADMISSION FORM</span>
+
+            <div class="title-badge-container">
+                <div class="title-badge">ADMISSION FORM</div>
             </div>
-            <div class="photo-box">
-                ${photo ? `<img src="${photo}" style="width:100%;height:100%;object-fit:cover" />` : '<b>Photograph</b><span>(Passport Size)</span>'}
+            
+            <div style="display: grid; grid-template-columns: 3.2fr 1fr; gap: 20px; align-items: start;">
+                <div>
+                    <div class="section-badge section-student">STUDENT'S INFORMATION</div>
+                    <div class="section-subtitle">USE CAPITAL LETTERS ONLY</div>
+                    
+                    <div class="fields-table">
+                        <div class="fields-table-row">
+                            <div class="fields-table-lbl">STUDENT NAME:</div>
+                            <div class="fields-table-val">${renderCharBoxes(studentName, 26)}</div>
+                        </div>
+                        <div class="fields-table-row">
+                            <div class="fields-table-lbl">B-FORM NO:</div>
+                            <div class="fields-table-val">${renderCNICBoxes(bForm)}</div>
+                        </div>
+                        <div class="fields-table-row">
+                            <div class="fields-table-lbl">DATE OF BIRTH:</div>
+                            <div class="fields-table-val-split">
+                                ${renderDOBBoxes(dob)}
+                                <div style="display: flex; gap: 5px; align-items: center; margin-left: 12px; flex-grow: 1;">
+                                    <span class="inline-lbl">NATIONALITY:</span>
+                                    <span class="inline-val-underlined">${nationality.toUpperCase()}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="fields-table-row">
+                            <div class="fields-table-lbl">GENDER:</div>
+                            <div class="fields-table-val-split">
+                                <div class="checkbox-group">
+                                    <div class="checkbox-item-custom">
+                                        <div class="chk-box-custom ${gender.toLowerCase() === 'male' ? 'checked' : ''}"></div>
+                                        <span>MALE</span>
+                                    </div>
+                                    <div class="checkbox-item-custom">
+                                        <div class="chk-box-custom ${gender.toLowerCase() === 'female' ? 'checked' : ''}"></div>
+                                        <span>FEMALE</span>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 5px; align-items: center; margin-left: 15px; flex-grow: 1;">
+                                    <span class="inline-lbl">RELIGION:</span>
+                                    <span class="inline-val-underlined">${religion.toUpperCase()}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: flex-end; align-items: start; margin-top: 15px;">
+                    <div class="photo-box-dashed">
+                        ${photo ? `<img src="${photo}" />` : `
+                        <div class="ph-placeholder">
+                            <div class="ph-bold">Photograph</div>
+                            <div class="ph-sub">(Passport Size)</div>
+                        </div>
+                        `}
+                    </div>
+                </div>
             </div>
-            <div class="section-title" style="background:#1e3a8a; margin-top: 10px;">Student's Information</div>
-            <p style="font-size:9px;color:#64748b;margin:-4px 0 8px;font-weight:600">USE CAPITAL LETTERS ONLY</p>
-            <div class="field-row"><div class="field-label">Student Name:</div><div class="boxed-row">${boxChars(studentName, 25)}</div></div>
-            <div class="field-row"><div class="field-label">B-Form No:</div><div class="boxed-row">${boxChars(bForm.substring(0,5),5)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(bForm.substring(5,12),7)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(bForm.substring(12,13),1)}</div></div>
-            <div class="field-row"><div class="field-label">Date of Birth:</div><div class="boxed-row">${boxChars(dob.split('-')[2]||'',2)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(dob.split('-')[1]||'',2)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(dob.split('-')[0]||'',4)}</div><div style="margin-left:15px;font-weight:800;font-size:10px;color:#475569">NATIONALITY: <span class="underline" style="min-width:100px;display:inline-block">${nationality}</span></div></div>
-            <div class="field-row" style="margin-top:2px"><div class="field-label">Gender:</div><div class="checkbox-group"><div class="checkbox"><div class="box" style="${gender==='Male'?'background:#1e3a8a':''}"></div> MALE</div><div class="checkbox"><div class="box" style="${gender==='Female'?'background:#1e3a8a':''}"></div> FEMALE</div></div><div style="margin-left:30px;font-weight:800;font-size:10px;color:#475569">RELIGION: <span class="underline" style="min-width:130px;display:inline-block">${religion}</span></div></div>
-            <div class="section-title" style="background:#b91c1c">Parents Information</div>
-            <div class="field-row"><div class="field-label">Father Name:</div><div class="boxed-row">${boxChars(fatherName,25)}</div></div>
-            <div class="field-row"><div class="field-label">Father CNIC:</div><div class="boxed-row">${boxChars(fatherCnic.substring(0,5),5)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(fatherCnic.substring(5,12),7)}<span style="margin:0 2px;font-weight:bold">-</span>${boxChars(fatherCnic.substring(12,13),1)}</div><div style="margin-left:15px;font-weight:800;font-size:10px;color:#475569">CONTACT: <span class="underline" style="min-width:130px;display:inline-block">${contact}</span></div></div>
-            <div class="field-row" style="margin-top:5px"><div class="field-label">Address:</div><span class="underline">${address}</span><div style="margin-left:15px;font-weight:800;font-size:10px;color:#475569">WHATSAPP: <span class="underline" style="min-width:120px;display:inline-block">${whatsapp}</span></div></div>
-            <div class="section-title" style="background:#1e293b;padding:3px 20px">UNDERTAKING</div>
-            <div style="font-size:10px;line-height:1.5;color:#334155;padding:0 10px">
-                <b>I solemnly declare that:</b>
-                <div style="margin-left:15px">• I will abide by all rules and regulations of the school.<br>• I will pay all dues/fees promptly as per schedule.<br>• <span style="color:#b91c1c;font-weight:700">All information provided above is correct and true.</span><br>• Fees once paid are <span style="font-weight:700">non-refundable</span> in any situation.<br>• Admission is provisional until all required documents are submitted.</div>
+            
+            <div class="section-badge section-health">HEALTH & MEDICAL INFO</div>
+            <div class="medical-table">
+                <div class="medical-row">
+                    <span class="med-lbl">ALLERGIES:</span>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item-custom">
+                            <div class="chk-box-custom ${allergies.toLowerCase() === 'yes' ? 'checked' : ''}"></div>
+                            <span>YES</span>
+                        </div>
+                        <div class="checkbox-item-custom">
+                            <div class="chk-box-custom ${allergies.toLowerCase() !== 'yes' ? 'checked' : ''}"></div>
+                            <span>NO</span>
+                        </div>
+                    </div>
+                    <span class="med-details-lbl">DETAILS:</span>
+                    <span class="med-details-val">${allergies.toLowerCase() === 'yes' ? (allergiesDetails || '—').toUpperCase() : ''}</span>
+                </div>
+                <div class="medical-row">
+                    <span class="med-lbl">CHRONIC CONDITION:</span>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item-custom">
+                            <div class="chk-box-custom ${chronicCondition.toLowerCase() === 'yes' ? 'checked' : ''}"></div>
+                            <span>YES</span>
+                        </div>
+                        <div class="checkbox-item-custom">
+                            <div class="chk-box-custom ${chronicCondition.toLowerCase() !== 'yes' ? 'checked' : ''}"></div>
+                            <span>NO</span>
+                        </div>
+                    </div>
+                    <span class="med-details-lbl">DETAILS:</span>
+                    <span class="med-details-val">${chronicCondition.toLowerCase() === 'yes' ? (chronicConditionDetails || '—').toUpperCase() : ''}</span>
+                </div>
+                <div class="medical-row">
+                    <span class="med-lbl">REGULAR MEDICATION:</span>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item-custom">
+                            <div class="chk-box-custom ${medication.toLowerCase() === 'yes' ? 'checked' : ''}"></div>
+                            <span>YES</span>
+                        </div>
+                        <div class="checkbox-item-custom">
+                            <div class="chk-box-custom ${medication.toLowerCase() !== 'yes' ? 'checked' : ''}"></div>
+                            <span>NO</span>
+                        </div>
+                    </div>
+                    <span class="med-details-lbl">DETAILS:</span>
+                    <span class="med-details-val">${medication.toLowerCase() === 'yes' ? (medicationDetails || '—').toUpperCase() : ''}</span>
+                </div>
             </div>
-            <div style="display:flex;justify-content:flex-end;margin-top:20px">
-                <div style="text-align:center;width:180px;border-top:1.5px solid #1e293b;padding-top:5px;font-size:11px;font-weight:800;color:#1e293b">PARENT'S SIGNATURE</div>
+            
+            <div class="section-badge section-parents">PARENTS INFORMATION</div>
+            <div class="fields-table">
+                <div class="fields-table-row">
+                    <div class="fields-table-lbl">FATHER NAME:</div>
+                    <div class="fields-table-val">${renderCharBoxes(fatherName, 30)}</div>
+                </div>
+                <div class="fields-table-row">
+                    <div class="fields-table-lbl">FATHER CNIC:</div>
+                    <div class="fields-table-val-split">
+                        ${renderCNICBoxes(fatherCnic)}
+                        <div style="display: flex; gap: 5px; align-items: center; margin-left: 12px; flex-grow: 1;">
+                            <span class="inline-lbl">CONTACT:</span>
+                            <span class="inline-val-underlined">${contact}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="fields-table-row">
+                    <div class="fields-table-lbl">ADDRESS:</div>
+                    <div class="fields-table-val-split">
+                        <span class="inline-val-underlined">${address.toUpperCase()}</span>
+                        <div style="display: flex; gap: 5px; align-items: center; margin-left: 15px; width: 35%;">
+                            <span class="inline-lbl">WHATSAPP:</span>
+                            <span class="inline-val-underlined">${whatsapp}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="fields-table-row">
+                    <div class="fields-table-lbl" style="width: auto; margin-right: 10px;">AGREED MONTHLY FEE:</div>
+                    <div class="fields-table-val" style="border: none; padding-bottom: 0;">
+                        <span style="font-weight: 800; font-size: 11px; margin-right: 5px; color: #0f172a;">RS</span>
+                        <span class="inline-val-underlined" style="width: 120px; text-align: left; display: inline-block; flex-grow: 0;">${d.monthlyFee || d.fee_history?.[0]?.amount || d.monthly || ''}</span>
+                    </div>
+                </div>
             </div>
-            <div class="section-title" style="background:#4338ca">Required Documents</div>
-            <div style="display:flex;gap:30px;font-size:10px;font-weight:700;margin-left:10px;color:#4338ca">
-                <div class="checkbox"><div class="box" style="${docs.photos?'background:#4338ca':''}"></div> 4 PASSPORT PHOTOS</div>
-                <div class="checkbox"><div class="box" style="${docs.bform?'background:#4338ca':''}"></div> COPY OF B-FORM</div>
-                <div class="checkbox"><div class="box" style="${docs.cnic?'background:#4338ca':''}"></div> COPY OF PARENT CNIC</div>
+            
+            <div style="display: grid; grid-template-columns: 1.7fr 1fr; gap: 30px; margin-top: 10px; align-items: stretch;">
+                <div>
+                    <div class="section-badge section-undertaking">UNDERTAKING</div>
+                    <div class="undertaking-container">
+                        <div style="font-weight: 700; font-size: 9.5px; color: #0f172a; margin-bottom: 4px;">I solemnly declare that:</div>
+                        <ul class="undertaking-bullet-list">
+                            <li>I will abide by all rules and regulations of the school.</li>
+                            <li>I will pay all dues/fees promptly as per schedule.</li>
+                            <li style="color: #b91c1c; font-weight: 700;">All information provided above is correct and true.</li>
+                            <li>Fees once paid are <strong>non-refundable</strong> in any situation.</li>
+                            <li>Admission is provisional until all required documents are submitted.</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="section-badge section-documents" style="margin-top: 12px;">REQUIRED DOCUMENTS</div>
+                    <div class="docs-checklist-custom">
+                        <div class="checkbox-item-custom">
+                            <div class="chk-box-custom ${docs.photos ? 'checked' : ''}"></div>
+                            <span>4 PASSPORT PHOTOS</span>
+                        </div>
+                        <div class="checkbox-item-custom">
+                            <div class="chk-box-custom ${docs.bform ? 'checked' : ''}"></div>
+                            <span>COPY OF B-FORM</span>
+                        </div>
+                        <div class="checkbox-item-custom">
+                            <div class="chk-box-custom ${docs.cnic ? 'checked' : ''}"></div>
+                            <span>COPY OF PARENT CNIC</span>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; flex-direction: column; justify-content: flex-end; gap: 30px; padding-bottom: 5px;">
+                    <div class="signature-block">
+                        <div class="signature-line"></div>
+                        <div class="signature-lbl">PARENT'S SIGNATURE</div>
+                    </div>
+                    <div class="signature-block">
+                        <div class="signature-line"></div>
+                        <div class="signature-lbl principal-lbl">PRINCIPAL'S SIGNATURE</div>
+                    </div>
+                </div>
             </div>
-            <div style="display:flex;justify-content:flex-end;margin-top:15px">
-                <div style="text-align:center;width:180px;border-top:1.5px solid #1e293b;padding-top:5px;font-size:11px;font-weight:800;color:#b91c1c">PRINCIPAL'S SIGNATURE</div>
-            </div>
-            <div style="position:absolute;bottom:15mm;left:20mm;right:20mm;height:1px;background:#e2e8f0"></div>
+            <div style="border-bottom: 1.5px solid #cbd5e1; width: 100%; margin-top: 15px;"></div>
+            <div class="bottom-accent"></div>
         </div>`;
     };
 
     const printBlankAdmissionForm = (d) => {
-        const sharedCSS = `
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-            * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
-            body { margin: 0; padding: 0; background: #f0f0f0; }
-            .page { width:210mm; min-height:297mm; margin:0 auto; background:#fff; padding:12mm 15mm; position:relative; box-shadow:0 0 10px rgba(0,0,0,0.1); page-break-after:always; }
-            .header-container { display:flex; align-items:center; border:2.5px solid #1e3a8a; padding:15px 25px; border-radius:12px; margin-bottom:15px; position:relative; background:linear-gradient(135deg,#ffffff,#f8fafc); }
-            .header-logo { width:100px; height:auto; margin-right:25px; }
-            .header-text { flex:1; text-align:center; }
-            .header-text h1 { margin:0; font-size:32px; color:#1e3a8a; font-weight:800; letter-spacing:1px; text-transform:uppercase; }
-            .header-text p { margin:4px 0; font-size:13px; color:#1e40af; font-weight:600; }
-            .header-contact { font-size:16px; font-weight:800; color:#1e3a8a; margin-top:5px; }
-            .section-title { background:#f97316; color:#fff; display:inline-block; padding:4px 15px; font-weight:800; border-radius:4px; margin:15px 0 8px; font-size:14px; text-transform:uppercase; }
-            .field-row { display:flex; align-items:center; margin-bottom:11px; font-size:12px; }
-            .field-label { width:130px; font-weight:700; font-size:10px; text-transform:uppercase; color:#334155; }
-            .boxed-row { display:flex; gap:1px; }
-            .photo-box { position:absolute; top:175px; right:15mm; width:35mm; height:44mm; border:2px dashed #64748b; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:5px; background:#f8fafc; }
-            .photo-box b { font-size:12px; color:#64748b; } .photo-box span { font-size:9px; color:#94a3b8; }
-            .checkbox-group { display:flex; gap:12px; }
-            .checkbox { display:flex; align-items:center; gap:4px; font-weight:600; }
-            .box { width:13px; height:13px; border:1.5px solid #000; }
-            .underline { border-bottom:1.5px solid #e2e8f0; flex:1; padding:0 5px; min-height:18px; font-weight:700; color:#1e293b; }
-            .meta-header { display:flex; justify-content:space-between; font-size:12px; font-weight:700; color:#475569; margin-bottom:20px; }
-            @media print { @page { size:A4; margin:0; } body { background:#fff; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; } .page { border:none; box-shadow:none; width:100%; padding:10mm 15mm; } .no-print { display:none!important; } }
-        `;
         const html = buildAdmissionFormHTML(d);
         const printWin = window.open('', '_blank');
-        printWin.document.write(`<!DOCTYPE html><html><head><title>Admission Form — ${d.studentName || 'New'}</title><style>${sharedCSS}</style></head><body onload="setTimeout(()=>{window.print();},600)"><div class="no-print" style="text-align:center;padding:16px 20px;background:#1e3a8a;border-bottom:3px solid #1e40af;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;"><span style="color:white;font-weight:700;font-size:14px;">📄 To save as PDF: change <strong>Destination</strong> to <em>"Save as PDF"</em> in the dialog → click Save</span><button onclick="window.print()" style="padding:10px 24px;background:white;color:#1e3a8a;border:none;border-radius:8px;cursor:pointer;font-weight:800;font-size:14px;">🖨️ Print / Save as PDF</button></div>${html}</body></html>`);
+        printWin.document.write(`<!DOCTYPE html><html><head><title>Admission Form — ${d.studentName || 'New'}</title><style>${ADMISSION_FORM_CSS}</style></head><body onload="setTimeout(()=>{window.print();},600)"><div class="no-print" style="text-align:center;padding:16px 20px;background:#0f172a;border-bottom:3px solid #1e293b;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;"><span style="color:white;font-weight:700;font-size:14px;">📄 To save as PDF: change <strong>Destination</strong> to <em>"Save as PDF"</em> in the dialog → click Save</span><button onclick="window.print()" style="padding:10px 24px;background:white;color:#0f172a;border:none;border-radius:8px;cursor:pointer;font-weight:800;font-size:14px;">🖨️ Print / Save as PDF</button></div>${html}</body></html>`);
         printWin.document.close();
     };
 
     // ── Bulk Admission Form Printing ──
-    // mode: 'student' (by ID) | 'class' (by class name) | 'college' (all)
     const printAdmissionFormBulk = (mode, value) => {
         let targetStudents = [];
         if (mode === 'student') {
@@ -1380,41 +1802,18 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             targetStudents = [...students];
             if (targetStudents.length === 0) { alert('No students found.'); return; }
         }
-        // Sort by serial, then name
         targetStudents.sort((a, b) => {
             const sa = parseInt(a.serialNumber, 10), sb = parseInt(b.serialNumber, 10);
             if (!isNaN(sa) && !isNaN(sb)) return sa - sb;
             return (a.name || '').localeCompare(b.name || '');
         });
-        const sharedCSS = `
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-            * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
-            body { margin: 0; padding: 0; background: #f0f0f0; }
-            .page { width:210mm; min-height:297mm; margin:0 auto; background:#fff; padding:12mm 15mm; position:relative; box-shadow:0 0 10px rgba(0,0,0,0.1); page-break-after:always; }
-            .header-container { display:flex; align-items:center; border:2.5px solid #1e3a8a; padding:15px 25px; border-radius:12px; margin-bottom:15px; position:relative; background:linear-gradient(135deg,#ffffff,#f8fafc); }
-            .header-logo { width:100px; height:auto; margin-right:25px; }
-            .header-text { flex:1; text-align:center; }
-            .header-text h1 { margin:0; font-size:32px; color:#1e3a8a; font-weight:800; letter-spacing:1px; text-transform:uppercase; }
-            .header-text p { margin:4px 0; font-size:13px; color:#1e40af; font-weight:600; }
-            .header-contact { font-size:16px; font-weight:800; color:#1e3a8a; margin-top:5px; }
-            .section-title { background:#f97316; color:#fff; display:inline-block; padding:4px 15px; font-weight:800; border-radius:4px; margin:15px 0 8px; font-size:14px; text-transform:uppercase; }
-            .field-row { display:flex; align-items:center; margin-bottom:11px; font-size:12px; }
-            .field-label { width:130px; font-weight:700; font-size:10px; text-transform:uppercase; color:#334155; }
-            .boxed-row { display:flex; gap:1px; }
-            .photo-box { position:absolute; top:175px; right:15mm; width:35mm; height:44mm; border:2px dashed #64748b; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:5px; background:#f8fafc; }
-            .photo-box b { font-size:12px; color:#64748b; } .photo-box span { font-size:9px; color:#94a3b8; }
-            .checkbox-group { display:flex; gap:12px; }
-            .checkbox { display:flex; align-items:center; gap:4px; font-weight:600; }
-            .box { width:13px; height:13px; border:1.5px solid #000; }
-            .underline { border-bottom:1.5px solid #e2e8f0; flex:1; padding:0 5px; min-height:18px; font-weight:700; color:#1e293b; }
-            .meta-header { display:flex; justify-content:space-between; font-size:12px; font-weight:700; color:#475569; margin-bottom:20px; }
-            @media print { @page { size:A4; margin:0; } body { background:#fff; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; } .page { border:none; box-shadow:none; width:100%; padding:10mm 15mm; } .no-print { display:none!important; } }
-        `;
+        
         const pagesHTML = targetStudents.map(s => buildAdmissionFormHTML(s)).join('');
         const printWin = window.open('', '_blank');
-        printWin.document.write(`<!DOCTYPE html><html><head><title>Admission Forms — ${mode === 'student' ? value : mode === 'class' ? value : 'All College'}</title><style>${sharedCSS}</style></head><body onload="setTimeout(()=>{window.print();},600)"><div class="no-print" style="text-align:center;padding:16px 20px;background:#1e3a8a;border-bottom:3px solid #1e40af;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;"><span style="color:white;font-weight:700;font-size:14px;">📄 To save as PDF: change <strong>Destination</strong> to <em>"Save as PDF"</em> in the dialog → click Save</span><button onclick="window.print()" style="padding:10px 24px;background:white;color:#1e3a8a;border:none;border-radius:8px;cursor:pointer;font-weight:800;font-size:14px;">🖨️ Print / Save as PDF (${targetStudents.length} form${targetStudents.length !== 1 ? 's' : ''})</button></div>${pagesHTML}</body></html>`);
+        printWin.document.write(`<!DOCTYPE html><html><head><title>Admission Forms — ${mode === 'student' ? value : mode === 'class' ? value : 'All College'}</title><style>${ADMISSION_FORM_CSS}</style></head><body onload="setTimeout(()=>{window.print();},600)"><div class="no-print" style="text-align:center;padding:16px 20px;background:#0f172a;border-bottom:3px solid #1e293b;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;"><span style="color:white;font-weight:700;font-size:14px;">📄 To save as PDF: change <strong>Destination</strong> to <em>"Save as PDF"</em> in the dialog → click Save</span><button onclick="window.print()" style="padding:10px 24px;background:white;color:#0f172a;border:none;border-radius:8px;cursor:pointer;font-weight:800;font-size:14px;">🖨️ Print / Save as PDF (${targetStudents.length} form${targetStudents.length !== 1 ? 's' : ''})</button></div>${pagesHTML}</body></html>`);
         printWin.document.close();
     };
+
 
 
     // --- GRADE HELPER ---
@@ -1999,20 +2398,20 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 </tr>
             `;
             const rows = termResults.map((r, i) => `
-                <tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-                    <td style="padding:12px 16px;border-bottom:1px solid #edf2f7;font-size:13px;font-weight:500;color:#2d3748;">${r.subject}</td>
-                    <td style="padding:12px 16px;border-bottom:1px solid #edf2f7;text-align:center;">
-                        <span style="display:inline-block;padding:4px 14px;border-radius:20px;font-weight:700;font-size:13px;background:${gradeBg(r.percentage)};color:${gradeColor(r.percentage)};">${r.percentage}%</span>
+                <tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'}">
+                    <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;font-size:12px;font-weight:500;color:#1e293b;">${r.subject}</td>
+                    <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:center;">
+                        <span style="display:inline-block;padding:3px 12px;border-radius:20px;font-weight:700;font-size:12px;background:${gradeBg(r.percentage)};color:${gradeColor(r.percentage)};">${r.percentage}%</span>
                     </td>
-                    <td style="padding:12px 16px;border-bottom:1px solid #edf2f7;text-align:center;">
-                        <span style="display:inline-block;width:36px;height:36px;line-height:36px;border-radius:50%;font-weight:800;font-size:14px;background:${gradeBg(r.percentage)};color:${gradeColor(r.percentage)};text-align:center;">${r.grade}</span>
+                    <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:center;">
+                        <span style="display:inline-block;width:34px;height:34px;line-height:34px;border-radius:50%;font-weight:800;font-size:13px;background:${gradeBg(r.percentage)};color:${gradeColor(r.percentage)};text-align:center;">${r.grade}</span>
                     </td>
-                    <td style="padding:12px 16px;border-bottom:1px solid #edf2f7;">
+                    <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;">
                         <div style="display:flex;align-items:center;gap:10px;">
-                            <div style="flex:1;background:#edf2f7;border-radius:20px;height:8px;overflow:hidden;">
-                                <div style="background:linear-gradient(90deg,${gradeColor(r.percentage)},${gradeColor(r.percentage)}cc);height:100%;width:${r.percentage}%;border-radius:20px;transition:width 0.5s;"></div>
+                            <div style="flex:1;background:#e2e8f0;border-radius:10px;height:7px;overflow:hidden;">
+                                <div style="background:${gradeColor(r.percentage)};height:100%;width:${r.percentage}%;border-radius:10px;"></div>
                             </div>
-                            <span style="font-size:11px;color:#a0aec0;font-weight:600;min-width:28px;">${r.percentage}</span>
+                            <span style="font-size:11px;color:#94a3b8;font-weight:600;min-width:30px;">${r.percentage}</span>
                         </div>
                     </td>
                 </tr>
@@ -2058,7 +2457,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
         const html = `
         <!DOCTYPE html>
-        <html>
+        <html lang="en">
         <head>
             <title>Report Card — ${student.name}</title>
             <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -2067,181 +2466,132 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 @media print {
                     body { margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                     .no-print { display: none !important; }
-                    .page { box-shadow: none !important; }
+                    .page { box-shadow: none !important; margin: 0 !important; border-radius: 0 !important; }
+                    @page { size: A4 portrait; margin: 0; }
                 }
-                body {
-                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-                    color: #2d3748;
-                    background: #f1f5f9;
-                }
-                .page {
-                    max-width: 820px;
-                    margin: 10px auto;
-                    background: #ffffff;
-                    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-                    border-radius: 8px;
-                    overflow: hidden;
-                }
-                @page { margin: 0; size: auto; }
+                body { font-family: 'Inter', -apple-system, sans-serif; background: #e2e8f0; color: #1e293b; }
+                .page { max-width: 820px; margin: 10px auto; background: #fff; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.12); overflow: hidden; }
+                .card-header { background: linear-gradient(135deg,#0f2b52 0%,#1e3a8a 45%,#1e40af 100%); padding: 24px 36px 20px; position: relative; overflow: hidden; }
+                .card-header::before { content:''; position:absolute; top:-40px; right:-40px; width:180px; height:180px; background:rgba(255,255,255,0.05); border-radius:50%; }
+                .card-header::after { content:''; position:absolute; bottom:-60px; left:-30px; width:160px; height:160px; background:rgba(255,255,255,0.04); border-radius:50%; }
+                .header-top { display:flex; align-items:center; gap:16px; margin-bottom:14px; position:relative; z-index:1; }
+                .school-logo { width:75px; height:75px; background:rgba(255,255,255,0.15); border-radius:12px; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; border:2px solid rgba(255,255,255,0.3); }
+                .school-name { font-family:'Playfair Display',Georgia,serif; font-size:26px; font-weight:800; color:#fff; letter-spacing:0.5px; margin-bottom:3px; }
+                .school-sub { font-size:12px; color:rgba(255,255,255,0.75); }
+                .report-badge { display:flex; align-items:center; justify-content:center; gap:12px; position:relative; z-index:1; }
+                .badge-line { flex:1; height:1px; background:rgba(255,255,255,0.3); }
+                .badge-text { padding:5px 22px; border:2px solid rgba(255,255,255,0.45); border-radius:4px; font-family:'Playfair Display',Georgia,serif; font-size:12px; font-weight:700; color:#fff; letter-spacing:3px; text-transform:uppercase; }
+                .student-bar { background:#f8fafc; border-bottom:2px solid #e2e8f0; padding:14px 36px; display:flex; align-items:center; gap:16px; }
+                .avatar { width:66px; height:66px; border-radius:10px; background:linear-gradient(135deg,#1e3a8a,#3b82f6); display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; border:3px solid #fff; box-shadow:0 2px 8px rgba(30,58,138,0.2); }
+                .avatar img { width:100%; height:100%; object-fit:cover; }
+                .avatar-initials { font-size:22px; font-weight:800; color:#fff; font-family:'Playfair Display',serif; }
+                .meta-grid { display:flex; flex:1; }
+                .meta-cell { flex:1; min-width:90px; padding:6px 14px; border-right:1px solid #e2e8f0; }
+                .meta-cell:last-child { border-right:none; }
+                .meta-lbl { font-size:9px; text-transform:uppercase; letter-spacing:0.8px; color:#94a3b8; font-weight:700; margin-bottom:2px; }
+                .meta-val { font-size:14px; font-weight:700; color:#1e293b; }
+                .summary-strip { display:flex; background:linear-gradient(90deg,#f0f7ff,#e8f0fc,#f0f7ff); border-bottom:1px solid #dbeafe; padding:10px 36px; gap:12px; justify-content:center; flex-wrap:wrap; }
+                .sum-chip { display:flex; align-items:center; gap:8px; padding:5px 14px; border-radius:30px; font-size:12px; font-weight:700; background:#fff; border:1px solid #e2e8f0; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+                .sum-val { font-size:15px; font-weight:800; }
+                .content { padding:18px 36px; }
+                .sec-head { display:flex; align-items:center; gap:8px; margin-bottom:10px; margin-top:4px; }
+                .sec-bar { width:4px; height:20px; border-radius:2px; background:linear-gradient(180deg,#1e3a8a,#3b82f6); }
+                .sec-title { font-family:'Playfair Display',Georgia,serif; font-size:14px; font-weight:700; color:#1e3a8a; }
+                .results-tbl { width:100%; border-collapse:collapse; border-radius:10px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.07); margin-bottom:18px; }
+                .results-tbl thead tr { background:linear-gradient(135deg,#1e3a8a,#1e40af); }
+                .results-tbl thead th { padding:9px 12px; font-size:10px; text-transform:uppercase; letter-spacing:0.7px; color:#fff; font-weight:700; }
+                .results-tbl thead th:first-child { text-align:left; }
+                .results-tbl thead th:not(:first-child) { text-align:center; }
+                .term-row td { padding:8px 12px; font-size:11.5px; font-weight:700; color:#fff; background:linear-gradient(90deg,rgba(30,58,138,0.6),rgba(59,130,246,0.5)); letter-spacing:0.3px; }
+                .tfoot-row { background:linear-gradient(90deg,#eff6ff,#dbeafe); border-top:2px solid #1e3a8a; }
+                .att-grid { display:flex; border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; margin-bottom:18px; }
+                .att-cell { flex:1; text-align:center; padding:12px 10px; border-right:1px solid #e2e8f0; }
+                .att-cell:last-child { border-right:none; }
+                .att-num { font-size:22px; font-weight:800; margin-bottom:2px; }
+                .att-lbl { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:#64748b; }
+                .sig-row { display:flex; justify-content:space-between; margin-top:14px; padding-top:12px; border-top:1px solid #e2e8f0; gap:12px; }
+                .sig-item { text-align:center; flex:1; }
+                .sig-line { height:22px; border-bottom:1.5px solid #1e293b; margin-bottom:5px; }
+                .sig-name { font-size:9px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; }
+                .card-footer { background:#f8fafc; border-top:1px solid #e2e8f0; padding:10px 36px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }
+                .footer-txt { font-size:10px; color:#94a3b8; }
+                .footer-school { font-size:10px; color:#1e3a8a; font-weight:700; }
+                .bottom-accent { height:5px; background:linear-gradient(90deg,#0f2b52,#1e3a8a,#3b82f6,#1e3a8a,#0f2b52); }
             </style>
         </head>
         <body>
-            <!-- Print Button -->
-            <div class="no-print" style="text-align:center;padding:20px;">
-                <button onclick="window.print()" style="padding:12px 32px;background:linear-gradient(135deg,#1a3a6b,#2563eb);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;letter-spacing:0.3px;box-shadow:0 4px 14px rgba(37,99,235,0.3);">
-                    🖨️ Print / Save as PDF
-                </button>
+            <div class="no-print" style="text-align:center;padding:14px 24px;background:linear-gradient(135deg,#1e3a8a,#2563eb);display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;">
+                <span style="color:white;font-weight:700;font-size:13px;">📄 To save as PDF: change <strong>Destination</strong> to <em>"Save as PDF"</em> in the print dialog</span>
+                <button onclick="window.print()" style="padding:10px 24px;background:white;color:#1e3a8a;border:none;border-radius:8px;cursor:pointer;font-weight:800;font-size:14px;">🖨️ Print / Save as PDF</button>
             </div>
-
             <div class="page">
-                <!-- Top Blue Accent Bar -->
-                <div style="height:6px;background:linear-gradient(90deg,#0f2b52,#1a3a6b,#2563eb,#1a3a6b,#0f2b52);"></div>
-
-                <!-- School Header -->
-                <div style="text-align:center;padding:24px 40px 18px;border-bottom:3px double #1a3a6b;page-break-inside:avoid;">
-                    <!-- School Logo and Name Info -->
-                    <div style="display:flex;align-items:center;justify-content:center;gap:15px;margin-bottom:10px;">
-                        <img src="${schoolSettings?.logo_url || '/logo.png'}" style="width:105px;height:auto;border-radius:0;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';" />
-                        <div style="display:none;width:105px;height:105px;background:#f1f5f9;border-radius:10px;align-items:center;justify-content:center;font-size:40px;">🏫</div>
-                        <div style="text-align:left;">
-                            <h1 style="font-family:'Playfair Display',Georgia,serif;font-size:28px;font-weight:800;color:#1a3a6b;letter-spacing:1px;margin:0;">
-                                ${schoolName}
-                            </h1>
-                            <p style="font-size:11px;color:#64748b;letter-spacing:0.8px;margin-top:2px;">${schoolAddress}</p>
-                            ${schoolPhone || schoolEmail ? `<p style="font-size:10px;color:#94a3b8;letter-spacing:0.5px;margin-top:1px;">${schoolPhone}${schoolPhone && schoolEmail ? ' • ' : ''}${schoolEmail}</p>` : ''}
+                <div class="card-header">
+                    <div class="header-top">
+                        <div class="school-logo">
+                            <img src="${schoolSettings?.logo_url || '/logo.png'}" style="width:100%;height:100%;object-fit:contain;" onerror="this.parentElement.innerHTML='<span style=font-size:30px>🏫</span>'" />
+                        </div>
+                        <div>
+                            <div class="school-name">${schoolName}</div>
+                            ${schoolAddress ? `<div class="school-sub">📍 ${schoolAddress}</div>` : ''}
+                            ${schoolPhone || schoolEmail ? `<div class="school-sub" style="margin-top:2px">${schoolPhone ? '📞 '+schoolPhone : ''}${schoolPhone && schoolEmail ? ' · ' : ''}${schoolEmail ? '✉ '+schoolEmail : ''}</div>` : ''}
                         </div>
                     </div>
-                    
-                    <!-- Decorative divider -->
-                    <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin:18px 0 0;">
-                        <div style="flex:1;max-width:120px;height:1px;background:linear-gradient(90deg,transparent,#1a3a6b);"></div>
-                        <div style="padding:8px 28px;border:2px solid #1a3a6b;border-radius:4px;">
-                            <span style="font-family:'Playfair Display',Georgia,serif;font-size:15px;font-weight:700;color:#1a3a6b;letter-spacing:2px;">REPORT CARD</span>
-                        </div>
-                        <div style="flex:1;max-width:120px;height:1px;background:linear-gradient(90deg,#1a3a6b,transparent);"></div>
+                    <div class="report-badge">
+                        <div class="badge-line"></div>
+                        <div class="badge-text">Report Card</div>
+                        <div class="badge-line"></div>
                     </div>
                 </div>
-                
-                <!-- Student Info -->
-                <div style="padding:15px 40px;">
-                    <div style="display:flex;align-items:center;gap:20px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
-                        <!-- Student Photo -->
-                        <div style="width:75px;height:75px;flex-shrink:0;background:linear-gradient(135deg,#1a3a6b,#2563eb);display:flex;align-items:center;justify-content:center;margin:12px 0 12px 20px;border-radius:10px;overflow:hidden;">
-                            ${(student.photo || student.image) ? `<img src="${student.photo || student.image}" style="width:100%;height:100%;object-fit:cover;" alt="${student.name}" />` : `<span style="font-size:28px;font-weight:800;color:white;font-family:'Playfair Display',Georgia,serif;">${student.name.split(' ').map(n => n[0]).join('').substring(0, 2)}</span>`}
-                        </div>
-                        <div style="display:flex;flex-wrap:wrap;flex:1;gap:0;">
-                            <div style="flex:1;min-width:150px;padding:10px 18px;background:#f8fafc;border-right:1px solid #e2e8f0;">
-                                <div style="font-size:8px;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;font-weight:700;margin-bottom:2px;">Student Name</div>
-                                <div style="font-size:14px;font-weight:700;color:#1a3a6b;">${student.name}</div>
-                            </div>
-                            <div style="flex:1;min-width:100px;padding:10px 18px;background:#f8fafc;border-right:1px solid #e2e8f0;">
-                                <div style="font-size:8px;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;font-weight:700;margin-bottom:2px;">Student ID</div>
-                                <div style="font-size:14px;font-weight:700;color:#2d3748;">${student.id}</div>
-                            </div>
-                            <div style="flex:1;min-width:80px;padding:10px 18px;background:#f8fafc;border-right:1px solid #e2e8f0;">
-                                <div style="font-size:8px;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;font-weight:700;margin-bottom:2px;">Class</div>
-                                <div style="font-size:14px;font-weight:700;color:#2d3748;">${student.grade}</div>
-                            </div>
-                            <div style="flex:1;min-width:110px;padding:10px 18px;background:#f8fafc;">
-                                <div style="font-size:8px;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;font-weight:700;margin-bottom:2px;">Report Date</div>
-                                <div style="font-size:14px;font-weight:700;color:#2d3748;">${today}</div>
-                            </div>
-                        </div>
+                <div class="student-bar">
+                    <div class="avatar">
+                        ${(student.photo || student.image) ? `<img src="${student.photo || student.image}" alt="${student.name}" />` : `<span class="avatar-initials">${student.name.split(' ').map(n => n[0]).join('').substring(0,2)}</span>`}
+                    </div>
+                    <div class="meta-grid">
+                        <div class="meta-cell"><div class="meta-lbl">Student Name</div><div class="meta-val">${student.name}</div></div>
+                        <div class="meta-cell"><div class="meta-lbl">Student ID</div><div class="meta-val">${student.id}</div></div>
+                        <div class="meta-cell"><div class="meta-lbl">Class</div><div class="meta-val">${student.grade}</div></div>
+                        <div class="meta-cell"><div class="meta-lbl">Report Date</div><div class="meta-val">${today}</div></div>
                     </div>
                 </div>
-                
-                <!-- Main Content -->
-                <div style="padding:0 40px 16px;">
-                
-                    <!-- Current Term Results -->
-                    <div style="margin-bottom:16px;">
-                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-                            <div style="width:4px;height:24px;background:#1a3a6b;border-radius:2px;"></div>
-                            <h3 style="font-family:'Playfair Display',Georgia,serif;font-size:16px;font-weight:700;color:#1a3a6b;margin:0;">Current Term Results</h3>
-                        </div>
-                        <table style="width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
-                            <thead>
-                                <tr style="background:linear-gradient(135deg,#1a3a6b,#1e4d8a);">
-                                    <th style="padding:10px 16px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:#ffffff;font-weight:700;">Subject</th>
-                                    <th style="padding:10px 16px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:#ffffff;font-weight:700;">Score</th>
-                                    <th style="padding:10px 16px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:#ffffff;font-weight:700;">Grade</th>
-                                    <th style="padding:10px 16px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:#ffffff;font-weight:700;">Performance</th>
-                                </tr>
-                            </thead>
-                            <tbody>${resultsRows}</tbody>
-                            <tfoot>
-                                <tr style="background:linear-gradient(135deg,#f0f7ff,#e8f0fc);border-top:2px solid #1a3a6b;">
-                                    <td style="padding:12px 16px;font-size:13px;font-weight:800;color:#1a3a6b;">Overall Average</td>
-                                    <td style="padding:12px 16px;text-align:center;">
-                                        <span style="font-size:16px;font-weight:800;color:#1a3a6b;">${avg}%</span>
-                                    </td>
-                                    <td style="padding:12px 16px;text-align:center;">
-                                        <span style="display:inline-block;width:38px;height:38px;line-height:38px;border-radius:50%;font-weight:800;font-size:15px;background:#1a3a6b;color:white;text-align:center;">${overallGrade}</span>
-                                    </td>
-                                    <td style="padding:12px 16px;text-align:center;">
-                                        <span style="font-size:11px;font-weight:700;color:${gradeColor(parseFloat(avg))};">${parseFloat(avg) >= 85 ? 'Excellent' : parseFloat(avg) >= 70 ? 'Good' : parseFloat(avg) >= 50 ? 'Satisfactory' : 'Needs Improvement'}</span>
-                                    </td>
-                                </tr>
-                            </tfoot>
-                        </table>
+                <div class="summary-strip">
+                    <div class="sum-chip"><span style="font-size:16px">📊</span> Overall: <span class="sum-val" style="color:${gradeColor(parseFloat(avg))}">${avg}%</span></div>
+                    <div class="sum-chip"><span style="font-size:16px">🎓</span> Grade: <span class="sum-val" style="color:${gradeColor(parseFloat(avg))}">${overallGrade}</span></div>
+                    <div class="sum-chip"><span style="font-size:16px">⭐</span> Remark: <span class="sum-val" style="font-size:12px;color:${gradeColor(parseFloat(avg))}">${parseFloat(avg) >= 85 ? 'Excellent' : parseFloat(avg) >= 70 ? 'Good' : parseFloat(avg) >= 50 ? 'Satisfactory' : 'Needs Improvement'}</span></div>
+                </div>
+                <div class="content">
+                    <div class="sec-head"><div class="sec-bar"></div><div class="sec-title">Academic Performance</div></div>
+                    <table class="results-tbl">
+                        <thead><tr><th>Subject</th><th>Score</th><th>Grade</th><th>Performance</th></tr></thead>
+                        <tbody>${resultsRows}</tbody>
+                        <tfoot>
+                            <tr class="tfoot-row">
+                                <td style="padding:11px 12px;font-size:13px;font-weight:800;color:#1e3a8a;">Overall Average</td>
+                                <td style="padding:11px 12px;text-align:center;"><span style="font-size:15px;font-weight:800;color:#1e3a8a;">${avg}%</span></td>
+                                <td style="padding:11px 12px;text-align:center;"><span style="display:inline-block;width:34px;height:34px;line-height:34px;border-radius:50%;font-weight:800;font-size:14px;background:#1e3a8a;color:white;text-align:center;">${overallGrade}</span></td>
+                                <td style="padding:11px 12px;text-align:center;font-size:11px;font-weight:700;color:${gradeColor(parseFloat(avg))};">${parseFloat(avg) >= 85 ? '🌟 Excellent' : parseFloat(avg) >= 70 ? '✅ Good' : parseFloat(avg) >= 50 ? '📈 Satisfactory' : '⚠️ Needs Improvement'}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    <div class="sec-head"><div class="sec-bar"></div><div class="sec-title">Attendance Record</div></div>
+                    <div class="att-grid">
+                        <div class="att-cell" style="background:#f0fdf4"><div class="att-num" style="color:#16a34a">${student.attendance.present}</div><div class="att-lbl">Present</div></div>
+                        <div class="att-cell" style="background:#fef2f2"><div class="att-num" style="color:#dc2626">${student.attendance.absent}</div><div class="att-lbl">Absent</div></div>
+                        <div class="att-cell" style="background:#eff6ff"><div class="att-num" style="color:#2563eb">${student.attendance.total}</div><div class="att-lbl">Total Days</div></div>
+                        <div class="att-cell" style="background:linear-gradient(135deg,#1e3a8a,#1e40af)"><div class="att-num" style="color:#fff">${student.attendance.percentage}%</div><div class="att-lbl" style="color:rgba(255,255,255,0.8)">Attendance</div></div>
                     </div>
-                
-                    <!-- Attendance -->
-                    <div style="margin-bottom:16px;page-break-inside:avoid;">
-                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-                            <div style="width:4px;height:20px;background:#1a3a6b;border-radius:2px;"></div>
-                            <h3 style="font-family:'Playfair Display',Georgia,serif;font-size:14px;font-weight:700;color:#1a3a6b;margin:0;">Attendance Record</h3>
-                        </div>
-                        <div style="border:1px solid #edf2f7;border-radius:10px;overflow:hidden;">
-                            <div style="display:flex;text-align:center;">
-                                <div style="flex:1;padding:10px 10px;background:#f0fdf4;border-right:1px solid #edf2f7;">
-                                    <div style="font-size:18px;font-weight:800;color:#0d7c52;">${student.attendance.present}</div>
-                                    <div style="font-size:8px;text-transform:uppercase;letter-spacing:0.8px;color:#64748b;font-weight:600;margin-top:2px;">Present</div>
-                                </div>
-                                <div style="flex:1;padding:10px 10px;background:#fef2f2;border-right:1px solid #edf2f7;">
-                                    <div style="font-size:18px;font-weight:800;color:#c0392b;">${student.attendance.absent}</div>
-                                    <div style="font-size:8px;text-transform:uppercase;letter-spacing:0.8px;color:#64748b;font-weight:600;margin-top:2px;">Absent</div>
-                                </div>
-                                <div style="flex:1;padding:10px 10px;background:#eff6ff;border-right:1px solid #edf2f7;">
-                                    <div style="font-size:18px;font-weight:800;color:#1a5fb4;">${student.attendance.total}</div>
-                                    <div style="font-size:8px;text-transform:uppercase;letter-spacing:0.8px;color:#64748b;font-weight:600;margin-top:2px;">Total</div>
-                                </div>
-                                <div style="flex:1;padding:10px 10px;background:linear-gradient(135deg,#0f2b52,#1a3a6b);color:white;">
-                                    <div style="font-size:18px;font-weight:800;">${student.attendance.percentage}%</div>
-                                    <div style="font-size:8px;text-transform:uppercase;letter-spacing:0.8px;opacity:0.8;font-weight:600;margin-top:2px;">Rate</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                
                     ${previousSection}
-                
-                    <!-- Signature Section -->
-                    <div style="margin-top:20px;padding-top:12px;border-top:1px solid #edf2f7;display:flex;justify-content:space-between;flex-wrap:wrap;gap:15px;page-break-inside:avoid;">
-                        <div style="text-align:center;flex:1;min-width:120px;">
-                            <div style="width:100%;max-width:160px;border-bottom:1.5px solid #1a3a6b;margin:0 auto 6px;height:25px;"></div>
-                            <div style="font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Class Teacher</div>
-                        </div>
-                        <div style="text-align:center;flex:1;min-width:120px;">
-                            <div style="width:100%;max-width:160px;border-bottom:1.5px solid #1a3a6b;margin:0 auto 6px;height:25px;"></div>
-                            <div style="font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Principal</div>
-                        </div>
-                        <div style="text-align:center;flex:1;min-width:120px;">
-                            <div style="width:100%;max-width:160px;border-bottom:1.5px solid #1a3a6b;margin:0 auto 6px;height:25px;"></div>
-                            <div style="font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Parent / Guardian</div>
-                        </div>
+                    <div class="sig-row">
+                        <div class="sig-item"><div class="sig-line"></div><div class="sig-name">Class Teacher</div></div>
+                        <div class="sig-item"><div class="sig-line"></div><div class="sig-name">Principal</div></div>
+                        <div class="sig-item"><div class="sig-line"></div><div class="sig-name">Parent / Guardian</div></div>
                     </div>
                 </div>
-                
-                <!-- Footer -->
-                <div style="background:#f8fafc;border-top:1px solid #edf2f7;padding:16px 40px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-                    <div style="font-size:10px;color:#94a3b8;font-weight:500;">Generated on ${today}</div>
-                    <div style="font-size:10px;color:#1a3a6b;font-weight:700;letter-spacing:0.5px;">${schoolName}</div>
-                    <div style="font-size:10px;color:#94a3b8;font-style:italic;">This is a computer-generated document</div>
+                <div class="card-footer">
+                    <div class="footer-txt">Generated: ${today}</div>
+                    <div class="footer-school">${schoolName}</div>
+                    <div class="footer-txt" style="font-style:italic">Computer-generated document</div>
                 </div>
-
-                <!-- Bottom Blue Accent Bar -->
-                <div style="height:6px;background:linear-gradient(90deg,#0f2b52,#1a3a6b,#2563eb,#1a3a6b,#0f2b52);"></div>
+                <div class="bottom-accent"></div>
             </div>
         </body>
         </html>
