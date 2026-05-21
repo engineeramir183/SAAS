@@ -8,21 +8,19 @@ const calcGrade = (pct) => {
     if (pct === null || pct === undefined || pct === '') return { grade: '—', color: '#64748b', bg: '#f8fafc' };
     const num = Number(pct);
     if (isNaN(num)) return { grade: '—', color: '#64748b', bg: '#f8fafc' };
-    if (num >= 95) return { grade: 'A++', color: '#6d28d9', bg: '#f5f3ff' };
-    if (num >= 90) return { grade: 'A+', color: '#7c3aed', bg: '#f3e8ff' };
-    if (num >= 85) return { grade: 'A',  color: '#059669', bg: '#ecfdf5' };
-    if (num >= 80) return { grade: 'B++', color: '#16a34a', bg: '#f0fdf4' };
-    if (num >= 75) return { grade: 'B+', color: '#0d9488', bg: '#f0fdfa' };
-    if (num >= 70) return { grade: 'B',  color: '#2563eb', bg: '#eff6ff' };
-    if (num >= 60) return { grade: 'C',  color: '#b45309', bg: '#fef3c7' };
-    if (num >= 50) return { grade: 'D',  color: '#d97706', bg: '#fffbeb' };
-    if (num >= 40) return { grade: 'E',  color: '#ea580c', bg: '#fff7ed' };
-    return                { grade: 'U',  color: '#dc2626', bg: '#fee2e2' };
+    if (num >= 90) return { grade: 'A+', color: '#15803d', bg: '#f0fdf4' }; // Green
+    if (num >= 80) return { grade: 'A',  color: '#1d4ed8', bg: '#eff6ff' }; // Blue
+    if (num >= 70) return { grade: 'B+', color: '#b45309', bg: '#fef3c7' }; // Gold/Amber
+    if (num >= 60) return { grade: 'B',  color: '#b45309', bg: '#fef3c7' }; // Gold/Amber
+    if (num >= 50) return { grade: 'C',  color: '#b91c1c', bg: '#fee2e2' }; // Red
+    if (num >= 40) return { grade: 'D',  color: '#b91c1c', bg: '#fee2e2' }; // Red
+    if (num >= 33) return { grade: 'E',  color: '#b91c1c', bg: '#fee2e2' }; // Red
+    return                { grade: 'U',  color: '#b91c1c', bg: '#fee2e2' }; // Red
 };
 
 const getGradeRemark = (grade) => {
     switch (grade) {
-        case 'A++': return 'Absolutely Outstanding! Your dedication and hard work truly paid off. Keep up the amazing effort! Incredible achievement! ';
+        case 'A++': return 'Absolutely Outstanding! Your dedication and hard work truly paid off. Keep up the amazing effort! Incredible achievement!';
         case 'A+': return 'Excellent work! Fantastic results';
         case 'A': return 'Adorable!';
         case 'B++': return 'Great job';
@@ -30,7 +28,7 @@ const getGradeRemark = (grade) => {
         case 'B': return 'Good progress. Keep it up! You have potential to do even better!';
         case 'C': return 'Satisfactory! Don’t be discouraged! DO More';
         case 'D': return 'Don’t give up! We’re here to help you';
-        case 'E': return 'Performance needs serious improvement. Strong effort and consistent support are urgently needed. We believe in your potential—let’s work together to improve.!';
+        case 'E': return 'Performance needs serious improvement. Strong effort and consistent support are urgently needed. We believe in your potential—let’s work together to improve!';
         case 'U': return 'Unsatisfactory!';
         case 'Absent': return 'Absent';
         default: return '';
@@ -49,12 +47,9 @@ const calcOverallPct = (results, weights) => {
     return totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;
 };
 
-// ─── Print individual report card ─────────────────────────────────────────────
-function printReportCard(student, termLabel, subjects, weights, schoolName, schoolLogo, sectionName) {
+function printReportCard(student, termLabel, subjects, weights, schoolName, schoolLogo, sectionName, isOnePageMode = true) {
     const results = (student.results || []).filter(r => !termLabel || r.term === termLabel);
-    const overall = calcOverallPct(results, weights);
-    const { grade: overallGrade, color: gradeColor } = calcGrade(overall);
-    const printDate = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'long', year: 'numeric' });
+    const printDate = new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
     const adm = student.admissions?.[0] || {};
     const fatherName = adm.fatherName || adm.father_name || student.fatherName || student.father_name || '—';
     
@@ -65,121 +60,258 @@ function printReportCard(student, termLabel, subjects, weights, schoolName, scho
     const absentDays = attendanceRecords.filter(r => r.status === 'absent').length;
     const attPct = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
 
-    const subjectRows = subjects.map(sub => {
+    // Helper for mockup grade colors
+    const getMockupGradeColor = (grade) => {
+        switch (grade) {
+            case 'A++':
+            case 'A+': return '#15803d'; // Green
+            case 'A': return '#1d4ed8';  // Blue
+            case 'B++':
+            case 'B+':
+            case 'B': return '#b45309';  // Gold/Amber
+            default: return '#b91c1c';  // Red (for C, D, E, U, etc.)
+        }
+    };
+
+    let totalObtained = 0;
+    let totalMax = 0;
+
+    // Dynamic layout parameters depending on isOnePageMode
+    const paddingTd = isOnePageMode ? '6px 12px' : '10px 16px';
+    const paddingTdCenter = isOnePageMode ? '6px' : '10px';
+    const fontSizeTd = isOnePageMode ? '12px' : '13px';
+
+    const subjectRows = subjects.map((sub, index) => {
         const r = results.find(r => r.subject === sub);
         const total = (weights && weights[sub]) ? Number(weights[sub]) : 100;
         const obtained = r?.obtained;
         const numOb = obtained === 'A' ? 0 : Number(obtained ?? '');
         const pct = obtained !== undefined && obtained !== '' ? Math.round((numOb / total) * 100) : null;
-        const gInfo = pct !== null ? calcGrade(pct) : null;
+        
+        let gInfo = { grade: '—', color: '#64748b' };
+        if (pct !== null) {
+            const rawGrad = calcGrade(pct);
+            gInfo = {
+                grade: rawGrad.grade,
+                color: getMockupGradeColor(rawGrad.grade)
+            };
+        }
+        
+        if (obtained !== undefined && obtained !== '' && obtained !== 'A') {
+            totalObtained += numOb;
+            totalMax += total;
+        } else if (obtained === 'A') {
+            totalMax += total;
+        }
+
+        const obtainedText = obtained === 'A' ? 'ABS' : (obtained ?? '—');
+
         return `<tr>
-            <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-weight:600;color:#1e293b">${sub}</td>
-            <td style="padding:10px;border-bottom:1px solid #f1f5f9;text-align:center;color:#475569">${total}</td>
-            <td style="padding:10px;border-bottom:1px solid #f1f5f9;text-align:center;font-weight:700">${obtained === 'A' ? 'ABS' : (obtained ?? '—')}</td>
-            <td style="padding:10px;border-bottom:1px solid #f1f5f9;text-align:center;color:#64748b">${pct !== null ? pct + '%' : '—'}</td>
-            <td style="padding:10px;border-bottom:1px solid #f1f5f9;text-align:center">
-                ${gInfo ? `<span style="background:${gInfo.bg};color:${gInfo.color};padding:3px 10px;border-radius:20px;font-weight:800;font-size:13px">${gInfo.grade}</span>` : '—'}
+            <td style="padding: ${paddingTd}; border-bottom: 1px solid #cbd5e1; font-weight: 800; color: #1e293b; font-size: ${fontSizeTd}; text-align: left;">${sub}</td>
+            <td style="padding: ${paddingTdCenter}; border-bottom: 1px solid #cbd5e1; text-align: center; font-weight: 700; color: #475569; font-size: ${fontSizeTd};">${total}</td>
+            <td style="padding: ${paddingTdCenter}; border-bottom: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: ${gInfo.color}; font-size: ${isOnePageMode ? '13px' : '14px'};">${obtainedText}</td>
+            <td style="padding: ${paddingTdCenter}; border-bottom: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: ${gInfo.color}; font-size: ${isOnePageMode ? '13px' : '14px'};">${gInfo.grade}</td>
+            <td style="padding: ${paddingTd}; border-bottom: 1px solid #cbd5e1; width: 220px;">
+                ${pct !== null ? `
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="background: #e2e8f0; border-radius: 10px; height: 6px; flex: 1; overflow: hidden; display: block;">
+                        <div style="background: ${gInfo.color}; border-radius: 10px; height: 100%; width: ${pct}%;"></div>
+                    </div>
+                    <span style="font-size: 11px; font-weight: 800; color: ${gInfo.color}; min-width: 32px; text-align: right;">${pct}%</span>
+                </div>
+                ` : '—'}
             </td>
-            <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;text-align:center;font-size:12px;color:#94a3b8">${r?.remarks || ''}</td>
         </tr>`;
     }).join('');
+
+    const overall = totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;
+    const rawOverallGrade = calcGrade(overall).grade;
+    const overallGrade = rawOverallGrade;
+    const gradeColor = getMockupGradeColor(overallGrade);
+    const initialChar = student.name ? student.name.charAt(0).toUpperCase() : 'S';
+    const finalSchoolName = schoolName && schoolName !== 'School' ? schoolName : 'ACS School & College';
 
     const html = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <title>Report Card – ${student.name}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Outfit:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800;900&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Inter',sans-serif;background:#f1f5f9;padding:30px;color:#0f172a}
-  .card{max-width:780px;margin:0 auto;background:white;border-radius:20px;overflow:hidden;box-shadow:0 25px 50px rgba(0,0,0,0.1)}
-  .header{background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 60%,#7c3aed 100%);padding:36px 40px;color:white;text-align:center;position:relative}
-  .logo-wrap{width:72px;height:72px;background:white;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:16px;box-shadow:0 8px 24px rgba(0,0,0,0.15)}
+  body{font-family:'Outfit','Inter',sans-serif;background:#f1f5f9;padding:${isOnePageMode ? '12px' : '20px'};color:#1e293b;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .card{max-width:800px;margin:0 auto;background:white;border:2.5px solid #1e3a8a;padding:${isOnePageMode ? '16px' : '28px'};box-shadow:0 10px 30px rgba(0,0,0,0.05);page-break-inside:avoid}
+  
+  .header-box{border:2.5px solid #1e3a8a;border-radius:10px;padding:${isOnePageMode ? '8px 12px' : '16px 20px'};margin-bottom:${isOnePageMode ? '8px' : '16px'};display:flex;align-items:center;position:relative}
+  .logo-wrap{width:${isOnePageMode ? '45px' : '65px'};height:${isOnePageMode ? '45px' : '65px'};display:flex;align-items:center;justify-content:center;overflow:hidden;margin-right:12px;flex-shrink:0}
   .logo-wrap img{width:100%;height:100%;object-fit:contain}
-  .school-name{font-size:24px;font-weight:900;margin-bottom:4px;letter-spacing:0.3px}
-  .report-label{font-size:11px;text-transform:uppercase;letter-spacing:2px;opacity:0.8;font-weight:700}
-  .student-section{display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;padding:28px 40px;background:#f8fafc;border-bottom:1px solid #e2e8f0}
-  .info-item .lbl{font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#94a3b8;font-weight:700;margin-bottom:4px}
-  .info-item .val{font-weight:700;color:#1e293b;font-size:15px}
-  .result-section{padding:28px 40px}
-  table{width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden}
-  thead tr{background:#f8fafc}
-  thead th{padding:12px 14px;font-size:11px;text-transform:uppercase;font-weight:700;color:#64748b;letter-spacing:0.5px;text-align:left}
-  .overall{display:flex;align-items:center;justify-content:space-between;padding:20px 40px;background:#0f172a;color:white}
-  .overall-label{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;margin-bottom:6px}
-  .overall-value{font-size:28px;font-weight:900}
-  .pass-badge{padding:8px 20px;border-radius:50px;font-weight:800;font-size:14px}
-  .sigs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:30px;padding:24px 40px 32px;border-top:1px solid #e2e8f0}
-  .sig-line{border-top:1.5px solid #cbd5e1;padding-top:10px;text-align:center;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px}
-  .footer{text-align:center;padding:14px;background:#f8fafc;font-size:10px;color:#94a3b8;border-top:1px solid #e2e8f0}
-  @media print{body{padding:0;background:white}.card{box-shadow:none}}
+  .header-info{flex:1;text-align:center;padding-right:45px}
+  .school-name{font-family:'Playfair Display','Outfit',serif;font-size:${isOnePageMode ? '20px' : '24px'};font-weight:900;color:#1e3a8a;text-transform:uppercase;margin-bottom:1px;letter-spacing:0.3px}
+  .school-address{font-size:${isOnePageMode ? '9.5px' : '11px'};font-weight:700;color:#1e3a8a;margin-bottom:1px}
+  .school-contacts{font-size:${isOnePageMode ? '9px' : '10.5px'};font-weight:800;color:#1e3a8a;letter-spacing:0.3px}
+  
+  .pill-wrap{display:flex;justify-content:center;margin-top:${isOnePageMode ? '6px' : '12px'};margin-bottom:${isOnePageMode ? '10px' : '16px'};position:relative;z-index:5}
+  .pill-title{background:white;border:2px solid #1e3a8a;border-radius:30px;padding:${isOnePageMode ? '4px 20px' : '6px 28px'};font-size:${isOnePageMode ? '10px' : '12px'};font-weight:900;color:#1e3a8a;text-transform:uppercase;letter-spacing:1px}
+  
+  .profile-box{background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:${isOnePageMode ? '8px 12px' : '14px 18px'};margin-bottom:${isOnePageMode ? '10px' : '16px'};display:flex;gap:12px;align-items:center}
+  .initials-square{width:${isOnePageMode ? '46px' : '60px'};height:${isOnePageMode ? '46px' : '60px'};background:#dbeafe;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:${isOnePageMode ? '22px' : '28px'};font-weight:900;color:#1e3a8a;flex-shrink:0}
+  .profile-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:${isOnePageMode ? '4px 12px' : '8px 16px'};flex:1}
+  .profile-item .lbl{font-size:${isOnePageMode ? '7.5px' : '9px'};font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:1px}
+  .profile-item .val{font-size:${isOnePageMode ? '11.5px' : '13px'};font-weight:800;color:#1e3a8a}
+  
+  .section-title{font-size:${isOnePageMode ? '11px' : '13px'};font-weight:800;color:#1e293b;margin-bottom:${isOnePageMode ? '4px' : '8px'};display:flex;align-items:center;gap:6px}
+  .vertical-indicator{width:3px;height:${isOnePageMode ? '12px' : '15px'};background:#1e3a8a;display:inline-block;border-radius:1px}
+  
+  table{width:100%;border-collapse:separate;border-spacing:0;border:1.5px solid #cbd5e1;border-radius:8px;overflow:hidden;margin-bottom:${isOnePageMode ? '8px' : '16px'}}
+  thead{background:#1e3a8a;color:white}
+  thead th{padding:${isOnePageMode ? '6px' : '10px'};font-size:${isOnePageMode ? '9.5px' : '11px'};font-weight:800;text-transform:uppercase;letter-spacing:0.5px;text-align:center;border-bottom:1.5px solid #1e3a8a}
+  thead th:first-child{text-align:left;padding-left:12px}
+  thead th:last-child{text-align:left;padding-left:12px}
+  
+  tr td{border-bottom:1px solid #cbd5e1;padding:${paddingTd};font-size:${fontSizeTd}}
+  tr:last-child td{border-bottom:none !important}
+  
+  .summary-box{background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:8px;display:flex;align-items:center;margin-bottom:${isOnePageMode ? '8px' : '16px'};overflow:hidden}
+  .summary-col{flex:1;text-align:center;padding:${isOnePageMode ? '6px' : '10px'};border-right:1.5px solid #cbd5e1}
+  .summary-col:first-child{flex:1.5;text-align:left;padding:${isOnePageMode ? '8px 12px' : '12px 18px'};font-size:${isOnePageMode ? '12px' : '14px'};font-weight:900;color:#1e3a8a}
+  .summary-col:nth-child(2){flex:1.2;padding:${isOnePageMode ? '6px 12px' : '10px 16px'}}
+  .summary-col:nth-child(3){flex:1;padding:4px;display:flex;align-items:center;justify-content:center}
+  .summary-col:last-child{flex:1.2;border-right:none;font-size:${isOnePageMode ? '12px' : '14px'};font-weight:900;color:#1e3a8a}
+  
+  .grade-circle{width:${isOnePageMode ? '28px' : '36px'};height:${isOnePageMode ? '28px' : '36px'};border-radius:50%;background:#1e3a8a;color:white;display:flex;align-items:center;justify-content:center;font-size:${isOnePageMode ? '11.5px' : '14px'};font-weight:900}
+  
+  .stats-box{background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:8px;display:grid;grid-template-columns:1fr 1fr 1fr;overflow:hidden;margin-bottom:${isOnePageMode ? '8px' : '16px'}}
+  .stat-col{text-align:center;padding:${isOnePageMode ? '6px' : '10px'};border-right:1.5px solid #cbd5e1}
+  .stat-col:last-child{border-right:none}
+  .stat-val{font-size:${isOnePageMode ? '13px' : '16px'};font-weight:900}
+  .stat-lbl{font-size:${isOnePageMode ? '7.5px' : '9px'};font-weight:800;color:#64748b;letter-spacing:0.5px;margin-top:1px;text-transform:uppercase}
+  
+  .remarks-line{font-size:${isOnePageMode ? '12px' : '13.5px'};font-weight:700;color:#1e293b;line-height:${isOnePageMode ? '20px' : '26px'};padding-bottom:${isOnePageMode ? '2px' : '4px'};border-bottom:1px solid #cbd5e1;margin-bottom:${isOnePageMode ? '4px' : '8px'}}
+  .remarks-ruled{height:${isOnePageMode ? '20px' : '26px'};border-bottom:1px solid #cbd5e1;margin-bottom:${isOnePageMode ? '4px' : '8px'}}
+  
+  .sigs-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:${isOnePageMode ? '15px' : '32px'};margin-bottom:${isOnePageMode ? '6px' : '15px'}}
+  .sig-col{text-align:center}
+  .sig-under{border-bottom:1.2px solid #cbd5e1;margin-bottom:6px;height:${isOnePageMode ? '16px' : '24px'}}
+  .sig-lbl{font-size:${isOnePageMode ? '8px' : '9.5px'};font-weight:800;color:#64748b;letter-spacing:0.5px;text-transform:uppercase}
+  
+  .footer-row{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #cbd5e1;padding-top:6px;font-size:8px;font-weight:800;color:#94a3b8;text-transform:uppercase}
+  
+  @page {
+    size: A4 portrait;
+    margin: ${isOnePageMode ? '8mm 6mm' : '14mm 10mm'};
+  }
+  @media print{
+    body{padding:0 !important;margin:0 !important;background:white !important}
+    .card{border:2.5px solid #1e3a8a !important;box-shadow:none !important;max-width:100% !important;width:100% !important;margin:0 !important;padding:${isOnePageMode ? '12px 16px' : '20px 24px'} !important;page-break-after:always;box-sizing:border-box}
+  }
 </style></head>
 <body>
 <div class="card">
-  <div class="header">
+  <div class="header-box">
     <div class="logo-wrap"><img src="${schoolLogo || '/logo.png'}" alt="Logo"/></div>
-    <div class="school-name">${schoolName}</div>
-    <div style="font-size:14px;opacity:0.85;margin:6px 0 2px">${sectionName ? sectionName + ' — ' : ''}${student.grade}</div>
-    <div class="report-label">📋 Official Terminal Report Card${termLabel ? ' — ' + termLabel : ''}</div>
-  </div>
-
-  <div class="student-section">
-    <div class="info-item"><div class="lbl">Student Name</div><div class="val">${student.name}</div></div>
-    <div class="info-item"><div class="lbl">Student ID</div><div class="val">${student.id}</div></div>
-    <div class="info-item"><div class="lbl">Class</div><div class="val">${student.grade}</div></div>
-    <div class="info-item"><div class="lbl">Father's Name</div><div class="val">${fatherName}</div></div>
-    <div class="info-item"><div class="lbl">Gender</div><div class="val">${adm.gender || '—'}</div></div>
-    <div class="info-item"><div class="lbl">Date Generated</div><div class="val">${printDate}</div></div>
-  </div>
-
-  <div class="result-section">
-    <table>
-      <thead><tr>
-        <th>Subject</th><th style="text-align:center">Total</th>
-        <th style="text-align:center">Obtained</th><th style="text-align:center">Percentage</th>
-        <th style="text-align:center">Grade</th><th style="text-align:center">Remarks</th>
-      </tr></thead>
-      <tbody>${subjectRows}</tbody>
-    </table>
-  </div>
-
-  <div style="padding:20px 40px;background:#f8fafc;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">
-    <div style="flex:1;padding-right:20px;">
-      <div style="font-size:11px;text-transform:uppercase;color:#94a3b8;font-weight:700;margin-bottom:6px">Class Teacher Remarks</div>
-      <div style="font-size:14px;font-weight:600;color:#1e293b;font-style:italic">"${(student.termRemarks && student.termRemarks[termLabel]) || getGradeRemark(overallGrade) || '_____________________________________________________'}"</div>
-    </div>
-    <div style="background:white;padding:12px 20px;border-radius:12px;border:1px solid #e2e8f0;text-align:center;min-width:200px">
-      <div style="font-size:10px;text-transform:uppercase;color:#64748b;font-weight:700;margin-bottom:8px;letter-spacing:1px">Attendance Summary</div>
-      <div style="display:flex;justify-content:space-between;gap:15px">
-        <div><div style="font-size:16px;font-weight:800;color:#15803d">${presentDays}</div><div style="font-size:10px;color:#94a3b8">Present</div></div>
-        <div><div style="font-size:16px;font-weight:800;color:#dc2626">${absentDays}</div><div style="font-size:10px;color:#94a3b8">Absent</div></div>
-        <div><div style="font-size:16px;font-weight:800;color:#2563eb">${attPct}%</div><div style="font-size:10px;color:#94a3b8">Rate</div></div>
-      </div>
+    <div class="header-info">
+      <div class="school-name">${finalSchoolName}</div>
+      <div class="school-address">${sectionName ? sectionName + ' — ' : ''}ACS Higher Secondary School, Jhang Road Painsra, Pakistan</div>
+      <div class="school-contacts">0300 1333275 • Infoacspainsra@gmail.com</div>
     </div>
   </div>
-  <div class="overall">
-    <div>
-      <div class="overall-label">Overall Percentage</div>
-      <div class="overall-value">${overall}%</div>
-    </div>
-    <div>
-      <div class="overall-label">Overall Grade</div>
-      <div class="overall-value" style="color:${gradeColor}">${overallGrade}</div>
-    </div>
-    <div>
-      <span class="pass-badge" style="background:${overall >= 40 ? '#dcfce7' : '#fee2e2'};color:${overall >= 40 ? '#15803d' : '#dc2626'}">
-        ${overall >= 40 ? '✅ PASS' : '❌ FAIL'}
-      </span>
+  
+  <div class="pill-wrap">
+    <span class="pill-title">REPORT CARD</span>
+  </div>
+ 
+  <div class="profile-box">
+    <div class="initials-square">${initialChar}</div>
+    <div class="profile-grid">
+      <div class="profile-item"><div class="lbl">STUDENT NAME</div><div class="val">${student.name}</div></div>
+      <div class="profile-item"><div class="lbl">STUDENT ID</div><div class="val">${student.id || '—'}</div></div>
+      <div class="profile-item"><div class="lbl">CLASS</div><div class="val">${student.grade}</div></div>
+      <div class="profile-item"><div class="lbl">FATHER'S NAME</div><div class="val">${fatherName}</div></div>
+      <div class="profile-item"><div class="lbl">GENDER</div><div class="val">${adm.gender || '—'}</div></div>
+      <div class="profile-item"><div class="lbl">DATE GENERATED</div><div class="val">${printDate}</div></div>
     </div>
   </div>
 
-  <div class="sigs">
-    <div class="sig-line">Parent / Guardian Signature</div>
-    <div class="sig-line">Class Teacher Signature</div>
-    <div class="sig-line">Principal / HM Signature</div>
+  <div class="section-title">
+    <span class="vertical-indicator"></span>
+    Examination Results - ${termLabel || 'Grand Test'}
   </div>
-  <div class="footer">Generated on ${printDate} &nbsp;|&nbsp; ${schoolName} &nbsp;|&nbsp; Official transcript generated via KHR Educo Smart Platform</div>
+  
+  <table>
+    <thead><tr>
+      <th style="text-align:left; padding-left:20px;">Subject</th>
+      <th>Total</th>
+      <th>Obtained</th>
+      <th>Grade</th>
+      <th style="text-align:left; padding-left:20px;">Performance</th>
+    </tr></thead>
+    <tbody>${subjectRows}</tbody>
+  </table>
+
+  <div class="section-title">
+    <span class="vertical-indicator"></span>
+    Summary & Attendance
+  </div>
+
+  <div class="summary-box">
+    <div class="summary-col">Aggregate Result</div>
+    <div class="summary-col">
+      <div style="font-size: 13px; font-weight: 900; color: #1e3a8a;">${totalObtained} / ${totalMax}</div>
+      <div style="font-size: 10px; font-weight: 700; color: #64748b; margin-top: 1px;">${overall.toFixed(1)}%</div>
+    </div>
+    <div class="summary-col">
+      <div class="grade-circle">${overallGrade}</div>
+    </div>
+    <div class="summary-col" style="color: #1e3a8a;">${overall >= 40 ? 'PASSED' : 'FAILED'}</div>
+  </div>
+
+  <div class="stats-box">
+    <div class="stat-col">
+      <div class="stat-val" style="color: #15803d;">${presentDays}</div>
+      <div class="stat-lbl">PRESENT</div>
+    </div>
+    <div class="stat-col">
+      <div class="stat-val" style="color: #b91c1c;">${absentDays}</div>
+      <div class="stat-lbl">ABSENT</div>
+    </div>
+    <div class="stat-col">
+      <div class="stat-val" style="color: #1d4ed8;">${attPct}%</div>
+      <div class="stat-lbl">PERCENTAGE</div>
+    </div>
+  </div>
+
+  <div class="section-title">
+    <span class="vertical-indicator"></span>
+    Remarks
+  </div>
+  
+  <div style="margin-bottom: ${isOnePageMode ? '12px' : '20px'};">
+    <div class="remarks-line">
+      ${(student.termRemarks && student.termRemarks[termLabel]) || getGradeRemark(overallGrade) || '—'}
+    </div>
+    <div class="remarks-ruled"></div>
+    ${!isOnePageMode ? `<div class="remarks-ruled"></div>` : ''}
+  </div>
+
+  <div class="sigs-row">
+    <div class="sig-col">
+      <div class="sig-under"></div>
+      <span class="sig-lbl">CLASS TEACHER</span>
+    </div>
+    <div class="sig-col">
+      <div class="sig-under"></div>
+      <span class="sig-lbl">PRINCIPAL</span>
+    </div>
+    <div class="sig-col">
+      <div class="sig-under"></div>
+      <span class="sig-lbl">PARENT SIGNATURE</span>
+    </div>
+  </div>
+
+  <div class="footer-row">
+    <span>Generated by ACS School & College Portal</span>
+    <span>${printDate}</span>
+  </div>
 </div>
-<script>window.onload = () => window.print();</script>
+<script>window.onload = () => setTimeout(() => window.print(), 300);</script>
 </body></html>`;
 
     const win = window.open('', '_blank');
@@ -188,10 +320,10 @@ function printReportCard(student, termLabel, subjects, weights, schoolName, scho
 }
 
 // ─── Print ALL report cards for a class (batch) ───────────────────────────────
-function printClassReportCards(classStudents, termLabel, subjects, weights, schoolName, schoolLogo, sectionName) {
+function printClassReportCards(classStudents, termLabel, subjects, weights, schoolName, schoolLogo, sectionName, isOnePageMode = true) {
     if (!classStudents.length) { alert('No students in this class!'); return; }
     classStudents.forEach((s, i) => {
-        setTimeout(() => printReportCard(s, termLabel, subjects, weights, schoolName, schoolLogo, sectionName), i * 300);
+        setTimeout(() => printReportCard(s, termLabel, subjects, weights, schoolName, schoolLogo, sectionName, isOnePageMode), i * 300);
     });
 }
 
@@ -209,6 +341,7 @@ const ReportsTab = ({
     const [genderFilter, setGenderFilter] = useState('all');
     const [showClassStats, setShowClassStats] = useState(true);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [isOnePageMode, setIsOnePageMode] = useState(true);
 
     const [checkedClasses, setCheckedClasses] = useState(selectedClass ? [selectedClass] : []);
     const [expandedSections, setExpandedSections] = useState(() => {
@@ -342,7 +475,7 @@ const ReportsTab = ({
                 return SUBJECTS[s.grade] || [];
             })();
             const sSectionName = (SECTIONS || []).find(sec => sec.classes?.includes(s.grade))?.name || '';
-            setTimeout(() => printReportCard(s, currentTerm, sSubjects, sWeights, schoolName, schoolLogo, sSectionName), i * 400);
+            setTimeout(() => printReportCard(s, currentTerm, sSubjects, sWeights, schoolName, schoolLogo, sSectionName, isOnePageMode), i * 400);
         });
     };
 
@@ -351,16 +484,58 @@ const ReportsTab = ({
         <div className="animate-fade-in" style={{ paddingBottom: '3rem' }}>
 
             {/* ── HEADER ── */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.75rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.75rem' }}>
                 <div>
                     <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Report Cards</h2>
                     <p style={{ color: '#64748b', margin: '0.25rem 0 0' }}>Generate, print and analyze terminal report cards for any class.</p>
                 </div>
-                <button
-                    onClick={handlePrintAll}
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'linear-gradient(135deg,#1e3a5f,#2563eb)', color: 'white', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(37,99,235,0.3)', fontSize: '0.95rem' }}>
-                    <Printer size={18} /> Print All ({classStudents.length})
-                </button>
+                
+                {/* Controls Container */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
+                    {/* Premium Styled Checkbox Toggle */}
+                    <label style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '0.6rem', 
+                        background: isOnePageMode ? '#eff6ff' : '#f8fafc',
+                        border: isOnePageMode ? '1.5px solid #2563eb' : '1.5px solid #e2e8f0',
+                        borderRadius: '12px', 
+                        padding: '0.6rem 1.1rem', 
+                        cursor: 'pointer', 
+                        userSelect: 'none',
+                        transition: 'all 0.2s ease',
+                        boxShadow: isOnePageMode ? '0 2px 8px rgba(37,99,235,0.08)' : 'none'
+                    }}>
+                        <input 
+                            type="checkbox" 
+                            checked={isOnePageMode}
+                            onChange={(e) => setIsOnePageMode(e.target.checked)}
+                            style={{ 
+                                width: '18px', 
+                                height: '18px', 
+                                cursor: 'pointer', 
+                                accentColor: '#2563eb',
+                                borderRadius: '4px'
+                            }} 
+                        />
+                        <span style={{ 
+                            fontSize: '0.9rem', 
+                            fontWeight: 700, 
+                            color: isOnePageMode ? '#2563eb' : '#475569',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                        }}>
+                            📄 One-Page Print Mode
+                        </span>
+                    </label>
+
+                    <button
+                        onClick={handlePrintAll}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'linear-gradient(135deg,#1e3a5f,#2563eb)', color: 'white', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(37,99,235,0.3)', fontSize: '0.95rem' }}>
+                        <Printer size={18} /> Print All ({classStudents.length})
+                    </button>
+                </div>
             </div>
 
             {/* ── FILTERS ROW ── */}
@@ -692,7 +867,7 @@ const ReportsTab = ({
                                                         return SUBJECTS[student.grade] || [];
                                                     })();
                                                     const sSectionName = (SECTIONS || []).find(sec => sec.classes?.includes(student.grade))?.name || '';
-                                                    printReportCard(student, currentTerm, sSubjects, sWeights, schoolName, schoolLogo, sSectionName);
+                                                    printReportCard(student, currentTerm, sSubjects, sWeights, schoolName, schoolLogo, sSectionName, isOnePageMode);
                                                 }}
                                                 style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: '#1e3a5f', color: 'white', border: 'none', padding: '0.45rem 0.9rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>
                                                 <Printer size={13} /> Print
