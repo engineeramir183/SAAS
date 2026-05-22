@@ -2035,7 +2035,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             showSaveMessage(`${statusLabel} marked for ${student.name} on ${today}!`);
 
             // WhatsApp Automation: Attendance Alert
-            if (status === 'absent' && schoolSettings?.auto_attendance_alert) {
+            if (status === 'absent' && schoolSettings?.auto_attendance_alert !== false) {
                 const parentPhone = student.admissions?.[0]?.whatsapp || student.admissions?.[0]?.contact || '';
                 if (parentPhone) {
                     const msg = WhatsAppTemplates.attendanceAbsent(student.name, today, schoolName);
@@ -2206,7 +2206,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             showSaveMessage('Fee record updated successfully!');
 
             // WhatsApp Automation: Fee Receipt
-            if (newRecordData.status === 'paid' && schoolSettings?.auto_fee_alert) {
+            if (newRecordData.status === 'paid' && schoolSettings?.auto_fee_alert !== false) {
                 const student = students.find(s => s.id === studentId);
                 const parentPhone = student?.admissions?.[0]?.whatsapp || student?.admissions?.[0]?.contact || '';
                 if (parentPhone) {

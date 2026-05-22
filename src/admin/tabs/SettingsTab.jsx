@@ -25,8 +25,8 @@ const SettingsTab = ({ schoolData, schoolSettings, currentSchoolId, updateSchool
         // WhatsApp Automation Settings
         whatsapp_api_key: schoolSettings?.whatsapp_api_key || '',
         whatsapp_phone_id: schoolSettings?.whatsapp_phone_id || '',
-        auto_attendance_alert: schoolSettings?.auto_attendance_alert ?? false,
-        auto_fee_alert: schoolSettings?.auto_fee_alert ?? false,
+        auto_attendance_alert: schoolSettings?.auto_attendance_alert ?? true,
+        auto_fee_alert: schoolSettings?.auto_fee_alert ?? true,
         auto_admission_alert: schoolSettings?.auto_admission_alert ?? false
     });
 

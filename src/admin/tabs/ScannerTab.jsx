@@ -174,7 +174,7 @@ const ScannerTab = ({ students, setStudents, showSaveMessage, schoolName = 'Scho
             if (showSaveMessage) showSaveMessage(`✅ Attendance marked for ${student.name}!`);
             
             // WhatsApp Automation: Safe Arrival
-            if (schoolSettings?.auto_attendance_alert) {
+            if (schoolSettings?.auto_attendance_alert !== false) {
                 const parentPhone = student.admissions?.[0]?.whatsapp || student.admissions?.[0]?.contact || '';
                 if (parentPhone) {
                     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
