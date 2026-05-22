@@ -5,7 +5,8 @@ import {
     Download, Upload, FileText, Search, Camera,
     BellPlus, Trash2, Megaphone, PlusCircle, Lock,
     Building, School, Check, X, ChevronRight, Layout, Building2,
-    GripVertical, ChevronUp, ChevronDown, Menu, TrendingDown, BookMarked
+    GripVertical, ChevronUp, ChevronDown, Menu, TrendingDown, BookMarked,
+    Clock
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useSchoolData } from '../context/SchoolDataContext';
@@ -33,6 +34,7 @@ const DashboardTab = lazy(() => import('../admin/tabs/DashboardTab'));
 const PayrollTab = lazy(() => import('../admin/tabs/PayrollTab'));
 const LogsTab = lazy(() => import('../admin/tabs/LogsTab'));
 const DiaryTab = lazy(() => import('../admin/tabs/DiaryTab'));
+const WhatsAppSchedulerTab = lazy(() => import('../admin/tabs/WhatsAppSchedulerTab'));
 
 
 const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
@@ -3100,6 +3102,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         { id: 'diary', label: 'Student Diary', icon: BookMarked, desc: 'Post homework, classwork & notices for parents.', isPro: false },
         { id: 'facilities', label: 'School Facilities', icon: Building, desc: 'List and update school infrastructure.', isPro: false },
         { id: 'blog', label: 'Website Blog', icon: Layout, desc: 'Post stories and news to the public website.', isPro: true },
+        { id: 'whatsapp_scheduler', label: 'WhatsApp Schedules', icon: Clock, desc: 'Manage automated alert timers and crons.', isPro: false },
         { id: 'settings', label: 'School Settings', icon: Building2, desc: 'Update school name, logo, mission, and vision.', isPro: false },
         { id: 'logs', label: 'Activity Logs', icon: FileText, desc: 'Monitor administrative audit trails and security logs.', isPro: false }
     ];
@@ -3599,6 +3602,17 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                 {activeTab === 'diary' && (
                                     <DiaryTab
                                         showSaveMessage={showSaveMessage}
+                                    />
+                                )}
+
+                                {/* WhatsApp Automated Schedules */}
+                                {activeTab === 'whatsapp_scheduler' && (
+                                    <WhatsAppSchedulerTab
+                                        schoolData={schoolData}
+                                        schoolSettings={schoolSettings}
+                                        updateSchoolSettings={updateSchoolSettings}
+                                        currencySymbol={currencySymbol}
+                                        students={students}
                                     />
                                 )}
                             </Suspense>
