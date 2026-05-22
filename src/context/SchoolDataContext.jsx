@@ -484,10 +484,6 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 name:             s.name,
                 grade:            s.grade,
                 image:            s.image            !== undefined ? s.image          : s.photo,
-                fee_history:      s.feeHistory       !== undefined ? s.feeHistory     : (s.fee_history || []),
-                results:          s.results          || [],
-                attendance:       s.attendance       || {},
-                previous_results: s.previousResults  !== undefined ? s.previousResults : s.previous_results || [],
                 admissions:       s.admissions       || []
             };
             if (s.id && !s.id.startsWith('TEMP-')) {
@@ -505,11 +501,7 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 grade:           dbRow.grade,
                 password:        dbRow.password,
                 photo:           dbRow.image,
-                feeHistory:      dbRow.fee_history || [],
-                previousResults: dbRow.previous_results || [],
                 serialNumber:    dbRow.serial_number,
-                results:         dbRow.results || [],
-                attendance:      dbRow.attendance || {},
                 admissions:      dbRow.admissions || []
             }));
 
@@ -518,9 +510,16 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 incomingNormalised.forEach(ns => {
                     const idx = merged.findIndex(s => s.id === ns.id || (s.id && s.id.startsWith('TEMP-') && s.name === ns.name && s.grade === ns.grade));
                     if (idx > -1) {
-                        merged[idx] = { ...merged[idx], ...ns, id: ns.id }; // Update with new ID and DB data
+                        merged[idx] = { ...merged[idx], ...ns, id: ns.id }; // Update with new ID and DB data, preserving relational state
+                    } else {
+                        merged.push({
+                            ...ns,
+                            feeHistory: [],
+                            previousResults: [],
+                            results: [],
+                            attendance: { records: [], total: 0, present: 0, absent: 0, leave: 0, late: 0, holiday: 0, percentage: 0 }
+                        });
                     }
-                    else merged.push(ns);
                 });
                 // Maintain sort order by serial number if possible
                 merged.sort((a, b) => {

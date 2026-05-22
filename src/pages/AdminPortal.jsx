@@ -985,11 +985,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 password: (schoolSettings?.school_id?.split('-')[0]?.toLowerCase() || 'pass') + Math.floor(1000 + Math.random() * 9000),
                 grade: d.applyingFor,
                 image: d.photo,
-                fee_history: [],
                 admissions: [d],
-                results: [],
-                attendance: { present: 0, absent: 0, total: 0, percentage: 0 },
-                previous_results: [],
                 school_id: currentSchoolId
             };
 
