@@ -38,7 +38,8 @@ const WhatsAppSchedulerTab = lazy(() => import('../admin/tabs/WhatsAppSchedulerT
 
 
 const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
-    const { schoolData, CLASSES, SUBJECTS, TERMS, SECTIONS, WEIGHTS, CLASS_SERIAL_STARTS, CLASS_FEE_DEFAULTS, EXPENSES, INQUIRIES, fetchData, fetchPublicData, setStudents, setFaculty, updateSchoolInfo, updateSchoolSettings, setAnnouncements, updateClasses, updateSubjects, updateTerms, updateSections, updateWeights, updateClassSerialStarts, updateClassFeeDefaults, updateExpenses, saveInquiry, deleteInquiry, adminCredentials, changeAdminPassword, currencySymbol, schoolSettings, completeOnboarding, loading, currentSchoolId, saveAttendanceRecords, deleteAttendanceRecords } = useSchoolData();
+    const schoolContext = useSchoolData();
+    const { schoolData, CLASSES, SUBJECTS, TERMS, SECTIONS, WEIGHTS, CLASS_SERIAL_STARTS, CLASS_FEE_DEFAULTS, EXPENSES, INQUIRIES, fetchData, fetchPublicData, setStudents, setFaculty, updateSchoolInfo, updateSchoolSettings, setAnnouncements, updateClasses, updateSubjects, updateTerms, updateSections, updateWeights, updateClassSerialStarts, updateClassFeeDefaults, updateExpenses, saveInquiry, deleteInquiry, adminCredentials, changeAdminPassword, currencySymbol, schoolSettings, completeOnboarding, loading, currentSchoolId, saveAttendanceRecords, deleteAttendanceRecords } = schoolContext;
     
     // NOTE: loading check moved below all hooks to comply with React Rules of Hooks
 
