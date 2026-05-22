@@ -17,30 +17,52 @@ export const sendWhatsAppMessage = async (to, message, settings) => {
         return { success: false, mode: 'fallback', url: `https://wa.me/${recipient}?text=${encodeURIComponent(message)}` };
     }
 
-        // To bypass Meta's strict browser CORS policy, we use a proxy for frontend API calls.
-        // For absolute production security, this call should eventually be moved to a Supabase Edge Function.
-        try {
-        const targetUrl = encodeURIComponent(`https://graph.facebook.com/v17.0/${whatsapp_phone_id}/messages`);
-        const response = await fetch(`https://corsproxy.io/?${targetUrl}`, {
+    try {
+        // We first try our secure Vercel Serverless Function proxy (Production / vercel dev)
+        const response = await fetch('/api/send-whatsapp', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${whatsapp_api_key}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                messaging_product: "whatsapp",
-                recipient_type: "individual",
                 to: recipient,
-                type: "text",
-                text: { 
-                    preview_url: true,
-                    body: message 
-                }
+                message,
+                whatsapp_api_key,
+                whatsapp_phone_id
             })
         });
 
+        // If the serverless function is not found (404) e.g. when running Vite's standalone dev server local without Vercel,
+        // we can fallback to a direct Meta API call (CORS preflight may fail on localhost).
+        if (response.status === 404) {
+            console.warn('[WhatsAppService] Serverless /api/send-whatsapp returned 404. Falling back to direct Graph API call...');
+            
+            const directUrl = `https://graph.facebook.com/v17.0/${whatsapp_phone_id}/messages`;
+            const directRes = await fetch(directUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${whatsapp_api_key}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    messaging_product: "whatsapp",
+                    recipient_type: "individual",
+                    to: recipient,
+                    type: "text",
+                    text: { 
+                        preview_url: true,
+                        body: message 
+                    }
+                })
+            });
+            
+            const directData = await directRes.json();
+            if (!directRes.ok) throw new Error(directData.error?.message || 'Meta API returned an error');
+            return { success: true, data: directData };
+        }
+
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error?.message || 'Failed to send WhatsApp message');
+        if (!response.ok) throw new Error(data.error || 'Failed to send WhatsApp message through serverless proxy');
         
         return { success: true, data };
     } catch (error) {
