@@ -35,7 +35,20 @@ export default async function handler(req, res) {
     // Firebase Admin credentials from Vercel environment variables
     const projectId   = process.env.FIREBASE_PROJECT_ID;
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey  = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+    let privateKey    = process.env.FIREBASE_PRIVATE_KEY;
+
+    if (privateKey) {
+        // Strip any surrounding double/single quotes added during copy-paste in Vercel UI
+        privateKey = privateKey.trim();
+        if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+            privateKey = privateKey.substring(1, privateKey.length - 1);
+        }
+        if (privateKey.startsWith("'") && privateKey.endsWith("'")) {
+            privateKey = privateKey.substring(1, privateKey.length - 1);
+        }
+        // Format newline sequences
+        privateKey = privateKey.replace(/\\n/g, '\n');
+    }
 
     if (!projectId || !clientEmail || !privateKey) {
         console.error('[send-push-notification] Firebase Admin credentials not configured.');
