@@ -9,6 +9,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
+      workbox: {
+        importScripts: ['/firebase-messaging-sw.js']
+      },
       includeAssets: ['logo.png', 'apple-touch-icon.png'],
       manifest: {
         name: 'KHR Educo Platform',

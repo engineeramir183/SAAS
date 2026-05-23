@@ -86,11 +86,10 @@ export const initializePush = async (schoolId, studentId, schoolSettings) => {
         const app = getFirebaseApp();
         const messaging = getMessaging(app);
 
-        // Serialize Firebase config into query parameters for the SW
-        const configParams = new URLSearchParams(firebaseConfig).toString();
-        const registration = await navigator.serviceWorker.register(`/firebase-messaging-sw.js?${configParams}`);
+        // Use the primary PWA Service Worker (sw.js) to handle push notifications in harmony
+        const registration = await navigator.serviceWorker.ready;
 
-        // Pass Firebase config to SW as a backup
+        // Pass Firebase config to the PWA Service Worker so it can initialize FCM dynamically
         if (registration.active) {
             registration.active.postMessage({
                 type: 'FIREBASE_CONFIG',
