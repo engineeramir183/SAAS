@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useSchoolData } from '../../context/SchoolDataContext';
 import { sendWhatsAppMessage, WhatsAppTemplates } from '../../services/WhatsAppService';
+import { sendPushNotification, PushTemplates } from '../../services/PushNotificationService';
 
 // ─── Type config (icon + colour) ─────────────────────────────────────────────
 const TYPE_CONFIG = {
@@ -36,7 +37,7 @@ const blankForm = (cls = '') => ({
 export default function DiaryTab({ showSaveMessage }) {
     const {
         CLASSES, SUBJECTS, SECTIONS,
-        schoolData, schoolSettings,
+        schoolData, schoolSettings, currentSchoolId,
         diaryEntries, fetchDiaryEntries,
         saveDiaryEntry, deleteDiaryEntry,
     } = useSchoolData();
@@ -114,7 +115,7 @@ export default function DiaryTab({ showSaveMessage }) {
             showSaveMessage(form.id ? '✅ Entry updated!' : '✅ Diary entry saved!');
             setShowForm(false);
 
-            // ── WhatsApp alert for urgent entries (new entries only) ──────────
+            // ── WhatsApp + Push alert for urgent entries (new entries only) ──────────
             if (form.is_urgent && !form.id) {
                 const schoolName = schoolData?.name || 'School';
                 const title = form.title || form.type;
@@ -122,16 +123,28 @@ export default function DiaryTab({ showSaveMessage }) {
                     ? students.filter(s => s.id === form.student_id)
                     : students.filter(s => s.grade === form.class);
 
-                let sent = 0;
+                let waSent = 0;
                 for (const s of targetStudents) {
                     const phone = s.admissions?.[0]?.whatsapp || s.admissions?.[0]?.contact;
                     if (phone) {
                         const msg = WhatsAppTemplates.urgentDiaryAlert(s.name, title, form.content, schoolName);
                         sendWhatsAppMessage(phone, msg, schoolSettings);
-                        sent++;
+                        waSent++;
+                    }
+
+                    // --- Push notification (parallel, free) ---
+                    if (schoolSettings?.auto_push_diary_alert) {
+                        const tmpl = PushTemplates.diaryUrgent(s.name, title, form.type);
+                        sendPushNotification(
+                            s.id,
+                            tmpl.title,
+                            tmpl.body,
+                            currentSchoolId || schoolSettings?.school_id,
+                            { tag: tmpl.tag, urgent: tmpl.urgent }
+                        );
                     }
                 }
-                if (sent > 0) showSaveMessage(`✅ Entry saved! 📲 WhatsApp alert sent to ${sent} parent(s).`);
+                if (waSent > 0) showSaveMessage(`✅ Entry saved! 📲 WhatsApp alert sent to ${waSent} parent(s).`);
             }
         }
     };
@@ -342,7 +355,7 @@ export default function DiaryTab({ showSaveMessage }) {
                                 style={{ width: 16, height: 16 }}
                             />
                             <label htmlFor="urgentChk" style={{ color: '#dc2626', fontWeight: 600, cursor: 'pointer' }}>
-                                🚨 Mark as Urgent (will trigger WhatsApp alert)
+                                🚨 Mark as Urgent (triggers WhatsApp + Push alerts)
                             </label>
                         </div>
 

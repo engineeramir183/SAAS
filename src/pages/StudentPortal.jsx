@@ -5,9 +5,10 @@ import {
     ArrowUp, ArrowDown, Minus, BookMarked, Menu, X
 } from 'lucide-react';
 import { useSchoolData } from '../context/SchoolDataContext';
+import NotificationPermissionBanner from '../components/NotificationPermissionBanner';
 
 const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStudent }) => {
-    const { schoolData, TERMS, fetchDiaryEntries, diaryEntries, acknowledgeDiaryEntry, loading } = useSchoolData();
+    const { schoolData, schoolSettings, currentSchoolId, TERMS, fetchDiaryEntries, diaryEntries, acknowledgeDiaryEntry, loading } = useSchoolData();
     const [activeTab, setActiveTab] = useState('overview');
     const [selectedPrevTerm, setSelectedPrevTerm] = useState(0);
 
@@ -169,6 +170,13 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
 
     return (
         <div className="dashboard-container">
+            {/* Push Notification Permission Banner */}
+            <NotificationPermissionBanner
+                schoolId={currentSchoolId}
+                studentId={liveStudent?.id}
+                schoolSettings={schoolSettings}
+            />
+
             {/* ── MOBILE OVERLAY ── */}
             <div className={`sidebar-overlay ${isSidebarOpen ? 'open' : ''}`} onClick={() => setIsSidebarOpen(false)}></div>
 

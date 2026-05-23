@@ -306,6 +306,22 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
         setTimeout(() => setStatusMessage(''), 3000);
     };
 
+    const togglePushFeature = async (school, column) => {
+        const current = school[column] || false;
+        const newVal = !current;
+        const { error } = await supabase
+            .from('schools')
+            .update({ [column]: newVal })
+            .eq('school_id', school.school_id);
+        if (!error) {
+            // Optimistically update the viewingSchool panel
+            setViewingSchool(prev => ({ ...prev, [column]: newVal }));
+            await fetchAllSchools();
+        } else {
+            setStatusMessage('Error updating feature: ' + error.message);
+        }
+    };
+
     if (!isSuperAdmin) return <div style={{ padding: '3rem', textAlign: 'center' }}>Checking authorization...</div>;
 
     const totalSchools = schools.length;
@@ -998,8 +1014,53 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* ─── Push Notification Feature Gate ─── */}
+                                <div style={{ padding: '1.5rem', background: '#f0f9ff', borderRadius: '16px', border: '1px solid #bae6fd', marginTop: '0' }}>
+                                    <h4 style={{ margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#0c4a6e', fontSize: '0.95rem' }}>
+                                        <Bell size={18} /> Web Push Notification Controls
+                                    </h4>
+                                    <p style={{ margin: '0 0 1rem', fontSize: '0.8rem', color: '#0369a1' }}>These toggles control which push notification features are active for this school. All features are free (FCM).</p>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                        {[
+                                            { key: 'push_notifications_enabled',  label: '🔔 Push Notifications (Master Switch)', desc: 'Enable/disable ALL push for this school' },
+                                            { key: 'auto_push_attendance_alert',   label: '📋 Attendance Absence Alerts',          desc: 'Send push when student is marked absent' },
+                                            { key: 'auto_push_fee_alert',          label: '💰 Fee Overdue Reminders',               desc: 'Send push when fee reminder button is clicked' },
+                                            { key: 'auto_push_diary_alert',        label: '📓 Urgent Diary / Homework Alerts',      desc: 'Send push for urgent diary entries' },
+                                        ].map(({ key, label, desc }) => {
+                                            const isOn = viewingSchool[key] === true;
+                                            return (
+                                                <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.8rem', background: 'white', borderRadius: '10px', border: `1px solid ${isOn ? '#7dd3fc' : '#e2e8f0'}` }}>
+                                                    <div>
+                                                        <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#0f172a' }}>{label}</div>
+                                                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{desc}</div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => togglePushFeature(viewingSchool, key)}
+                                                        style={{
+                                                            width: '52px', height: '28px', borderRadius: '999px',
+                                                            background: isOn ? '#0ea5e9' : '#cbd5e1',
+                                                            border: 'none', cursor: 'pointer',
+                                                            position: 'relative', transition: 'background 0.25s',
+                                                            flexShrink: 0
+                                                        }}
+                                                    >
+                                                        <div style={{
+                                                            position: 'absolute', top: '3px',
+                                                            left: isOn ? '26px' : '4px',
+                                                            width: '22px', height: '22px',
+                                                            borderRadius: '50%', background: 'white',
+                                                            boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                                                            transition: 'left 0.25s'
+                                                        }} />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
                             </div>
-                            
+
                             <div style={{ padding: '1.5rem 2.5rem', background: '#f8fafc', borderTop: '1px solid #e2e8f0', textAlign: 'right' }}>
                                 <button onClick={() => setViewingSchool(null)} style={{ background: '#1e293b', color: 'white', border: 'none', padding: '0.7rem 2rem', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}>Close Insights</button>
                             </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, Building2, Target, Eye, MapPin, Phone, Mail, Globe, Image as ImageIcon, Upload, MessageCircle } from 'lucide-react';
+import { Save, Building2, Target, Eye, MapPin, Phone, Mail, Globe, Image as ImageIcon, Upload, MessageCircle, Bell } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 
 const SettingsTab = ({ schoolData, schoolSettings, currentSchoolId, updateSchoolInfo, updateSchoolSettings, showSaveMessage }) => {
@@ -27,7 +27,11 @@ const SettingsTab = ({ schoolData, schoolSettings, currentSchoolId, updateSchool
         whatsapp_phone_id: schoolSettings?.whatsapp_phone_id || '',
         auto_attendance_alert: schoolSettings?.auto_attendance_alert ?? true,
         auto_fee_alert: schoolSettings?.auto_fee_alert ?? true,
-        auto_admission_alert: schoolSettings?.auto_admission_alert ?? false
+        auto_admission_alert: schoolSettings?.auto_admission_alert ?? false,
+        // Push Notification Settings (Free — FCM)
+        auto_push_attendance_alert: schoolSettings?.auto_push_attendance_alert ?? false,
+        auto_push_fee_alert:        schoolSettings?.auto_push_fee_alert        ?? false,
+        auto_push_diary_alert:      schoolSettings?.auto_push_diary_alert      ?? false,
     });
 
     const handleSave = async () => {
@@ -57,7 +61,10 @@ const SettingsTab = ({ schoolData, schoolSettings, currentSchoolId, updateSchool
             whatsapp_phone_id: form.whatsapp_phone_id,
             auto_attendance_alert: form.auto_attendance_alert,
             auto_fee_alert: form.auto_fee_alert,
-            auto_admission_alert: form.auto_admission_alert
+            auto_admission_alert: form.auto_admission_alert,
+            auto_push_attendance_alert: form.auto_push_attendance_alert,
+            auto_push_fee_alert:        form.auto_push_fee_alert,
+            auto_push_diary_alert:      form.auto_push_diary_alert,
         };
         const { error: settingsError } = await updateSchoolSettings(settingsData);
 
@@ -400,6 +407,68 @@ const SettingsTab = ({ schoolData, schoolSettings, currentSchoolId, updateSchool
                         </div>
                     </label>
                 </div>
+            </div>
+
+            {/* Web Push Notifications Section */}
+            <div style={sectionStyle}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.8rem' }}>
+                    <div style={{ padding: '0.6rem', background: '#eff6ff', borderRadius: '12px' }}>
+                        <Bell size={24} color="#2563eb" />
+                    </div>
+                    <div>
+                        <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Web Push Notifications <span style={{ background: '#dcfce7', color: '#166534', fontSize: '0.7rem', padding: '0.2rem 0.6rem', borderRadius: '999px', fontWeight: 700, marginLeft: '0.5rem', verticalAlign: 'middle' }}>100% FREE</span></h3>
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>Instant browser notifications to parents — no cost, no per-message fee. Requires SuperAdmin to enable for this school.</p>
+                    </div>
+                </div>
+
+                <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#475569', marginBottom: '1rem', textTransform: 'uppercase' }}>Push Alert Triggers</h4>
+
+                <div style={{ display: 'grid', gap: '1rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', cursor: 'pointer', opacity: schoolSettings?.push_notifications_enabled ? 1 : 0.5 }}>
+                        <input
+                            type="checkbox"
+                            checked={form.auto_push_attendance_alert}
+                            disabled={!schoolSettings?.push_notifications_enabled}
+                            onChange={e => setForm({...form, auto_push_attendance_alert: e.target.checked})}
+                        />
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>📋 Attendance Absence Push Alerts</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Send instant push notification to parent when student is marked Absent (alongside WhatsApp).</div>
+                        </div>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', cursor: 'pointer', opacity: schoolSettings?.push_notifications_enabled ? 1 : 0.5 }}>
+                        <input
+                            type="checkbox"
+                            checked={form.auto_push_fee_alert}
+                            disabled={!schoolSettings?.push_notifications_enabled}
+                            onChange={e => setForm({...form, auto_push_fee_alert: e.target.checked})}
+                        />
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>💰 Fee Overdue Push Reminders</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Send push notification to parent when the fee reminder button is clicked.</div>
+                        </div>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', cursor: 'pointer', opacity: schoolSettings?.push_notifications_enabled ? 1 : 0.5 }}>
+                        <input
+                            type="checkbox"
+                            checked={form.auto_push_diary_alert}
+                            disabled={!schoolSettings?.push_notifications_enabled}
+                            onChange={e => setForm({...form, auto_push_diary_alert: e.target.checked})}
+                        />
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>📓 Urgent Diary / Homework Push Alerts</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Send push notification to parents when an entry is marked as Urgent.</div>
+                        </div>
+                    </label>
+                </div>
+
+                {!schoolSettings?.push_notifications_enabled && (
+                    <div style={{ marginTop: '1rem', padding: '0.85rem 1rem', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: '10px', fontSize: '0.82rem', color: '#92400e', fontWeight: 600 }}>
+                        ⚠️ Push notifications are not enabled for this school. Contact your SuperAdmin to activate this feature.
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { PlusCircle, Trash2, X, Printer, Save, MessageCircle, Settings } from 'lucide-react';
 import { sendWhatsAppMessage, WhatsAppTemplates } from '../../services/WhatsAppService';
+import { sendPushNotification, PushTemplates } from '../../services/PushNotificationService';
 
 
 const calculateArrears = (student, currentMonth, defaults) => {
@@ -1075,6 +1076,13 @@ const FeeTab = ({
                                                                 const phone = student.admissions[0].whatsapp || student.admissions[0].fatherContact;
                                                                 const msg = WhatsAppTemplates.feeOverdueReminder(student.name, unpaidMonths.map(m=>m.month).join(', '), schoolName);
                                                                 sendWhatsAppMessage(phone, msg, schoolSettings);
+
+                                                                // --- Parallel Push Notification (free) ---
+                                                                if (schoolSettings?.auto_push_fee_alert) {
+                                                                    const tmpl = PushTemplates.feeOverdue(student.name, unpaidMonths.map(m=>m.month).join(', '));
+                                                                    sendPushNotification(student.id, tmpl.title, tmpl.body, schoolSettings.school_id, { tag: tmpl.tag, urgent: tmpl.urgent });
+                                                                }
+
                                                                 alert('WhatsApp reminder sent to ' + student.name + ' parent.');
                                                             }} title="Send WhatsApp Reminder"
                                                                style={{ background: '#22c55e', color: 'white', border: 'none', padding: '0.3rem', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>

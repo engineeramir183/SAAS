@@ -4,6 +4,7 @@ import { supabase } from '../../supabaseClient';
 import { useSchoolData } from '../../context/SchoolDataContext';
 import { ActivityLogService } from '../../services/ActivityLogService';
 import { sendWhatsAppMessage, WhatsAppTemplates } from '../../services/WhatsAppService';
+import { sendPushNotification, PushTemplates } from '../../services/PushNotificationService';
 
 /* ─────────────────────────────────────────────
    PRINT HELPER  – opens a new window with a
@@ -647,6 +648,14 @@ const AttendanceTab = ({
                 }
             }
             if (sent > 0) showSaveMessage(`Bulk WhatsApp absent alerts sent to ${sent} parents!`);
+        }
+
+        // --- Push Notification Bulk Absence Alert (parallel, free) ---
+        if (status === 'absent' && schoolSettings?.auto_push_attendance_alert) {
+            for (const s of classStudents) {
+                const tmpl = PushTemplates.attendanceAbsent(s.name, filterDate);
+                sendPushNotification(s.id, tmpl.title, tmpl.body, schoolSettings.school_id, { tag: tmpl.tag });
+            }
         }
 
         const statusLabel = status === 'present' ? '✓ All Present' : status === 'absent' ? '✗ All Absent' : '🌴 All Holiday';
