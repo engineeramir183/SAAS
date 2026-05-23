@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../supabaseClient';
 import { Camera, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { sendWhatsAppMessage, WhatsAppTemplates } from '../../services/WhatsAppService';
+import { sendPushNotification, PushTemplates } from '../../services/PushNotificationService';
 
 const ScannerTab = ({ students, setStudents, showSaveMessage, schoolName = 'School', schoolSettings, saveAttendanceRecords }) => {
     const scannerRef = useRef(null);
@@ -181,6 +182,13 @@ const ScannerTab = ({ students, setStudents, showSaveMessage, schoolName = 'Scho
                     const msg = WhatsAppTemplates.attendanceArrived(student.name, time, schoolName);
                     sendWhatsAppMessage(parentPhone, msg, schoolSettings);
                 }
+            }
+
+            // Push Notification Automation: Safe Arrival
+            if (schoolSettings?.auto_push_attendance_alert) {
+                const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                const tmpl = PushTemplates.attendancePresent(student.name, time);
+                sendPushNotification(student.id, tmpl.title, tmpl.body, schoolSettings.school_id, { tag: tmpl.tag });
             }
             
             setTimeout(() => setScanStatus('idle'), 1000);

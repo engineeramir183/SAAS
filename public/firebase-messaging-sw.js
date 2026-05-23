@@ -5,34 +5,60 @@
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
 
-// Firebase config — values injected at runtime via self.__firebaseConfig
-// This is set from the main app before the SW activates
-let firebaseConfig = {};
+// Parse Firebase config from query parameters
+const params = new URLSearchParams(self.location.search);
+const firebaseConfig = {
+    apiKey:            params.get('apiKey'),
+    authDomain:        params.get('authDomain'),
+    projectId:         params.get('projectId'),
+    storageBucket:     params.get('storageBucket'),
+    messagingSenderId: params.get('messagingSenderId'),
+    appId:             params.get('appId'),
+};
+
+// Only initialize if we got valid parameters, otherwise try to fall back or wait
+if (firebaseConfig.apiKey && firebaseConfig.apiKey !== 'undefined' && firebaseConfig.apiKey !== 'placeholder') {
+    try {
+        firebase.initializeApp(firebaseConfig);
+    } catch (e) {
+        console.error('[SW] Firebase init error:', e);
+    }
+} else {
+    // Initialize with a placeholder to prevent immediate crashes
+    try {
+        firebase.initializeApp({
+            apiKey: 'placeholder',
+            projectId: 'placeholder',
+            messagingSenderId: 'placeholder',
+            appId: 'placeholder'
+        });
+    } catch (e) {
+        // Already initialized
+    }
+}
 
 self.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'FIREBASE_CONFIG') {
-        firebaseConfig = event.data.config;
+        const newConfig = event.data.config;
         try {
-            if (!firebase.apps.length) {
-                firebase.initializeApp(firebaseConfig);
+            // If the app was initialized with placeholders, delete and reinitialize
+            if (firebase.apps.length > 0) {
+                const currentApp = firebase.app();
+                if (currentApp.options.apiKey === 'placeholder') {
+                    currentApp.delete().then(() => {
+                        firebase.initializeApp(newConfig);
+                    }).catch(err => {
+                        console.error('[SW] Error deleting placeholder app:', err);
+                    });
+                }
+            } else {
+                firebase.initializeApp(newConfig);
             }
         } catch (e) {
-            console.error('[SW] Firebase init error:', e);
+            console.error('[SW] Firebase dynamic message init error:', e);
         }
     }
 });
-
-// Initialize with a placeholder that will be overridden by the message above
-try {
-    firebase.initializeApp({
-        apiKey: 'placeholder',
-        projectId: 'placeholder',
-        messagingSenderId: 'placeholder',
-        appId: 'placeholder'
-    });
-} catch (e) {
-    // Already initialized
-}
 
 const messaging = firebase.messaging();
 

@@ -86,9 +86,11 @@ export const initializePush = async (schoolId, studentId, schoolSettings) => {
         const app = getFirebaseApp();
         const messaging = getMessaging(app);
 
-        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        // Serialize Firebase config into query parameters for the SW
+        const configParams = new URLSearchParams(firebaseConfig).toString();
+        const registration = await navigator.serviceWorker.register(`/firebase-messaging-sw.js?${configParams}`);
 
-        // Pass Firebase config to SW
+        // Pass Firebase config to SW as a backup
         if (registration.active) {
             registration.active.postMessage({
                 type: 'FIREBASE_CONFIG',

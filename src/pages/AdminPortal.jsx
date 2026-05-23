@@ -14,6 +14,7 @@ import { supabase } from '../supabaseClient';
 import OnboardingWizard from '../components/OnboardingWizard';
 import { sendWhatsAppMessage, WhatsAppTemplates } from '../services/WhatsAppService';
 import { ActivityLogService } from '../services/ActivityLogService';
+import { sendPushNotification, PushTemplates } from '../services/PushNotificationService';
 
 // ── Lazily-loaded tab components (module-level so references are stable) ──
 const GradebookTab = lazy(() => import('../admin/tabs/GradebookTab'));
@@ -2043,6 +2044,12 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                     sendWhatsAppMessage(parentPhone, msg, schoolSettings);
                 }
             }
+
+            // Push Notification Automation: Attendance Alert
+            if (status === 'absent' && schoolSettings?.auto_push_attendance_alert) {
+                const tmpl = PushTemplates.attendanceAbsent(student.name, today);
+                sendPushNotification(student.id, tmpl.title, tmpl.body, currentSchoolId || schoolSettings?.school_id, { tag: tmpl.tag });
+            }
         }
     };
 
@@ -2219,6 +2226,19 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                         schoolName
                     );
                     sendWhatsAppMessage(parentPhone, msg, schoolSettings);
+                }
+            }
+
+            // Push Notification Automation: Fee Receipt
+            if (newRecordData.status === 'paid' && schoolSettings?.auto_push_fee_alert) {
+                const student = students.find(s => s.id === studentId);
+                if (student) {
+                    const tmpl = PushTemplates.feePaid(
+                        student.name,
+                        monthLabel,
+                        `${currencySymbol} ${newRecordData.paidAmount || 0}`
+                    );
+                    sendPushNotification(student.id, tmpl.title, tmpl.body, currentSchoolId || schoolSettings?.school_id, { tag: tmpl.tag });
                 }
             }
         }
