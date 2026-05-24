@@ -18,8 +18,11 @@ export const sendWhatsAppMessage = async (to, message, settings) => {
     }
 
     try {
+        const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+        const apiUrl = isLocal ? 'https://khrlabs.vercel.app/api/send-whatsapp' : '/api/send-whatsapp';
+
         // We first try our secure Vercel Serverless Function proxy (Production / vercel dev)
-        const response = await fetch('/api/send-whatsapp', {
+        const response = await fetch(apiUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

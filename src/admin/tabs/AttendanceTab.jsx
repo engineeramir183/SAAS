@@ -455,7 +455,7 @@ const AttendanceTab = ({
     fetchData, showSaveMessage, openConfirm,
     schoolName, sections,
 }) => {
-    const { currentSchoolId, adminCredentials, saveAttendanceRecords, deleteAttendanceRecords } = useSchoolData();
+    const { currentSchoolId, adminCredentials, saveAttendanceRecords, deleteAttendanceRecords, schoolSettings } = useSchoolData();
     const [genderTab, setGenderTab] = useState('all');
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -1152,13 +1152,13 @@ const AttendanceTab = ({
                                         </td>
                                         <td style={{ padding: '0.85rem 1rem', textAlign: 'center', minWidth: '200px' }}>
                                             <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                                                <button onClick={() => markAttendance(student.id, 'present')} title="Mark Present"
+                                                <button onClick={() => markAttendance(student.id, 'present', filterDate)} title="Mark Present"
                                                     style={{ padding: '0.4rem 0.65rem', borderRadius: '6px', background: todayRecord?.status === 'present' ? '#16a34a' : '#dcfce7', color: todayRecord?.status === 'present' ? 'white' : '#16a34a', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem' }}>✓ P</button>
-                                                <button onClick={() => markAttendance(student.id, 'absent')} title="Mark Absent"
+                                                <button onClick={() => markAttendance(student.id, 'absent', filterDate)} title="Mark Absent"
                                                     style={{ padding: '0.4rem 0.65rem', borderRadius: '6px', background: todayRecord?.status === 'absent' ? '#dc2626' : '#fee2e2', color: todayRecord?.status === 'absent' ? 'white' : '#dc2626', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem' }}>✗ A</button>
-                                                <button onClick={() => markAttendance(student.id, 'leave')} title="Mark Leave"
+                                                <button onClick={() => markAttendance(student.id, 'leave', filterDate)} title="Mark Leave"
                                                     style={{ padding: '0.4rem 0.65rem', borderRadius: '6px', background: todayRecord?.status === 'leave' ? '#7c3aed' : '#f5f3ff', color: todayRecord?.status === 'leave' ? 'white' : '#7c3aed', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem' }}>📋 L</button>
-                                                <button onClick={() => markAttendance(student.id, 'late')} title="Mark Late"
+                                                <button onClick={() => markAttendance(student.id, 'late', filterDate)} title="Mark Late"
                                                     style={{ padding: '0.4rem 0.65rem', borderRadius: '6px', background: todayRecord?.status === 'late' ? '#d97706' : '#fffbeb', color: todayRecord?.status === 'late' ? 'white' : '#d97706', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem' }}>⏰ Lt</button>
                                             </div>
                                         </td>

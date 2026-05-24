@@ -135,14 +135,14 @@ async function getAccessToken(clientEmail, privateKey) {
     const now = Math.floor(Date.now() / 1000);
     const expiry = now + 3600;
 
-    const header  = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
-    const payload = btoa(JSON.stringify({
+    const header  = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({
         iss:   clientEmail,
         scope: 'https://www.googleapis.com/auth/firebase.messaging',
         aud:   'https://oauth2.googleapis.com/token',
         iat:   now,
         exp:   expiry
-    }));
+    })).toString('base64url');
 
     // Sign using the private key (Node.js crypto)
     const { createSign } = await import('crypto');
@@ -152,10 +152,7 @@ async function getAccessToken(clientEmail, privateKey) {
 
     const signature = sign
         .sign(privateKey)
-        .toString('base64')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=/g, '');
+        .toString('base64url');
 
     const jwt = `${header}.${payload}.${signature}`;
 

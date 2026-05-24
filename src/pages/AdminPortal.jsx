@@ -2019,11 +2019,11 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
     // --- ATTENDANCE FUNCTIONS ---
     // Stores day-by-day records: attendance = { records: [{date, status}], total, present, absent, percentage }
-    const markAttendance = async (studentId, status) => {
+    const markAttendance = async (studentId, status, targetDate = null) => {
         const student = students.find(s => s.id === studentId);
         if (!student) return;
 
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        const today = targetDate || new Date().toISOString().split('T')[0]; // YYYY-MM-DD
         
         const { error } = await saveAttendanceRecords([{
             student_id: studentId,

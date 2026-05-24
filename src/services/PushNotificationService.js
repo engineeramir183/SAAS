@@ -168,10 +168,13 @@ export const sendPushNotification = async (studentId, title, body, schoolId, opt
         return { success: false, reason: 'no_token' };
     }
 
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const apiUrl = isLocal ? 'https://khrlabs.vercel.app/api/send-push-notification' : '/api/send-push-notification';
+
     // Send to all registered tokens for this student (multiple devices)
     const results = await Promise.allSettled(
         subscriptions.map(sub =>
-            fetch('/api/send-push-notification', {
+            fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
