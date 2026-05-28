@@ -102,6 +102,56 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     // ── Confirm Modal State ──
     const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', onConfirm: null, danger: true });
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+    // ── Global Search State ──
+    const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+    const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+    const globalSearchRef = useRef(null);
+
+    const globalSearchResults = globalSearchQuery.trim().length >= 1
+        ? students.filter(s => {
+            const q = globalSearchQuery.toLowerCase();
+            const adm = s.admissions?.[0] || {};
+            return (
+                s.name?.toLowerCase().includes(q) ||
+                s.id?.toLowerCase().includes(q) ||
+                s.grade?.toLowerCase().includes(q) ||
+                adm.fatherName?.toLowerCase().includes(q) ||
+                adm.contact?.includes(q) ||
+                adm.whatsapp?.includes(q)
+            );
+          }).slice(0, 8)
+        : [];
+
+    const openGlobalSearch = () => {
+        setGlobalSearchOpen(true);
+        setGlobalSearchQuery('');
+        setTimeout(() => globalSearchRef.current?.focus(), 50);
+    };
+
+    const closeGlobalSearch = () => {
+        setGlobalSearchOpen(false);
+        setGlobalSearchQuery('');
+    };
+
+    const handleSearchStudentClick = (student) => {
+        setSelectedClass(student.grade);
+        setActiveTab('classes');
+        closeGlobalSearch();
+        showSaveMessage(`Navigated to ${student.name} in ${student.grade}`);
+    };
+    // Keyboard shortcut: Ctrl+K or Cmd+K to open global search
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                globalSearchOpen ? closeGlobalSearch() : openGlobalSearch();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [globalSearchOpen]);
+
     const openConfirm = (title, message, onConfirm, danger = true) => setConfirmModal({ open: true, title, message, onConfirm, danger });
     const closeConfirm = () => setConfirmModal({ open: false, title: '', message: '', onConfirm: null, danger: true });
 
@@ -3267,6 +3317,105 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             {/* ── MOBILE OVERLAY ── */}
             <div className={`sidebar-overlay ${isSidebarOpen ? 'open' : ''}`} onClick={() => setIsSidebarOpen(false)}></div>
 
+            {/* ── GLOBAL SEARCH MODAL ── */}
+            {globalSearchOpen && (
+                <div
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.7)', zIndex: 99999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '6vh 1rem 1rem', backdropFilter: 'blur(4px)' }}
+                    onClick={e => { if (e.target === e.currentTarget) closeGlobalSearch(); }}
+                >
+                    <div className="animate-fade-in" style={{ width: '100%', maxWidth: '620px', background: 'white', borderRadius: '20px', boxShadow: '0 25px 60px rgba(0,0,0,0.3)', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                        {/* Search Input */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.25rem', borderBottom: '1px solid #f1f5f9' }}>
+                            <Search size={20} color="#2563eb" style={{ flexShrink: 0 }} />
+                            <input
+                                ref={globalSearchRef}
+                                type="text"
+                                placeholder="Search by name, ID, class, or father's name..."
+                                value={globalSearchQuery}
+                                onChange={e => setGlobalSearchQuery(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Escape') closeGlobalSearch(); }}
+                                style={{ flex: 1, border: 'none', outline: 'none', fontSize: '1.05rem', fontWeight: 500, color: '#0f172a', background: 'transparent', fontFamily: 'inherit' }}
+                            />
+                            {globalSearchQuery && (
+                                <button onClick={() => setGlobalSearchQuery('')} style={{ background: '#f1f5f9', border: 'none', borderRadius: '6px', padding: '0.25rem 0.5rem', cursor: 'pointer', color: '#64748b', fontWeight: 700, fontSize: '0.75rem' }}>Clear</button>
+                            )}
+                            <button onClick={closeGlobalSearch} style={{ background: '#f1f5f9', border: 'none', borderRadius: '8px', padding: '0.3rem 0.6rem', cursor: 'pointer', color: '#475569' }}>
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        {/* Results */}
+                        <div style={{ maxHeight: '420px', overflowY: 'auto' }}>
+                            {globalSearchQuery.trim().length === 0 && (
+                                <div style={{ padding: '2.5rem 1.5rem', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>🔍</div>
+                                    <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: '0.35rem' }}>Search all students</div>
+                                    <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Type a name, student ID, class, or father's name</div>
+                                    <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                        {['Total Students', 'Classes'].map((label, i) => (
+                                            <span key={label} style={{ background: '#f1f5f9', borderRadius: '8px', padding: '0.4rem 0.9rem', fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>
+                                                {i === 0 ? `👥 ${students.length} Students` : `🏫 ${sectionClasses.length} Classes`}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {globalSearchQuery.trim().length >= 1 && globalSearchResults.length === 0 && (
+                                <div style={{ padding: '2.5rem 1.5rem', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>😕</div>
+                                    <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: '0.25rem' }}>No students found</div>
+                                    <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Try searching with a different name or ID</div>
+                                </div>
+                            )}
+
+                            {globalSearchResults.map((student, idx) => {
+                                const adm = student.admissions?.[0] || {};
+                                const initials = student.name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || 'S';
+                                const avatarColors = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#ec4899','#14b8a6','#f97316'];
+                                const color = avatarColors[idx % avatarColors.length];
+                                return (
+                                    <div
+                                        key={student.id}
+                                        onClick={() => handleSearchStudentClick(student)}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.9rem 1.25rem', cursor: 'pointer', borderBottom: '1px solid #f8fafc', transition: 'background 0.15s' }}
+                                        onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                                        onMouseLeave={e => e.currentTarget.style.background = 'white'}
+                                    >
+                                        {/* Avatar */}
+                                        {student.image || student.photo ? (
+                                            <img src={student.image || student.photo} alt={student.name} style={{ width: '44px', height: '44px', borderRadius: '12px', objectFit: 'cover', flexShrink: 0, border: '2px solid #e2e8f0' }} />
+                                        ) : (
+                                            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: `${color}20`, color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1rem', flexShrink: 0, border: `2px solid ${color}30` }}>{initials}</div>
+                                        )}
+                                        {/* Info */}
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{student.name}</div>
+                                            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
+                                                <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>ID: {student.id}</span>
+                                                {adm.fatherName && <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>• {adm.fatherName}</span>}
+                                                {adm.contact && <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>• {adm.contact}</span>}
+                                            </div>
+                                        </div>
+                                        {/* Class Badge + Arrow */}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                                            <span style={{ background: `${color}15`, color, padding: '0.25rem 0.7rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 800, border: `1px solid ${color}25` }}>{student.grade}</span>
+                                            <ChevronRight size={16} color="#cbd5e1" />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+
+                            {globalSearchResults.length > 0 && (
+                                <div style={{ padding: '0.6rem 1.25rem', background: '#f8fafc', borderTop: '1px solid #f1f5f9' }}>
+                                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>{globalSearchResults.length} result{globalSearchResults.length !== 1 ? 's' : ''} found — click to navigate to student's class</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ── LEFT SIDEBAR ── */}
             <aside className={`dashboard-sidebar ${isSidebarOpen ? 'open' : ''}`}>
                 <div style={{ padding: '1.75rem 1.5rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #334155' }}>
@@ -3383,6 +3532,24 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                             </p>
                         </div>
                     </div>
+                    {/* Global Search Button */}
+                    <button
+                        onClick={openGlobalSearch}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '0.6rem',
+                            background: '#f1f5f9', border: '1.5px solid #e2e8f0',
+                            borderRadius: '12px', padding: '0.55rem 1.1rem',
+                            color: '#64748b', fontWeight: 600, fontSize: '0.9rem',
+                            cursor: 'pointer', transition: 'all 0.2s ease',
+                            minWidth: '200px', justifyContent: 'flex-start'
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
+                    >
+                        <Search size={16} />
+                        <span>Search students...</span>
+                        <span style={{ marginLeft: 'auto', fontSize: '0.72rem', background: '#e2e8f0', padding: '0.1rem 0.4rem', borderRadius: '4px', color: '#94a3b8', fontWeight: 700 }}>⌘K</span>
+                    </button>
                 </header>
 
                 <div className="dashboard-content">
