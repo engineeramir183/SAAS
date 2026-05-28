@@ -136,9 +136,11 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
     const handleSearchStudentClick = (student) => {
         setSelectedClass(student.grade);
+        setViewingClass(student.grade);
+        setClassDetailTab('all');
         setActiveTab('classes');
         closeGlobalSearch();
-        showSaveMessage(`Navigated to ${student.name} in ${student.grade}`);
+        showSaveMessage(`Showing ${student.name} in ${student.grade}`);
     };
     // Keyboard shortcut: Ctrl+K or Cmd+K to open global search
     useEffect(() => {
