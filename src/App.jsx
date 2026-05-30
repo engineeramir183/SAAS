@@ -54,14 +54,12 @@ function App() {
     // ── Active school (tenant) ────────────────────────────────────────────────
     // Uses the ?school= URL parameter by default. If none, points to SaaS mode.
     const [activeSchoolId, setActiveSchoolId] = useState(initialSchool || null);
-    
-    // ── Login Modal State ─────────────────────────────────────────────────────
-    const [showLoginModal, setShowLoginModal] = useState(false);
+
 
     const renderPage = () => {
         switch (currentPage) {
             case 'saas':
-                return <SaaSLanding setCurrentPage={setCurrentPage} setShowLoginModal={setShowLoginModal} />;
+                return <SaaSLanding setCurrentPage={setCurrentPage} />;
             case 'home':
                 return <Home setCurrentPage={setCurrentPage} />;
             case 'about':
@@ -140,7 +138,7 @@ function App() {
               Whenever a user logs in with a different school code,
               activeSchoolId changes → Provider re-fetches for that tenant.
             */}
-            <SchoolDataProvider schoolId={activeSchoolId || 'acs-001'}>
+            <SchoolDataProvider schoolId={activeSchoolId}>
                 <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
                     
                     {!hideTenantFrame && (
@@ -160,24 +158,6 @@ function App() {
                     {(!isDashboard && !hideTenantFrame) && <Footer />}
                     {!hideTenantFrame && <WhatsAppButton />}
 
-                    {/* Login Modal Overlay */}
-                    {showLoginModal && (
-                        <div style={{ position: 'fixed', inset: 0, zIndex: 99999 }}>
-                            <Login
-                                setIsLoggedIn={setIsLoggedIn}
-                                setIsAdmin={setIsAdmin}
-                                setIsDeveloper={setIsDeveloper}
-                                setIsSuperAdminPage={setIsSuperAdminPage}
-                                setCurrentPage={(page) => {
-                                    setCurrentPage(page);
-                                    setShowLoginModal(false);
-                                }}
-                                setLoggedInStudent={setLoggedInStudent}
-                                setActiveSchoolId={setActiveSchoolId}
-                                onClose={() => setShowLoginModal(false)}
-                            />
-                        </div>
-                    )}
                 </div>
             </SchoolDataProvider>
         </SuperAdminProvider>

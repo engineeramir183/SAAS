@@ -23,7 +23,7 @@ const Counter = ({ end, suffix = '' }) => {
     return <span>{val.toLocaleString()}{suffix}</span>;
 };
 
-const SaaSLanding = ({ setCurrentPage, setShowLoginModal }) => {
+const SaaSLanding = ({ setCurrentPage }) => {
     const { saasInfo, fetchSaasInfo } = useSuperAdmin();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -218,7 +218,7 @@ const SaaSLanding = ({ setCurrentPage, setShowLoginModal }) => {
                         <a key={href} href={href} className="nav-link" style={{ fontSize: '1rem' }}>{label}</a>
                     ))}
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginLeft: '1rem' }}>
-                        <button onClick={() => setShowLoginModal?.(true)} style={{ background: 'transparent', border: 'none', color: '#4f46e5', fontWeight: 800, cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', transition: 'opacity 0.2s' }} onMouseOver={e => e.currentTarget.style.opacity = 0.8} onMouseOut={e => e.currentTarget.style.opacity = 1}>
+                        <button onClick={() => setCurrentPage('login')} style={{ background: 'transparent', border: 'none', color: '#4f46e5', fontWeight: 800, cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', transition: 'opacity 0.2s' }} onMouseOver={e => e.currentTarget.style.opacity = 0.8} onMouseOut={e => e.currentTarget.style.opacity = 1}>
                             <LogIn size={18} /> Client Login
                         </button>
                         <button onClick={() => setCurrentPage('register')} className="btn-primary" style={{ padding: '0.7rem 1.6rem', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '1rem' }}>
@@ -228,7 +228,7 @@ const SaaSLanding = ({ setCurrentPage, setShowLoginModal }) => {
                 </nav>
 
                 <div className="mobile-nav-items" style={{ display: 'none', alignItems: 'center', gap: '1rem' }}>
-                    <button onClick={() => setShowLoginModal?.(true)} style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '0.55rem 1rem', borderRadius: '10px', color: '#2563eb', fontWeight: 800, cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <button onClick={() => setCurrentPage('login')} style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '0.55rem 1rem', borderRadius: '10px', color: '#2563eb', fontWeight: 800, cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                         <LogIn size={16} /> Login
                     </button>
                     <button onClick={() => setMobileMenuOpen(p => !p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0f172a', display: 'flex', alignItems: 'center', padding: '0.2rem' }}>
@@ -285,7 +285,7 @@ const SaaSLanding = ({ setCurrentPage, setShowLoginModal }) => {
                         Register Your School <ArrowRight size={22} />
                     </button>
                     <button
-                        onClick={() => setShowLoginModal?.(true)}
+                        onClick={() => setCurrentPage('login')}
                         className="btn-secondary"
                         style={{ padding: '1.1rem 2.75rem', borderRadius: '16px', fontSize: '1.15rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}
                     >

@@ -108,6 +108,11 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
     // Faculty, facilities, testimonials, blogs are loaded separately via
     // fetchPublicData() and only when the public-facing pages need them.
     const fetchData = async (sid = currentSchoolId) => {
+        // Guard: do nothing when no tenant is selected (SaaS landing mode)
+        if (!sid) {
+            setLoading(false);
+            return;
+        }
         try {
             // Only show full loading screen on initial load or tenant switch
             if (sid !== currentSchoolId || !data?.name) {
@@ -381,10 +386,15 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
     };
 
 
-    // Re-fetch whenever the active school changes
+    // Re-fetch whenever the active school changes.
+    // Skip entirely when schoolId is null (SaaS landing — no tenant selected).
     useEffect(() => {
         setCurrentSchoolId(schoolId);
-        fetchData(schoolId);
+        if (schoolId) {
+            fetchData(schoolId);
+        } else {
+            setLoading(false);
+        }
     }, [schoolId]);
 
     // ─── Database Update Wrappers ─────────────────────────────────────────────
@@ -602,11 +612,54 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
         return { error };
     };
 
+    // ─── Shared helper: patch attendance fields on a single student in local state ──
+    const _patchStudentAttendance = (studentId, patchFn) => {
+        setData(prev => ({
+            ...prev,
+            students: prev.students.map(s => {
+                if (s.id !== studentId) return s;
+                const att = patchFn(s.attendance || { records: [], total: 0, present: 0, absent: 0, leave: 0, late: 0, holiday: 0, percentage: 0 });
+                return { ...s, attendance: att };
+            })
+        }));
+    };
+
+    // ─── Rebuild attendance summary from a flat records array ────────────────────
+    const _buildAttSummary = (records) => {
+        const present  = records.filter(r => r.status === 'present').length;
+        const absent   = records.filter(r => r.status === 'absent').length;
+        const leave    = records.filter(r => r.status === 'leave').length;
+        const late     = records.filter(r => r.status === 'late').length;
+        const holiday  = records.filter(r => r.status === 'holiday').length;
+        const activeRecords    = records.filter(r => r.status !== 'holiday');
+        const presentForPct    = activeRecords.filter(r => r.status === 'present' || r.status === 'leave' || r.status === 'late').length;
+        const percentage = activeRecords.length > 0 ? parseFloat(((presentForPct / activeRecords.length) * 100).toFixed(1)) : 0;
+        return { records, total: records.length, present, absent, leave, late, holiday, percentage };
+    };
+
     const saveAttendanceRecords = async (records) => {
         // records: [{ student_id, date, status, remarks }]
         const dbRecords = records.map(r => ({ ...r, school_id: currentSchoolId }));
         const { error } = await supabase.from('attendance_records').upsert(dbRecords, { onConflict: 'student_id, date' });
-        if (!error) await fetchData();
+        if (!error) {
+            // Group incoming records by student and patch local state directly
+            const byStudent = {};
+            records.forEach(r => {
+                if (!byStudent[r.student_id]) byStudent[r.student_id] = [];
+                byStudent[r.student_id].push({ date: r.date, status: r.status });
+            });
+            setData(prev => ({
+                ...prev,
+                students: prev.students.map(s => {
+                    if (!byStudent[s.id]) return s;
+                    const existing = (s.attendance?.records || []).filter(
+                        rec => !byStudent[s.id].some(nr => nr.date === rec.date)
+                    );
+                    const merged = [...existing, ...byStudent[s.id]];
+                    return { ...s, attendance: _buildAttSummary(merged) };
+                })
+            }));
+        }
         return { error };
     };
 
@@ -616,7 +669,17 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
             .eq('school_id', currentSchoolId)
             .eq('date', date)
             .in('student_id', studentIds);
-        if (!error) await fetchData();
+        if (!error) {
+            const idSet = new Set(studentIds);
+            setData(prev => ({
+                ...prev,
+                students: prev.students.map(s => {
+                    if (!idSet.has(s.id)) return s;
+                    const filtered = (s.attendance?.records || []).filter(r => r.date !== date);
+                    return { ...s, attendance: _buildAttSummary(filtered) };
+                })
+            }));
+        }
         return { error };
     };
 
@@ -640,7 +703,25 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
             is_online: r.isOnline
         }));
         const { error } = await supabase.from('fee_records').upsert(dbRecords, { onConflict: 'student_id, month' });
-        if (!error) await fetchData();
+        if (!error) {
+            // Patch each student's feeHistory in local state
+            const byStudent = {};
+            records.forEach(r => {
+                if (!byStudent[r.student_id]) byStudent[r.student_id] = [];
+                byStudent[r.student_id].push(r);
+            });
+            setData(prev => ({
+                ...prev,
+                students: prev.students.map(s => {
+                    if (!byStudent[s.id]) return s;
+                    const existing = (s.feeHistory || []).filter(
+                        f => !byStudent[s.id].some(nr => nr.month === f.month)
+                    );
+                    const merged = [...existing, ...byStudent[s.id]];
+                    return { ...s, feeHistory: merged };
+                })
+            }));
+        }
         return { error };
     };
 
@@ -650,7 +731,16 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
             .eq('school_id', currentSchoolId)
             .eq('month', month)
             .in('student_id', studentIds);
-        if (!error) await fetchData();
+        if (!error) {
+            const idSet = new Set(studentIds);
+            setData(prev => ({
+                ...prev,
+                students: prev.students.map(s => {
+                    if (!idSet.has(s.id)) return s;
+                    return { ...s, feeHistory: (s.feeHistory || []).filter(f => f.month !== month) };
+                })
+            }));
+        }
         return { error };
     };
 
@@ -666,7 +756,51 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
             remarks: r.remarks
         }));
         const { error } = await supabase.from('exam_results').upsert(dbRecords, { onConflict: 'student_id, term, subject' });
-        if (!error) await fetchData();
+        if (!error) {
+            // Compute enriched result objects and patch local state
+            const byStudent = {};
+            results.forEach(r => {
+                if (!byStudent[r.student_id]) byStudent[r.student_id] = [];
+                const isAbsent = r.obtained === 'A';
+                const obtained = isAbsent ? 'A' : Number(r.obtained || 0);
+
+                // Determine total from weights in context
+                let total = 100;
+                const weightsObj = weights;
+                if (weightsObj) {
+                    if (weightsObj[r.term] && typeof weightsObj[r.term] === 'object' && weightsObj[r.term][r.subject] !== undefined && weightsObj[r.term][r.subject] !== '') {
+                        total = Number(weightsObj[r.term][r.subject]);
+                    } else if (typeof weightsObj[r.subject] === 'number') {
+                        total = Number(weightsObj[r.subject]);
+                    }
+                }
+                if (!total || total <= 0) total = 100;
+
+                const percentage = isAbsent ? 0 : Math.round((obtained / total) * 100);
+                const grade = percentage >= 95 ? 'A++' :
+                              percentage >= 90 ? 'A+' :
+                              percentage >= 85 ? 'A' :
+                              percentage >= 80 ? 'B++' :
+                              percentage >= 75 ? 'B+' :
+                              percentage >= 70 ? 'B' :
+                              percentage >= 60 ? 'C' :
+                              percentage >= 50 ? 'D' :
+                              percentage >= 40 ? 'E' : 'U';
+
+                byStudent[r.student_id].push({ term: r.term, subject: r.subject, obtained, total, percentage, grade, remarks: r.remarks });
+            });
+
+            setData(prev => ({
+                ...prev,
+                students: prev.students.map(s => {
+                    if (!byStudent[s.id]) return s;
+                    const existing = (s.results || []).filter(
+                        res => !byStudent[s.id].some(nr => nr.term === res.term && nr.subject === res.subject)
+                    );
+                    return { ...s, results: [...existing, ...byStudent[s.id]] };
+                })
+            }));
+        }
         return { error };
     };
 
