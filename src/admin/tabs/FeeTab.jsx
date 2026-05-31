@@ -1,15 +1,19 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Plus, Printer, Edit3, X, ChevronDown, ChevronRight, Save, Check } from 'lucide-react';
+import { Search, Plus, Printer, Edit3, X, ChevronDown, ChevronRight, Save, Check, AlertTriangle } from 'lucide-react';
 import { useSchoolData } from '../../context/SchoolDataContext';
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   HELPERS
+   CONSTANTS & HELPERS
 ───────────────────────────────────────────────────────────────────────────── */
+const MONTH_NAMES = ['January','February','March','April','May','June',
+                     'July','August','September','October','November','December'];
+
+const PAPER_FUND_PREFIX = 'Paper Fund '; // fee records with this prefix are excluded from month columns
 
 function classSort(a, b) {
-    const numA = parseInt((a || '').match(/\d+/)?.[0] || '999');
-    const numB = parseInt((b || '').match(/\d+/)?.[0] || '999');
-    return numA !== numB ? numA - numB : (a || '').localeCompare(b || '');
+    const nA = parseInt((a || '').match(/\d+/)?.[0] || '999');
+    const nB = parseInt((b || '').match(/\d+/)?.[0] || '999');
+    return nA !== nB ? nA - nB : (a || '').localeCompare(b || '');
 }
 
 function getCurrentMonthLabel() {
@@ -20,6 +24,31 @@ function monthInputToLabel(val) {
     if (!val) return '';
     const [year, month] = val.split('-').map(Number);
     return new Date(year, month - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+}
+
+/** Convert "May 2026" → sortable numeric key */
+function monthLabelToKey(label) {
+    if (!label || label.startsWith(PAPER_FUND_PREFIX)) return Infinity;
+    const parts = label.split(' ');
+    const mIdx = MONTH_NAMES.indexOf(parts[0]);
+    const yr   = parseInt(parts[1]) || 0;
+    if (mIdx < 0 || !yr) return Infinity;
+    return yr * 12 + mIdx;
+}
+
+function sortMonthLabels(arr) {
+    return [...arr].sort((a, b) => monthLabelToKey(a) - monthLabelToKey(b));
+}
+
+/** Generate Jan–Dec for a given year as label strings */
+function yearMonthLabels(year) {
+    return MONTH_NAMES.map(m => `${m} ${year}`);
+}
+
+/** Short header: "Jan 26" */
+function shortMonthLabel(label) {
+    const parts = label.split(' ');
+    return `${parts[0].slice(0, 3)} ${String(parts[1]).slice(2)}`;
 }
 
 function computeNet(record, defaults = {}) {
@@ -34,22 +63,44 @@ function computeNet(record, defaults = {}) {
     return t + adm + ann + ex + tr + lab + fin - dis;
 }
 
+/** Get student's admission month as numeric key (year*12 + monthIndex) */
+function getAdmissionMonthKey(student) {
+    const adm = student.admissions?.[0];
+    if (!adm) return null;
+    const raw = adm.applicationDate || adm.admissionDate || adm.date || '';
+    if (!raw) return null;
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return null;
+    return d.getFullYear() * 12 + d.getMonth(); // 0-indexed month
+}
+
+/** True if student should be charged for this month */
+function studentOwesMonth(student, monthLabel) {
+    const admKey = getAdmissionMonthKey(student);
+    if (admKey === null) return true; // no admission date → charge all months
+    return monthLabelToKey(monthLabel) >= admKey;
+}
+
 function isFreeStudent(student, classDefaults) {
     if (computeNet({}, classDefaults) === 0) return true;
-    const hist = student.feeHistory || [];
+    const hist = (student.feeHistory || []).filter(h => !h.month?.startsWith(PAPER_FUND_PREFIX));
     if (hist.length > 0 && hist.every(h => computeNet(h, classDefaults) === 0)) return true;
     return false;
 }
 
-function isDefaulter(student, currentMonthLabel) {
-    const hist = student.feeHistory || [];
-    const idx  = hist.findIndex(h => h.month === currentMonthLabel);
-    const before = idx >= 0 ? hist.slice(0, idx) : hist;
-    return before.some(h => h.status === 'unpaid' || h.status === 'partial');
+function isDefaulter(student, currentMonthLabel, classDefaults) {
+    const hist = (student.feeHistory || []).filter(h => !h.month?.startsWith(PAPER_FUND_PREFIX));
+    const currentKey = monthLabelToKey(currentMonthLabel);
+    return hist.some(h => {
+        const hKey = monthLabelToKey(h.month);
+        if (hKey >= currentKey) return false; // current or future → not a defaulter
+        if (!studentOwesMonth(student, h.month)) return false; // before admission → skip
+        return h.status === 'unpaid' || h.status === 'partial';
+    });
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   VOUCHER PRINT STYLES + BUILDER
+   VOUCHER PRINT
 ───────────────────────────────────────────────────────────────────────────── */
 const VOUCHER_CSS = `
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -78,71 +129,82 @@ function buildVoucherHTML(student, record, defaults, sym, schoolName, schoolLogo
     const sbStyle = `background:${status==='paid'?'#f0fdf4':status==='partial'?'#fffbeb':'#fdf2f2'};color:${status==='paid'?'#16a34a':status==='partial'?'#b45309':'#dc2626'};border-color:${status==='paid'?'#bbf7d0':status==='partial'?'#fef3c7':'#fecaca'}`;
 
     const feeRow = (label, val) => val > 0 ? `<div class="rrow"><span>${label}</span><span>${sym} ${Number(val).toLocaleString()}</span></div>` : '';
+    const pmRow  = (label, val) => val ? `<div class="rrow"><span class="lbl">${label}</span><span class="val">${val}</span></div>` : '';
+
+    let paymentInfo = '';
+    if (schoolSettings?.bank_account) paymentInfo += pmRow('Bank Account', schoolSettings.bank_account);
+    if (schoolSettings?.easypaisa)    paymentInfo += pmRow('EasyPaisa', schoolSettings.easypaisa);
+    if (schoolSettings?.jazzcash)     paymentInfo += pmRow('JazzCash', schoolSettings.jazzcash);
 
     return `
     <div class="receipt">
         <div class="receipt-header">
-            ${schoolLogo ? `<img class="school-logo" src="${schoolLogo}" onerror="this.style.display='none'" />` : ''}
-            <h2 class="school-name">${schoolName}</h2>
-            <span class="receipt-badge">Fee Voucher — ${record?.month || ''}</span>
+            ${schoolLogo ? `<img src="${schoolLogo}" class="school-logo" onerror="this.style.display='none'" />` : ''}
+            <h3 class="school-name">${schoolName}</h3>
+            <div class="receipt-badge">Fee Voucher</div>
         </div>
         <div class="rrow"><span class="lbl">Student</span><span class="val">${student.name}</span></div>
         <div class="rrow"><span class="lbl">ID</span><span class="val">${student.id}</span></div>
-        <div class="rrow"><span class="lbl">Serial #</span><span class="val">${student.serialNumber || '—'}</span></div>
         <div class="rrow"><span class="lbl">Class</span><span class="val">${student.grade}</span></div>
-        <div class="rrow"><span class="lbl">Status</span><span class="sb" style="${sbStyle}">${status.toUpperCase()}</span></div>
+        <div class="rrow"><span class="lbl">Month</span><span class="val">${record?.month || '—'}</span></div>
+        <div class="rrow"><span class="lbl">Status</span><span class="sb" style="${sbStyle}">${status}</span></div>
         <div style="height:6px"></div>
-        <div style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Breakdown</div>
-        ${feeRow('Tuition Fee',   Number(record?.tuitionFee   ?? defaults.tuitionFee   ?? 0))}
-        ${feeRow('Admission Fee', Number(record?.admissionFee ?? defaults.admissionFee ?? 0))}
-        ${feeRow('Annual',        Number(record?.annualFee    ?? defaults.annualFee    ?? 0))}
-        ${feeRow('Exam Fee',      Number(record?.examFee      ?? defaults.examFee      ?? 0))}
-        ${feeRow('Transport',     Number(record?.transportFee ?? defaults.transportFee ?? 0))}
-        ${feeRow('Lab / Other',   Number(record?.labFee       ?? defaults.labFee       ?? 0))}
-        ${Number(record?.lateFine??0) > 0 ? `<div class="rrow" style="color:#dc2626"><span>Late Fine</span><span>+ ${sym} ${Number(record.lateFine).toLocaleString()}</span></div>` : ''}
-        ${Number(record?.discount??0) > 0 ? `<div class="rrow" style="color:#16a34a"><span>Discount</span><span>- ${sym} ${Number(record.discount).toLocaleString()}</span></div>` : ''}
-        <div class="total-row"><span style="font-size:10px;text-transform:uppercase;letter-spacing:.3px">Net Payable</span><span>${sym} ${net.toLocaleString()}</span></div>
-        <div class="rrow" style="margin-top:8px"><span class="lbl">Amount Paid</span><span class="val">${sym} ${paid.toLocaleString()}</span></div>
-        <div class="rrow" style="color:#dc2626;font-weight:800"><span class="lbl" style="color:#dc2626">Balance Due</span><span style="font-size:13px">${sym} ${balance.toLocaleString()}</span></div>
-        <hr style="border:0;border-top:1px dashed #cbd5e1;margin:10px 0" />
-        ${record?.paymentMethod ? `<div class="rrow" style="font-size:10px"><span class="lbl">Method</span><span>${record.paymentMethod}</span></div>` : ''}
-        ${record?.paymentDate   ? `<div class="rrow" style="font-size:10px"><span class="lbl">Date</span><span>${record.paymentDate}</span></div>` : ''}
-        ${schoolSettings?.bank_account     ? `<div style="font-size:9px;color:#64748b;margin-top:6px">Bank: ${schoolSettings.bank_name||''} / ${schoolSettings.bank_account}</div>` : ''}
-        ${schoolSettings?.easypaisa_number ? `<div style="font-size:9px;color:#64748b">EasyPaisa: ${schoolSettings.easypaisa_number}</div>` : ''}
-        ${schoolSettings?.jazzcash_number  ? `<div style="font-size:9px;color:#64748b">JazzCash: ${schoolSettings.jazzcash_number}</div>` : ''}
-        <div style="text-align:center;font-size:8px;margin-top:12px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.5px">System Generated</div>
+        ${feeRow('Tuition Fee', record?.tuitionFee ?? defaults.tuitionFee)}
+        ${feeRow('Admission Fee', record?.admissionFee ?? defaults.admissionFee)}
+        ${feeRow('Annual Fee', record?.annualFee ?? defaults.annualFee)}
+        ${feeRow('Exam Fee', record?.examFee ?? defaults.examFee)}
+        ${feeRow('Transport Fee', record?.transportFee ?? defaults.transportFee)}
+        ${feeRow('Lab Fee', record?.labFee ?? defaults.labFee)}
+        ${feeRow('Late Fine', record?.lateFine)}
+        ${record?.discount > 0 ? `<div class="rrow"><span>Discount</span><span>- ${sym} ${Number(record.discount).toLocaleString()}</span></div>` : ''}
+        <div class="total-row"><span>Net Payable</span><span>${sym} ${net.toLocaleString()}</span></div>
+        ${balance > 0 ? `<div class="rrow" style="margin-top:4px"><span class="lbl">Balance Due</span><span style="color:#dc2626;font-weight:800">${sym} ${balance.toLocaleString()}</span></div>` : ''}
+        ${paymentInfo ? `<div style="margin-top:8px;padding-top:6px;border-top:1px dashed #e2e8f0">${paymentInfo}</div>` : ''}
     </div>`;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    ADD MONTH MODAL
 ───────────────────────────────────────────────────────────────────────────── */
-const AddMonthModal = ({ selectedClass, students, classDefaults, onClose, onSuccess, saveFeeRecords, currencySymbol }) => {
+const AddMonthModal = ({ selectedClasses, allClassStudents, CLASS_FEE_DEFAULTS, currencySymbol, onClose, onSuccess }) => {
+    const { saveFeeRecords } = useSchoolData();
     const [monthVal, setMonthVal] = useState('');
-    const [saving, setSaving]     = useState(false);
-    const [error, setError]       = useState('');
+    const [saving,   setSaving]   = useState(false);
+    const [error,    setError]    = useState('');
+
+    // Use first selected class for defaults display
+    const firstClass    = [...selectedClasses][0] || '';
+    const classDefaults = (CLASS_FEE_DEFAULTS && CLASS_FEE_DEFAULTS[firstClass]) || {};
+    const hasDefaults   = Object.values(classDefaults).some(v => Number(v) > 0);
+    const label         = monthInputToLabel(monthVal);
+
+    // Check if month already exists for any student in selected classes
+    const alreadyExists = label && allClassStudents.some(s =>
+        (s.feeHistory || []).some(h => h.month === label)
+    );
 
     const handleAdd = async () => {
-        if (!monthVal) { setError('Please select a month.'); return; }
-        const label = monthInputToLabel(monthVal);
-        const cls   = students.filter(s => s.grade === selectedClass);
-        if (cls.length === 0) { setError('No students in this class.'); return; }
-        if (cls.some(s => (s.feeHistory || []).some(h => h.month === label))) {
-            setError(`"${label}" is already open for this class.`); return;
-        }
+        if (!monthVal) return;
+        if (alreadyExists) { setError(`Month "${label}" already exists.`); return; }
         setSaving(true);
-        const records = cls.map(s => ({
-            student_id:   s.id,
-            month:        label,
-            status:       'unpaid',
-            tuitionFee:   classDefaults.tuitionFee   || 0,
-            admissionFee: classDefaults.admissionFee || 0,
-            annualFee:    classDefaults.annualFee    || 0,
-            examFee:      classDefaults.examFee      || 0,
-            transportFee: classDefaults.transportFee || 0,
-            labFee:       classDefaults.labFee       || 0,
-            lateFine: 0, discount: 0, paidAmount: 0,
-        }));
+        const targetMonthKey = monthLabelToKey(label);
+        const records = allClassStudents
+            .filter(s => studentOwesMonth(s, label)) // respect admission date
+            .map(s => {
+                const cd = (CLASS_FEE_DEFAULTS && CLASS_FEE_DEFAULTS[s.grade]) || classDefaults;
+                return {
+                    student_id: s.id,
+                    month: label,
+                    status: 'unpaid',
+                    tuitionFee:   cd.tuitionFee   || 0,
+                    admissionFee: cd.admissionFee || 0,
+                    annualFee:    cd.annualFee    || 0,
+                    examFee:      cd.examFee      || 0,
+                    transportFee: cd.transportFee || 0,
+                    labFee:       cd.labFee       || 0,
+                    lateFine: 0, discount: 0, paidAmount: 0,
+                };
+            });
         const { error: err } = await saveFeeRecords(records);
         setSaving(false);
         if (err) { setError('Save failed: ' + err.message); return; }
@@ -150,36 +212,40 @@ const AddMonthModal = ({ selectedClass, students, classDefaults, onClose, onSucc
         onClose();
     };
 
-    const hasDefaults = Object.values(classDefaults).some(v => Number(v) > 0);
-
     return (
         <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.65)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }} onClick={onClose}>
-            <div onClick={e => e.stopPropagation()} style={{ background:'white', borderRadius:'16px', width:'100%', maxWidth:'420px', padding:'1.75rem', boxShadow:'0 25px 50px -12px rgba(0,0,0,.25)' }} className="animate-fade-in">
+            <div onClick={e => e.stopPropagation()} style={{ background:'white', borderRadius:'16px', width:'100%', maxWidth:'440px', padding:'1.75rem', boxShadow:'0 25px 50px -12px rgba(0,0,0,.25)' }} className="animate-fade-in">
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem' }}>
                     <div>
                         <h3 style={{ fontSize:'1.1rem', fontWeight:800, color:'#1e293b', margin:0 }}>➕ Add Fee Month</h3>
-                        <p style={{ color:'#64748b', fontSize:'.82rem', margin:'4px 0 0' }}>Opens a new fee month for all students in <strong>{selectedClass}</strong></p>
+                        <p style={{ color:'#64748b', fontSize:'.82rem', margin:'4px 0 0' }}>
+                            Opens a new fee month for <strong>{[...selectedClasses].join(', ')}</strong>
+                            {selectedClasses.size > 1 ? ` (${allClassStudents.length} students total)` : ''}
+                        </p>
                     </div>
-                    <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:'2px' }}><X size={20} /></button>
+                    <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8' }}><X size={20} /></button>
                 </div>
 
                 <div style={{ marginBottom:'1rem' }}>
-                    <label style={{ display:'block', fontWeight:700, color:'#475569', fontSize:'.85rem', marginBottom:'.4rem' }}>Select Month & Year</label>
+                    <label style={{ display:'block', fontWeight:700, color:'#475569', fontSize:'.85rem', marginBottom:'.4rem' }}>Select Month &amp; Year</label>
                     <input type="month" value={monthVal} onChange={e => { setMonthVal(e.target.value); setError(''); }} className="form-input" style={{ width:'100%' }} />
                     {monthVal && (
                         <div style={{ color:'#2563eb', fontSize:'.8rem', fontWeight:700, marginTop:'.4rem' }}>
-                            📅 Will open: <strong>{monthInputToLabel(monthVal)}</strong>
+                            📅 Will open: <strong>{label}</strong>
+                            {alreadyExists && <span style={{ color:'#dc2626', marginLeft:'.5rem' }}>⚠ Already exists</span>}
                         </div>
                     )}
                 </div>
 
+                <div style={{ background:'#f0f9ff', border:'1px solid #bae6fd', borderRadius:'9px', padding:'.6rem .85rem', marginBottom:'1rem', fontSize:'.8rem', color:'#0369a1', fontWeight:600 }}>
+                    ℹ️ Students admitted after this month will be automatically skipped.
+                </div>
+
                 {hasDefaults && (
                     <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'.75rem 1rem', marginBottom:'1rem' }}>
-                        <div style={{ fontWeight:700, color:'#475569', fontSize:'.78rem', textTransform:'uppercase', letterSpacing:'.4px', marginBottom:'.5rem' }}>
-                            Class Defaults ({currencySymbol})
-                        </div>
+                        <div style={{ fontWeight:700, color:'#475569', fontSize:'.78rem', textTransform:'uppercase', letterSpacing:'.4px', marginBottom:'.5rem' }}>Class Defaults ({currencySymbol})</div>
                         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.3rem .75rem', fontSize:'.82rem' }}>
-                            {[['Tuition', classDefaults.tuitionFee], ['Admission', classDefaults.admissionFee], ['Annual', classDefaults.annualFee], ['Exam', classDefaults.examFee], ['Transport', classDefaults.transportFee], ['Lab', classDefaults.labFee]].filter(([, v]) => Number(v) > 0).map(([k, v]) => (
+                            {[['Tuition', classDefaults.tuitionFee],['Admission',classDefaults.admissionFee],['Annual',classDefaults.annualFee],['Exam',classDefaults.examFee],['Transport',classDefaults.transportFee],['Lab',classDefaults.labFee]].filter(([,v])=>Number(v)>0).map(([k,v])=>(
                                 <div key={k} style={{ color:'#64748b' }}>{k}: <span style={{ color:'#1e293b', fontWeight:700 }}>{currencySymbol} {Number(v).toLocaleString()}</span></div>
                             ))}
                         </div>
@@ -188,18 +254,16 @@ const AddMonthModal = ({ selectedClass, students, classDefaults, onClose, onSucc
 
                 {!hasDefaults && (
                     <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'10px', padding:'.65rem .9rem', marginBottom:'1rem', fontSize:'.8rem', color:'#b45309', fontWeight:600 }}>
-                        ⚠ No fee defaults set for {selectedClass}. All fees will open as RS 0 (free students).
+                        ⚠ No fee defaults set for {firstClass}. Go to <strong>Fee Settings</strong> to configure.
                     </div>
                 )}
 
-                {error && (
-                    <div style={{ color:'#dc2626', fontSize:'.82rem', fontWeight:600, marginBottom:'.75rem', background:'#fef2f2', padding:'.5rem .75rem', borderRadius:'8px' }}>⚠ {error}</div>
-                )}
+                {error && <div style={{ color:'#dc2626', fontSize:'.82rem', fontWeight:600, marginBottom:'.75rem', background:'#fef2f2', padding:'.5rem .75rem', borderRadius:'8px' }}>⚠ {error}</div>}
 
                 <div style={{ display:'flex', gap:'.75rem', justifyContent:'flex-end' }}>
                     <button onClick={onClose} style={{ padding:'.6rem 1.25rem', borderRadius:'8px', border:'1px solid #e2e8f0', background:'white', color:'#475569', fontWeight:600, cursor:'pointer' }}>Cancel</button>
-                    <button onClick={handleAdd} disabled={saving || !monthVal} style={{ padding:'.6rem 1.5rem', borderRadius:'8px', border:'none', background: (!monthVal||saving)?'#93c5fd':'#2563eb', color:'white', fontWeight:700, cursor: (!monthVal||saving)?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:'.4rem', transition:'background .2s' }}>
-                        {saving ? 'Adding…' : <><Plus size={16} /> Add Month</>}
+                    <button onClick={handleAdd} disabled={saving || !monthVal || alreadyExists} style={{ padding:'.6rem 1.5rem', borderRadius:'8px', border:'none', background:(!monthVal||saving||alreadyExists)?'#93c5fd':'#2563eb', color:'white', fontWeight:700, cursor:(!monthVal||saving||alreadyExists)?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:'.4rem', transition:'background .2s' }}>
+                        {saving ? 'Adding…' : <><Plus size={16}/> Add Month</>}
                     </button>
                 </div>
             </div>
@@ -210,97 +274,124 @@ const AddMonthModal = ({ selectedClass, students, classDefaults, onClose, onSucc
 /* ─────────────────────────────────────────────────────────────────────────────
    QUICK PAY MODAL  (Edit Mode)
 ───────────────────────────────────────────────────────────────────────────── */
-const QuickPayModal = ({ student, record, classDefaults, currencySymbol, onClose, onSave }) => {
-    const net = computeNet(record, classDefaults);
-    const [paidAmount,     setPaidAmount]     = useState(String(record?.paidAmount ?? 0));
-    const [paymentMethod,  setPaymentMethod]  = useState(record?.paymentMethod || 'Cash');
-    const [paymentDate,    setPaymentDate]    = useState(record?.paymentDate || new Date().toISOString().split('T')[0]);
-    const [saving, setSaving]                 = useState(false);
+const QuickPayModal = ({ student, record, month, classDefaults, currencySymbol, onClose, onSave }) => {
+    // Allow overriding fee amounts per record
+    const [tuitionFee,    setTuitionFee]    = useState(String(record?.tuitionFee   ?? classDefaults.tuitionFee   ?? 0));
+    const [admissionFee,  setAdmissionFee]  = useState(String(record?.admissionFee ?? classDefaults.admissionFee ?? 0));
+    const [lateFine,      setLateFine]      = useState(String(record?.lateFine     ?? 0));
+    const [discount,      setDiscount]      = useState(String(record?.discount     ?? 0));
+    const [paidAmount,    setPaidAmount]    = useState(String(record?.paidAmount   ?? 0));
+    const [paymentMethod, setPaymentMethod] = useState(record?.paymentMethod || 'Cash');
+    const [paymentDate,   setPaymentDate]   = useState(record?.paymentDate || new Date().toISOString().split('T')[0]);
+    const [saving,        setSaving]        = useState(false);
+    const [tab,           setTab]           = useState('pay'); // 'pay' | 'edit'
 
+    const net     = Number(tuitionFee||0) + Number(admissionFee||0) + Number(lateFine||0) - Number(discount||0);
     const paid    = Number(paidAmount) || 0;
     const balance = net - paid;
     const autoStatus = paid >= net && net > 0 ? 'paid' : paid > 0 ? 'partial' : 'unpaid';
 
     const handleSave = async () => {
         setSaving(true);
-        await onSave({ ...record, paidAmount: paid, status: autoStatus, paymentMethod, paymentDate });
+        await onSave({
+            ...record,
+            month,
+            tuitionFee:    Number(tuitionFee)   || 0,
+            admissionFee:  Number(admissionFee) || 0,
+            lateFine:      Number(lateFine)     || 0,
+            discount:      Number(discount)     || 0,
+            paidAmount:    paid,
+            status:        autoStatus,
+            paymentMethod,
+            paymentDate,
+        });
         setSaving(false);
         onClose();
     };
 
     return (
         <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.65)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }} onClick={onClose}>
-            <div onClick={e => e.stopPropagation()} style={{ background:'white', borderRadius:'16px', width:'100%', maxWidth:'420px', padding:'1.75rem', boxShadow:'0 25px 50px -12px rgba(0,0,0,.25)' }} className="animate-fade-in">
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem' }}>
+            <div onClick={e => e.stopPropagation()} style={{ background:'white', borderRadius:'16px', width:'100%', maxWidth:'440px', padding:'1.75rem', boxShadow:'0 25px 50px -12px rgba(0,0,0,.25)' }} className="animate-fade-in">
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1rem' }}>
                     <div>
-                        <h3 style={{ fontSize:'1.05rem', fontWeight:800, color:'#1e293b', margin:0 }}>💳 Pay Fee — {record?.month}</h3>
+                        <h3 style={{ fontSize:'1.05rem', fontWeight:800, color:'#1e293b', margin:0 }}>💳 {month}</h3>
                         <p style={{ color:'#64748b', fontSize:'.82rem', margin:'3px 0 0' }}>{student.name} · {student.id}</p>
                     </div>
                     <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8' }}><X size={20} /></button>
                 </div>
 
-                {/* Fee summary */}
-                <div style={{ background:'#f8fafc', borderRadius:'12px', padding:'.9rem 1rem', marginBottom:'1rem', display:'flex', justifyContent:'space-between', alignItems:'center', border:'1px solid #e2e8f0' }}>
-                    <div>
-                        <div style={{ fontSize:'.72rem', color:'#94a3b8', fontWeight:700, textTransform:'uppercase', letterSpacing:'.3px' }}>Net Payable</div>
-                        <div style={{ fontSize:'1.5rem', fontWeight:800, color:'#1e293b' }}>{currencySymbol} {net.toLocaleString()}</div>
-                    </div>
-                    <div style={{ textAlign:'right' }}>
-                        <div style={{ fontSize:'.72rem', color:'#94a3b8', fontWeight:700, textTransform:'uppercase', letterSpacing:'.3px' }}>Balance After Payment</div>
-                        <div style={{ fontSize:'1.1rem', fontWeight:800, color: balance > 0 ? '#dc2626' : '#16a34a' }}>
-                            {currencySymbol} {Math.max(0, balance).toLocaleString()}
+                {/* Tabs */}
+                <div style={{ display:'flex', borderRadius:'8px', border:'1px solid #e2e8f0', overflow:'hidden', marginBottom:'1rem' }}>
+                    {[['pay','💳 Pay'],['edit','✏️ Edit Fees']].map(([id,label]) => (
+                        <button key={id} onClick={() => setTab(id)} style={{ flex:1, padding:'.45rem', fontSize:'.8rem', fontWeight:tab===id?800:600, background:tab===id?'#0f172a':'white', color:tab===id?'white':'#64748b', border:'none', cursor:'pointer', transition:'all .15s' }}>{label}</button>
+                    ))}
+                </div>
+
+                {tab === 'pay' && (<>
+                    {/* Net summary */}
+                    <div style={{ background:'#f8fafc', borderRadius:'12px', padding:'.9rem 1rem', marginBottom:'1rem', display:'flex', justifyContent:'space-between', alignItems:'center', border:'1px solid #e2e8f0' }}>
+                        <div>
+                            <div style={{ fontSize:'.72rem', color:'#94a3b8', fontWeight:700, textTransform:'uppercase' }}>Net Payable</div>
+                            <div style={{ fontSize:'1.5rem', fontWeight:800, color:'#1e293b' }}>{currencySymbol} {net.toLocaleString()}</div>
+                        </div>
+                        <div style={{ textAlign:'right' }}>
+                            <div style={{ fontSize:'.72rem', color:'#94a3b8', fontWeight:700, textTransform:'uppercase' }}>Balance</div>
+                            <div style={{ fontSize:'1.1rem', fontWeight:800, color: balance > 0 ? '#dc2626' : '#16a34a' }}>
+                                {currencySymbol} {Math.max(0, balance).toLocaleString()}
+                            </div>
                         </div>
                     </div>
-                </div>
+                    <div style={{ marginBottom:'.85rem' }}>
+                        <label style={{ display:'block', fontWeight:700, color:'#475569', fontSize:'.85rem', marginBottom:'.35rem' }}>Amount Paid ({currencySymbol})</label>
+                        <div style={{ display:'flex', gap:'.5rem' }}>
+                            <input type="number" min="0" value={paidAmount} onChange={e => setPaidAmount(e.target.value)} className="form-input" style={{ flex:1, fontSize:'1.1rem', fontWeight:800 }} placeholder="0" />
+                            <button onClick={() => setPaidAmount(String(net))} style={{ padding:'.5rem .85rem', background:'#f0fdf4', border:'1px solid #86efac', color:'#16a34a', borderRadius:'8px', fontWeight:700, fontSize:'.8rem', cursor:'pointer', whiteSpace:'nowrap' }}>Full</button>
+                        </div>
+                        {paid > 0 && (
+                            <div style={{ marginTop:'.35rem', padding:'.35rem .65rem', background: autoStatus==='paid'?'#f0fdf4':autoStatus==='partial'?'#fffbeb':'#fef2f2', borderRadius:'6px', fontSize:'.78rem', fontWeight:700, color: autoStatus==='paid'?'#16a34a':autoStatus==='partial'?'#d97706':'#dc2626' }}>
+                                Status: {autoStatus.toUpperCase()}
+                            </div>
+                        )}
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.75rem', marginBottom:'1rem' }}>
+                        <div>
+                            <label style={{ display:'block', fontWeight:700, color:'#475569', fontSize:'.82rem', marginBottom:'.3rem' }}>Method</label>
+                            <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="form-input" style={{ width:'100%' }}>
+                                {['Cash','Bank Transfer','EasyPaisa','JazzCash','Cheque'].map(m => <option key={m}>{m}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label style={{ display:'block', fontWeight:700, color:'#475569', fontSize:'.82rem', marginBottom:'.3rem' }}>Date</label>
+                            <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} className="form-input" style={{ width:'100%' }} />
+                        </div>
+                    </div>
+                </>)}
 
-                {/* Amount paid input */}
-                <div style={{ marginBottom:'.9rem' }}>
-                    <label style={{ display:'block', fontWeight:700, color:'#475569', fontSize:'.85rem', marginBottom:'.35rem' }}>Amount Paid ({currencySymbol})</label>
-                    <div style={{ display:'flex', gap:'.5rem' }}>
-                        <input
-                            type="number"
-                            value={paidAmount}
-                            onChange={e => setPaidAmount(e.target.value)}
-                            className="form-input"
-                            style={{ flex:1, fontSize:'1.1rem', fontWeight:700 }}
-                            min="0"
-                            autoFocus
-                        />
-                        <button
-                            onClick={() => setPaidAmount(String(net))}
-                            style={{ padding:'.5rem .85rem', background:'#f0fdf4', border:'1px solid #86efac', color:'#16a34a', borderRadius:'8px', fontWeight:700, fontSize:'.8rem', cursor:'pointer', whiteSpace:'nowrap' }}
-                        >
-                            Full
-                        </button>
+                {tab === 'edit' && (<>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.65rem', marginBottom:'1rem' }}>
+                        {[['Tuition Fee', tuitionFee, setTuitionFee],['Admission Fee', admissionFee, setAdmissionFee],['Late Fine', lateFine, setLateFine],['Discount', discount, setDiscount]].map(([lbl, val, setter]) => (
+                            <div key={lbl}>
+                                <label style={{ display:'block', fontWeight:700, color:'#475569', fontSize:'.78rem', marginBottom:'.2rem' }}>{lbl}</label>
+                                <input type="number" min="0" value={val} onChange={e => setter(e.target.value)} className="form-input" style={{ width:'100%', fontSize:'.9rem' }} />
+                            </div>
+                        ))}
                     </div>
-                    <div style={{ marginTop:'.4rem' }}>
-                        <span style={{
-                            fontSize:'.75rem', fontWeight:800, padding:'2px 10px', borderRadius:'999px',
-                            background: autoStatus==='paid' ? '#f0fdf4' : autoStatus==='partial' ? '#fffbeb' : '#fef2f2',
-                            color:      autoStatus==='paid' ? '#16a34a' : autoStatus==='partial' ? '#b45309' : '#dc2626',
-                        }}>
-                            → {autoStatus==='paid' ? '✅ Fully Paid' : autoStatus==='partial' ? '⚠️ Partially Paid' : '❌ Unpaid'}
-                        </span>
+                    <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'8px', padding:'.55rem .85rem', fontSize:'.82rem', fontWeight:700, color:'#16a34a', marginBottom:'1rem' }}>
+                        New Net Payable: {currencySymbol} {net.toLocaleString()}
                     </div>
-                </div>
-
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.75rem', marginBottom:'1.25rem' }}>
-                    <div>
-                        <label style={{ display:'block', fontWeight:700, color:'#475569', fontSize:'.82rem', marginBottom:'.3rem' }}>Payment Method</label>
-                        <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="form-input" style={{ width:'100%' }}>
-                            {['Cash','Bank Transfer','EasyPaisa','JazzCash','Cheque','Online Portal'].map(m => <option key={m} value={m}>{m}</option>)}
-                        </select>
+                    <div style={{ marginBottom:'.85rem' }}>
+                        <label style={{ display:'block', fontWeight:700, color:'#475569', fontSize:'.85rem', marginBottom:'.35rem' }}>Amount Paid ({currencySymbol})</label>
+                        <div style={{ display:'flex', gap:'.5rem' }}>
+                            <input type="number" min="0" value={paidAmount} onChange={e => setPaidAmount(e.target.value)} className="form-input" style={{ flex:1, fontSize:'1.1rem', fontWeight:800 }} placeholder="0" />
+                            <button onClick={() => setPaidAmount(String(net))} style={{ padding:'.5rem .85rem', background:'#f0fdf4', border:'1px solid #86efac', color:'#16a34a', borderRadius:'8px', fontWeight:700, fontSize:'.8rem', cursor:'pointer' }}>Full</button>
+                        </div>
                     </div>
-                    <div>
-                        <label style={{ display:'block', fontWeight:700, color:'#475569', fontSize:'.82rem', marginBottom:'.3rem' }}>Payment Date</label>
-                        <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} className="form-input" style={{ width:'100%' }} />
-                    </div>
-                </div>
+                </>)}
 
                 <div style={{ display:'flex', gap:'.75rem', justifyContent:'flex-end' }}>
                     <button onClick={onClose} style={{ padding:'.6rem 1.25rem', borderRadius:'8px', border:'1px solid #e2e8f0', background:'white', color:'#475569', fontWeight:600, cursor:'pointer' }}>Cancel</button>
-                    <button onClick={handleSave} disabled={saving} style={{ padding:'.6rem 1.5rem', borderRadius:'8px', border:'none', background:saving?'#93c5fd':'#2563eb', color:'white', fontWeight:700, cursor:saving?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:'.4rem' }}>
-                        {saving ? 'Saving…' : <><Save size={16} /> Save</>}
+                    <button onClick={handleSave} disabled={saving} style={{ padding:'.6rem 1.5rem', borderRadius:'8px', border:'none', background:saving?'#94a3b8':'#2563eb', color:'white', fontWeight:700, cursor:saving?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:'.4rem' }}>
+                        {saving ? 'Saving…' : <><Save size={15}/> Save</>}
                     </button>
                 </div>
             </div>
@@ -312,20 +403,12 @@ const QuickPayModal = ({ student, record, classDefaults, currencySymbol, onClose
    TABLE CELL STYLES
 ───────────────────────────────────────────────────────────────────────────── */
 const TH = {
-    padding: '.65rem .6rem',
-    textAlign: 'left',
-    fontWeight: 700,
-    fontSize: '.73rem',
-    textTransform: 'uppercase',
-    letterSpacing: '.3px',
-    whiteSpace: 'nowrap',
-    position: 'sticky',
-    top: 0,
-    zIndex: 10,
-    background: '#0f172a',
-    color: 'white',
+    padding: '.6rem .5rem', textAlign: 'center', fontWeight: 700, fontSize: '.7rem',
+    textTransform: 'uppercase', letterSpacing: '.3px', whiteSpace: 'nowrap',
+    position: 'sticky', top: 0, zIndex: 10, background: '#0f172a', color: 'white',
 };
-const TD = { padding: '.6rem .55rem', verticalAlign: 'middle' };
+const THL = { ...TH, textAlign: 'left' }; // left-aligned header
+const TD  = { padding: '.55rem .45rem', verticalAlign: 'middle' };
 
 /* ─────────────────────────────────────────────────────────────────────────────
    MAIN FEE TAB
@@ -347,6 +430,7 @@ const FeeTab = ({
     const { saveFeeRecords } = useSchoolData();
 
     /* ── State ─────────────────────────────────────────────────────────── */
+    const [selectedClasses,   setSelectedClasses]   = useState(() => new Set([selectedClass].filter(Boolean)));
     const [searchQuery,       setSearchQuery]       = useState('');
     const [genderTab,         setGenderTab]         = useState('all');
     const [activeFilter,      setActiveFilter]      = useState(null);
@@ -361,53 +445,87 @@ const FeeTab = ({
         return init;
     });
 
+    const currentYear       = new Date().getFullYear();
     const currentMonthLabel = getCurrentMonthLabel();
+    const today             = new Date();
+    const showRolloverBanner = today.getDate() >= 25;
 
+    /* ── Toggle class selection ─────────────────────────────────────────── */
+    const toggleClass = (cls) => {
+        setSelectedClasses(prev => {
+            const next = new Set(prev);
+            if (next.has(cls)) {
+                if (next.size === 1) return prev; // keep at least one
+                next.delete(cls);
+            } else {
+                next.add(cls);
+            }
+            return next;
+        });
+        setSelectedClass(cls); // keep parent in sync for other tabs
+        setActiveFilter(null);
+        setSearchQuery('');
+        setEditMode(false);
+    };
+
+    const selectAllInSection = (secClasses) => {
+        setSelectedClasses(prev => {
+            const next = new Set(prev);
+            secClasses.forEach(c => next.add(c));
+            return next;
+        });
+        setActiveFilter(null);
+        setSearchQuery('');
+    };
+
+    /* ── Defaults (first selected class) ───────────────────────────────── */
+    const firstClass    = [...selectedClasses][0] || '';
     const classDefaults = useMemo(() =>
-        (CLASS_FEE_DEFAULTS && CLASS_FEE_DEFAULTS[selectedClass]) || {
+        (CLASS_FEE_DEFAULTS && CLASS_FEE_DEFAULTS[firstClass]) || {
             tuitionFee: 0, admissionFee: 0, annualFee: 0, examFee: 0, transportFee: 0, labFee: 0,
         },
-        [CLASS_FEE_DEFAULTS, selectedClass]
+        [CLASS_FEE_DEFAULTS, firstClass]
     );
 
-    /* ── Base student list ─────────────────────────────────────────────── */
+    /* ── Base student list (all selected classes) ────────────────────────── */
     const allClassStudents = useMemo(() =>
         students
-            .filter(s => s.grade === selectedClass)
+            .filter(s => selectedClasses.has(s.grade))
             .sort((a, b) => {
                 const sa = parseInt(a.serialNumber, 10), sb = parseInt(b.serialNumber, 10);
                 if (!isNaN(sa) && !isNaN(sb)) return sa - sb;
                 return a.id.localeCompare(b.id, undefined, { numeric: true });
             }),
-        [students, selectedClass]
+        [students, selectedClasses]
     );
 
-    /* ── All months (insertion order) ─────────────────────────────────── */
+    /* ── Month columns: auto Jan-Dec for current year + any extra from DB ─── */
     const allMonths = useMemo(() => {
-        const seen = new Set(); const months = [];
+        const autoSet = new Set(yearMonthLabels(currentYear));
+        // also include past year months that exist in DB
         allClassStudents.forEach(s =>
             (s.feeHistory || []).forEach(h => {
-                if (!seen.has(h.month)) { seen.add(h.month); months.push(h.month); }
+                if (!h.month?.startsWith(PAPER_FUND_PREFIX)) autoSet.add(h.month);
             })
         );
-        return months;
-    }, [allClassStudents]);
+        return sortMonthLabels([...autoSet]);
+    }, [allClassStudents, currentYear]);
 
-    /* ── Current-month stats ───────────────────────────────────────────── */
+    /* ── Current-month stats ─────────────────────────────────────────────── */
     const stats = useMemo(() => {
-        const total     = allClassStudents.length;
-        const paid      = allClassStudents.filter(s => (s.feeHistory||[]).some(h => h.month===currentMonthLabel && h.status==='paid')).length;
-        const unpaid    = allClassStudents.filter(s => (s.feeHistory||[]).some(h => h.month===currentMonthLabel && (h.status==='unpaid'||h.status==='partial'))).length;
-        const defaulters= allClassStudents.filter(s => isDefaulter(s, currentMonthLabel)).length;
-        const free      = allClassStudents.filter(s => isFreeStudent(s, classDefaults)).length;
+        const total      = allClassStudents.length;
+        const paid       = allClassStudents.filter(s => (s.feeHistory||[]).some(h => h.month===currentMonthLabel && h.status==='paid')).length;
+        const unpaid     = allClassStudents.filter(s => (s.feeHistory||[]).some(h => h.month===currentMonthLabel && (h.status==='unpaid'||h.status==='partial'))).length;
+        const defaulters = allClassStudents.filter(s => isDefaulter(s, currentMonthLabel, classDefaults)).length;
+        const free       = allClassStudents.filter(s => isFreeStudent(s, classDefaults)).length;
         return { total, paid, unpaid, defaulters, free };
     }, [allClassStudents, currentMonthLabel, classDefaults]);
 
-    /* ── Gender counts ─────────────────────────────────────────────────── */
+    /* ── Gender counts ──────────────────────────────────────────────────── */
     const boysCount  = allClassStudents.filter(s => s.admissions?.[0]?.gender === 'Male').length;
     const girlsCount = allClassStudents.filter(s => s.admissions?.[0]?.gender === 'Female').length;
 
-    /* ── Visible / filtered students ──────────────────────────────────── */
+    /* ── Visible / filtered students ────────────────────────────────────── */
     const visibleStudents = useMemo(() => {
         let list = allClassStudents;
         if (genderTab === 'boys')  list = list.filter(s => s.admissions?.[0]?.gender === 'Male');
@@ -422,58 +540,59 @@ const FeeTab = ({
         }
         if (activeFilter === 'paid')       list = list.filter(s => (s.feeHistory||[]).some(h => h.month===currentMonthLabel && h.status==='paid'));
         if (activeFilter === 'unpaid')     list = list.filter(s => (s.feeHistory||[]).some(h => h.month===currentMonthLabel && (h.status==='unpaid'||h.status==='partial')));
-        if (activeFilter === 'defaulters') list = list.filter(s => isDefaulter(s, currentMonthLabel));
+        if (activeFilter === 'defaulters') list = list.filter(s => isDefaulter(s, currentMonthLabel, classDefaults));
         if (activeFilter === 'free')       list = list.filter(s => isFreeStudent(s, classDefaults));
         return list;
     }, [allClassStudents, genderTab, searchQuery, activeFilter, currentMonthLabel, classDefaults]);
 
-    /* ── Handlers ─────────────────────────────────────────────────────── */
-    const handleCardClick = (filter) => setActiveFilter(prev => prev === filter ? null : filter);
-
-    const handleQuickPaySave = async (updatedRecord) => {
-        if (!quickPay) return;
-        await updateStudentFeeRecord(quickPay.student.id, updatedRecord.month, updatedRecord);
-    };
-
-    const handleAddMonthSuccess = (label) => {
-        if (showSaveMessage) showSaveMessage(`Month "${label}" opened for ${selectedClass}!`);
-    };
-
-    /* ── Print vouchers ─────────────────────────────────────────────────── */
-    const doPrintVouchers = (month) => {
-        if (!month) return;
-        const targets = visibleStudents;
-        let html = `<!DOCTYPE html><html><head><title>Vouchers — ${selectedClass} — ${month}</title><style>${VOUCHER_CSS}</style></head><body>
-            <button class="btn-print" onclick="window.print()">🖨 Print All Vouchers (${targets.length})</button>
-            <div class="grid">`;
-        targets.forEach(student => {
-            const record = (student.feeHistory || []).find(h => h.month === month)
-                || { month, status: 'unpaid', paidAmount: 0, ...classDefaults };
-            html += buildVoucherHTML(student, record, classDefaults, currencySymbol, schoolName, schoolLogo, schoolSettings);
-        });
-        html += `</div></body></html>`;
-        const win = window.open('', '_blank');
-        win.document.write(html);
-        win.document.close();
-    };
-
-    /* ── Per-student totals ─────────────────────────────────────────────── */
+    /* ── Per-student totals (respects admission date) ────────────────────── */
     const getStudentTotals = (student) => {
-        const hist         = student.feeHistory || [];
-        const totalPayable = hist.reduce((s, h) => s + computeNet(h, classDefaults), 0);
-        const totalPaid    = hist.reduce((s, h) => s + Number(h.paidAmount ?? 0), 0);
-        return { totalPayable, pending: Math.max(0, totalPayable - totalPaid) };
+        const cd  = (CLASS_FEE_DEFAULTS && CLASS_FEE_DEFAULTS[student.grade]) || classDefaults;
+        let totalPayable = 0, totalPaid = 0;
+        allMonths.forEach(month => {
+            if (!studentOwesMonth(student, month)) return; // before admission → skip
+            const rec = (student.feeHistory || []).find(h => h.month === month);
+            if (rec) {
+                totalPayable += computeNet(rec, cd);
+                totalPaid    += Number(rec.paidAmount ?? 0);
+            } else {
+                // auto month with no record → count full class default as payable
+                totalPayable += computeNet({}, cd);
+            }
+        });
+        return { totalPayable, totalPaid, pending: Math.max(0, totalPayable - totalPaid) };
     };
 
-    /* ── Month cell renderer ────────────────────────────────────────────── */
-    const renderMonthCell = (student, month, isFree) => {
-        if (isFree) return (
-            <div style={{ textAlign:'center', padding:'2px 0' }}>
-                <span style={{ padding:'2px 7px', borderRadius:'999px', fontSize:'.68rem', fontWeight:800, background:'#ede9fe', color:'#7c3aed' }}>FREE</span>
-            </div>
-        );
+    /* ── Month cell renderer ─────────────────────────────────────────────── */
+    const renderMonthCell = (student, month) => {
+        const cd = (CLASS_FEE_DEFAULTS && CLASS_FEE_DEFAULTS[student.grade]) || classDefaults;
+
+        // Before admission → show N/A
+        if (!studentOwesMonth(student, month)) {
+            return <div style={{ textAlign:'center', color:'#d1d5db', fontSize:'.7rem', fontWeight:600 }}>N/A</div>;
+        }
+
+        // Free student
+        if (isFreeStudent(student, cd)) {
+            return <div style={{ textAlign:'center' }}><span style={{ padding:'2px 7px', borderRadius:'999px', fontSize:'.68rem', fontWeight:800, background:'#ede9fe', color:'#7c3aed' }}>FREE</span></div>;
+        }
+
         const rec = (student.feeHistory || []).find(h => h.month === month);
-        if (!rec) return <div style={{ textAlign:'center', color:'#d1d5db', fontSize:'.75rem' }}>—</div>;
+
+        // No record (auto month not yet opened)
+        if (!rec) {
+            const isFuture = monthLabelToKey(month) > monthLabelToKey(currentMonthLabel);
+            if (editMode) {
+                return (
+                    <button
+                        onClick={() => setQuickPay({ student, record: null, month })}
+                        style={{ padding:'3px 8px', borderRadius:'999px', fontSize:'.68rem', fontWeight:700, border:'1px dashed #cbd5e1', cursor:'pointer', background:'#f8fafc', color:'#94a3b8', width:'100%' }}
+                    >+ Open</button>
+                );
+            }
+            return <div style={{ textAlign:'center', color: isFuture ? '#e2e8f0' : '#d1d5db', fontSize:'.72rem', fontWeight:600 }}>{isFuture ? '—' : '⚠ '}</div>;
+        }
+
         const { status } = rec;
         const isPaid    = status === 'paid';
         const isPartial = status === 'partial';
@@ -483,8 +602,8 @@ const FeeTab = ({
 
         if (editMode) return (
             <button
-                onClick={() => setQuickPay({ student, record: rec })}
-                title={`Edit ${month} — ${status} — click to update`}
+                onClick={() => setQuickPay({ student, record: rec, month })}
+                title={`Edit ${month} — ${status}`}
                 style={{ padding:'3px 8px', borderRadius:'999px', fontSize:'.7rem', fontWeight:800, border:'none', cursor:'pointer', background:bg, color, display:'block', width:'100%', transition:'opacity .15s' }}
                 onMouseEnter={e => e.currentTarget.style.opacity='.65'}
                 onMouseLeave={e => e.currentTarget.style.opacity='1'}
@@ -495,6 +614,54 @@ const FeeTab = ({
                 <span style={{ padding:'2px 8px', borderRadius:'999px', fontSize:'.7rem', fontWeight:800, background:bg, color }}>{icon}</span>
             </div>
         );
+    };
+
+    /* ── Handlers ────────────────────────────────────────────────────────── */
+    const handleCardClick = (filter) => setActiveFilter(prev => prev === filter ? null : filter);
+
+    const handleQuickPaySave = async (updatedRecord) => {
+        if (!quickPay) return;
+        await updateStudentFeeRecord(quickPay.student.id, updatedRecord.month, updatedRecord);
+    };
+
+    const handleAddMonthSuccess = (label) => {
+        if (showSaveMessage) showSaveMessage(`Month "${label}" opened for ${[...selectedClasses].join(', ')}!`);
+    };
+
+    /* ── Open next month for all classes ─────────────────────────────────── */
+    const handleOpenNextMonth = async () => {
+        const d = new Date();
+        d.setMonth(d.getMonth() + 1);
+        const nextMonth = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+        const records = allClassStudents
+            .filter(s => studentOwesMonth(s, nextMonth))
+            .filter(s => !(s.feeHistory||[]).some(h => h.month === nextMonth))
+            .map(s => {
+                const cd = (CLASS_FEE_DEFAULTS && CLASS_FEE_DEFAULTS[s.grade]) || classDefaults;
+                return { student_id: s.id, month: nextMonth, status:'unpaid', ...cd, lateFine:0, discount:0, paidAmount:0 };
+            });
+        if (records.length === 0) { if (showSaveMessage) showSaveMessage(`${nextMonth} already exists for all students.`); return; }
+        await saveFeeRecords(records);
+        if (showSaveMessage) showSaveMessage(`✅ ${nextMonth} opened for ${records.length} students!`);
+    };
+
+    /* ── Print vouchers ──────────────────────────────────────────────────── */
+    const doPrintVouchers = (month) => {
+        if (!month) return;
+        const targets = visibleStudents;
+        let html = `<!DOCTYPE html><html><head><title>Vouchers — ${month}</title><style>${VOUCHER_CSS}</style></head><body>
+            <button class="btn-print" onclick="window.print()">🖨 Print All Vouchers (${targets.length})</button>
+            <div class="grid">`;
+        targets.forEach(student => {
+            const cd = (CLASS_FEE_DEFAULTS && CLASS_FEE_DEFAULTS[student.grade]) || classDefaults;
+            const record = (student.feeHistory || []).find(h => h.month === month)
+                || { month, status: 'unpaid', paidAmount: 0, ...cd };
+            html += buildVoucherHTML(student, record, cd, currencySymbol, schoolName, schoolLogo, schoolSettings);
+        });
+        html += `</div></body></html>`;
+        const win = window.open('', '_blank');
+        win.document.write(html);
+        win.document.close();
     };
 
     /* ── Sorted classes fallback ─────────────────────────────────────────── */
@@ -515,65 +682,113 @@ const FeeTab = ({
     return (
         <div className="animate-fade-in" style={{ display:'flex', height:'100%', minHeight:0 }}>
 
+            {/* Modals */}
+            {showAddMonth && (
+                <AddMonthModal
+                    selectedClasses={selectedClasses}
+                    allClassStudents={allClassStudents}
+                    CLASS_FEE_DEFAULTS={CLASS_FEE_DEFAULTS}
+                    currencySymbol={currencySymbol}
+                    onClose={() => setShowAddMonth(false)}
+                    onSuccess={handleAddMonthSuccess}
+                />
+            )}
+            {quickPay && (
+                <QuickPayModal
+                    student={quickPay.student}
+                    record={quickPay.record}
+                    month={quickPay.month}
+                    classDefaults={(CLASS_FEE_DEFAULTS && CLASS_FEE_DEFAULTS[quickPay.student.grade]) || classDefaults}
+                    currencySymbol={currencySymbol}
+                    onClose={() => setQuickPay(null)}
+                    onSave={handleQuickPaySave}
+                />
+            )}
+
             {/* ══ SIDEBAR ══════════════════════════════════════════════════ */}
             <div style={{
-                width: sidebarOpen ? '216px' : '0',
-                minWidth: sidebarOpen ? '216px' : '0',
-                overflow: 'hidden',
-                transition: 'all .25s ease',
-                background: 'white',
-                borderRight: '1px solid #e2e8f0',
-                display: 'flex',
-                flexDirection: 'column',
-                flexShrink: 0,
+                width: sidebarOpen ? '220px' : '0',
+                minWidth: sidebarOpen ? '220px' : '0',
+                overflow: 'hidden', transition: 'all .25s ease',
+                background: 'white', borderRight: '1px solid #e2e8f0',
+                display: 'flex', flexDirection: 'column', flexShrink: 0,
             }}>
                 <div style={{ padding:'.85rem .8rem', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                     <span style={{ fontWeight:800, fontSize:'.88rem', color:'#1e293b' }}>📚 Classes</span>
-                    <button onClick={() => setSidebarOpen(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:'2px', display:'flex' }}><X size={15} /></button>
+                    <div style={{ display:'flex', alignItems:'center', gap:'.35rem' }}>
+                        {selectedClasses.size > 1 && (
+                            <button
+                                onClick={() => { setSelectedClasses(new Set([firstClass])); setSelectedClass(firstClass); }}
+                                style={{ fontSize:'.68rem', fontWeight:700, color:'#dc2626', background:'#fef2f2', border:'none', borderRadius:'5px', padding:'1px 6px', cursor:'pointer' }}
+                            >Clear</button>
+                        )}
+                        <button onClick={() => setSidebarOpen(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', display:'flex' }}><X size={15} /></button>
+                    </div>
                 </div>
                 <div style={{ flex:1, overflowY:'auto', padding:'.4rem' }}>
                     {sections && sections.length > 0
                         ? sections.map(sec => (
                             <div key={sec.id} style={{ marginBottom:'.15rem' }}>
-                                <button
-                                    onClick={() => setExpandedSections(p => ({ ...p, [sec.id]: !p[sec.id] }))}
-                                    style={{ width:'100%', display:'flex', alignItems:'center', gap:'.45rem', padding:'.45rem .55rem', background:'transparent', border:'none', cursor:'pointer', color:'#64748b', fontWeight:700, fontSize:'.8rem', borderRadius:'7px', textAlign:'left' }}
-                                >
-                                    {expandedSections[sec.id] ? <ChevronDown size={13}/> : <ChevronRight size={13}/>}
-                                    {sec.name}
-                                </button>
+                                <div style={{ display:'flex', alignItems:'center' }}>
+                                    <button
+                                        onClick={() => setExpandedSections(p => ({ ...p, [sec.id]: !p[sec.id] }))}
+                                        style={{ flex:1, display:'flex', alignItems:'center', gap:'.45rem', padding:'.45rem .55rem', background:'transparent', border:'none', cursor:'pointer', color:'#64748b', fontWeight:700, fontSize:'.8rem', borderRadius:'7px', textAlign:'left' }}
+                                    >
+                                        {expandedSections[sec.id] ? <ChevronDown size={13}/> : <ChevronRight size={13}/>}
+                                        {sec.name}
+                                    </button>
+                                    <button
+                                        onClick={() => selectAllInSection(sec.classes || [])}
+                                        title="Select all classes in this section"
+                                        style={{ fontSize:'.63rem', fontWeight:700, color:'#2563eb', background:'#eff6ff', border:'none', borderRadius:'5px', padding:'2px 5px', cursor:'pointer', marginRight:'.25rem', whiteSpace:'nowrap' }}
+                                    >All</button>
+                                </div>
                                 {expandedSections[sec.id] && (
                                     <div style={{ paddingLeft:'.35rem' }}>
-                                        {(sec.classes || []).sort(classSort).map(cls => (
-                                            <button key={cls}
-                                                onClick={() => { setSelectedClass(cls); setActiveFilter(null); setSearchQuery(''); setEditMode(false); }}
-                                                style={{
-                                                    width:'100%', padding:'.42rem .7rem', borderRadius:'7px', border:'none', cursor:'pointer', textAlign:'left',
-                                                    fontSize:'.84rem', fontWeight: selectedClass===cls ? 800 : 600,
-                                                    background: selectedClass===cls ? '#eff6ff' : 'transparent',
-                                                    color:      selectedClass===cls ? '#2563eb' : '#64748b',
-                                                    borderLeft: `3px solid ${selectedClass===cls ? '#2563eb' : 'transparent'}`,
-                                                    transition:'all .12s', marginBottom:'1px',
-                                                }}
-                                            >{cls}</button>
-                                        ))}
+                                        {(sec.classes || []).sort(classSort).map(cls => {
+                                            const isSelected = selectedClasses.has(cls);
+                                            return (
+                                                <button key={cls}
+                                                    onClick={() => toggleClass(cls)}
+                                                    style={{
+                                                        width:'100%', padding:'.42rem .7rem', borderRadius:'7px', border:'none', cursor:'pointer', textAlign:'left',
+                                                        fontSize:'.84rem', fontWeight: isSelected ? 800 : 600,
+                                                        background: isSelected ? '#eff6ff' : 'transparent',
+                                                        color:      isSelected ? '#2563eb' : '#64748b',
+                                                        borderLeft: `3px solid ${isSelected ? '#2563eb' : 'transparent'}`,
+                                                        transition:'all .12s', marginBottom:'1px',
+                                                        display:'flex', alignItems:'center', justifyContent:'space-between',
+                                                    }}
+                                                >
+                                                    {cls}
+                                                    {isSelected && <Check size={12} style={{ flexShrink:0 }}/>}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
                         ))
-                        : sortedClasses.map(cls => (
-                            <button key={cls}
-                                onClick={() => { setSelectedClass(cls); setActiveFilter(null); setSearchQuery(''); setEditMode(false); }}
-                                style={{
-                                    width:'100%', padding:'.48rem .7rem', borderRadius:'8px', border:'none', cursor:'pointer', textAlign:'left',
-                                    fontSize:'.86rem', fontWeight: selectedClass===cls ? 800 : 600,
-                                    background: selectedClass===cls ? '#eff6ff' : 'transparent',
-                                    color:      selectedClass===cls ? '#2563eb' : '#64748b',
-                                    borderLeft: `3px solid ${selectedClass===cls ? '#2563eb' : 'transparent'}`,
-                                    transition:'all .12s', marginBottom:'2px',
-                                }}
-                            >{cls}</button>
-                        ))
+                        : sortedClasses.map(cls => {
+                            const isSelected = selectedClasses.has(cls);
+                            return (
+                                <button key={cls}
+                                    onClick={() => toggleClass(cls)}
+                                    style={{
+                                        width:'100%', padding:'.48rem .7rem', borderRadius:'8px', border:'none', cursor:'pointer', textAlign:'left',
+                                        fontSize:'.86rem', fontWeight: isSelected ? 800 : 600,
+                                        background: isSelected ? '#eff6ff' : 'transparent',
+                                        color:      isSelected ? '#2563eb' : '#64748b',
+                                        borderLeft: `3px solid ${isSelected ? '#2563eb' : 'transparent'}`,
+                                        transition:'all .12s', marginBottom:'2px',
+                                        display:'flex', alignItems:'center', justifyContent:'space-between',
+                                    }}
+                                >
+                                    {cls}
+                                    {isSelected && <Check size={12} style={{ flexShrink:0 }}/>}
+                                </button>
+                            );
+                        })
                     }
                 </div>
             </div>
@@ -581,7 +796,23 @@ const FeeTab = ({
             {/* ══ MAIN ═════════════════════════════════════════════════════ */}
             <div style={{ flex:1, minWidth:0, padding:'1.4rem', display:'flex', flexDirection:'column', gap:'1.1rem', overflowY:'auto' }}>
 
-                {/* ── Top bar ───────────────────────────────────────────── */}
+                {/* ── Rollover banner ─────────────────────────────────────── */}
+                {showRolloverBanner && (
+                    <div style={{ background:'#fffbeb', border:'1.5px solid #fde68a', borderRadius:'10px', padding:'.65rem 1rem', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'1rem', flexWrap:'wrap' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'.5rem', color:'#b45309', fontWeight:700, fontSize:'.85rem' }}>
+                            <AlertTriangle size={16}/>
+                            Month closing soon — Open next month for all selected classes?
+                        </div>
+                        <button
+                            onClick={handleOpenNextMonth}
+                            style={{ padding:'.4rem 1rem', background:'#f59e0b', color:'white', border:'none', borderRadius:'8px', fontWeight:700, fontSize:'.8rem', cursor:'pointer', whiteSpace:'nowrap' }}
+                        >
+                            📅 Open Next Month
+                        </button>
+                    </div>
+                )}
+
+                {/* ── Top bar ─────────────────────────────────────────────── */}
                 <div style={{ display:'flex', alignItems:'center', gap:'.9rem', flexWrap:'wrap' }}>
                     {!sidebarOpen && (
                         <button onClick={() => setSidebarOpen(true)} style={{ padding:'.45rem .75rem', background:'#f1f5f9', border:'1px solid #e2e8f0', borderRadius:'8px', cursor:'pointer', color:'#475569', fontWeight:700, fontSize:'.8rem', display:'flex', alignItems:'center', gap:'.35rem' }}>
@@ -590,7 +821,10 @@ const FeeTab = ({
                     )}
                     <div>
                         <h2 style={{ fontSize:'1.45rem', fontWeight:800, color:'#1e293b', margin:0 }}>💰 Fee Management</h2>
-                        <p style={{ color:'#64748b', fontSize:'.8rem', margin:'2px 0 0' }}>{selectedClass} &middot; {currentMonthLabel}</p>
+                        <p style={{ color:'#64748b', fontSize:'.8rem', margin:'2px 0 0' }}>
+                            {selectedClasses.size === 1 ? firstClass : `${selectedClasses.size} classes selected`} &middot; {currentMonthLabel}
+                            {selectedClasses.size > 1 && <span style={{ marginLeft:'.4rem', color:'#2563eb', fontWeight:700 }}>({allClassStudents.length} students)</span>}
+                        </p>
                     </div>
                     <div style={{ marginLeft:'auto', display:'flex', gap:'.55rem', alignItems:'center', flexWrap:'wrap' }}>
                         <button
@@ -599,265 +833,191 @@ const FeeTab = ({
                         >
                             <Plus size={15}/> Add Month
                         </button>
+                        {/* Print voucher dropdown */}
+                        <div style={{ position:'relative' }}>
+                            <select
+                                value={printMonth}
+                                onChange={e => { if (e.target.value) { doPrintVouchers(e.target.value); setPrintMonth(''); } }}
+                                style={{ padding:'.52rem .85rem', background:'white', border:'1.5px solid #e2e8f0', borderRadius:'10px', fontWeight:700, cursor:'pointer', fontSize:'.83rem', color:'#475569', appearance:'none', paddingRight:'2rem' }}
+                            >
+                                <option value="">🖨 Print Vouchers…</option>
+                                {allMonths.map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                        </div>
+                        <button
+                            onClick={() => setEditMode(p => !p)}
+                            style={{ padding:'.52rem 1rem', background: editMode ? '#dc2626' : '#f1f5f9', color: editMode ? 'white' : '#475569', border: editMode ? 'none' : '1.5px solid #e2e8f0', borderRadius:'10px', fontWeight:700, cursor:'pointer', fontSize:'.83rem', display:'flex', alignItems:'center', gap:'.35rem', transition:'all .2s' }}
+                        >
+                            {editMode ? <><X size={15}/> Done</> : <><Edit3 size={15}/> Edit</>}
+                        </button>
                     </div>
                 </div>
 
-                {/* ── Search ────────────────────────────────────────────── */}
-                <div style={{ display:'flex', flexDirection:'column', gap:'.65rem' }}>
-                    <div style={{ position:'relative' }}>
-                        <Search size={15} style={{ position:'absolute', left:'11px', top:'50%', transform:'translateY(-50%)', color:'#94a3b8' }}/>
+                {/* ── Search + Gender ──────────────────────────────────────── */}
+                <div style={{ display:'flex', gap:'.75rem', alignItems:'center', flexWrap:'wrap' }}>
+                    <div style={{ position:'relative', flex:1, minWidth:'200px' }}>
+                        <Search size={14} style={{ position:'absolute', left:'10px', top:'50%', transform:'translateY(-50%)', color:'#94a3b8' }} />
                         <input
                             type="text"
-                            placeholder="Search by Name, Serial No. or Student ID…"
+                            placeholder="Search by name, ID or serial…"
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
                             className="form-input"
-                            style={{ paddingLeft:'34px', paddingRight:'34px', width:'100%', borderRadius:'10px' }}
+                            style={{ paddingLeft:'30px', paddingRight: searchQuery ? '30px' : undefined, width:'100%' }}
                         />
                         {searchQuery && (
-                            <button onClick={() => setSearchQuery('')} style={{ position:'absolute', right:'10px', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#94a3b8', display:'flex' }}>
-                                <X size={15}/>
+                            <button onClick={() => setSearchQuery('')} style={{ position:'absolute', right:'8px', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#94a3b8', display:'flex' }}>
+                                <X size={14}/>
                             </button>
                         )}
                     </div>
-
-                    {/* Gender tabs */}
-                    <div style={{ display:'flex', borderRadius:'10px', overflow:'hidden', border:'1px solid #e2e8f0', background:'#f8fafc' }}>
+                    <div style={{ display:'flex', borderRadius:'8px', border:'1px solid #e2e8f0', overflow:'hidden' }}>
                         {[
-                            { id:'boys',  label:'👦 Boys',        count:boysCount,               color:'#0369a1', bg:'#e0f2fe' },
-                            { id:'girls', label:'👧 Girls',       count:girlsCount,              color:'#be185d', bg:'#fce7f3' },
-                            { id:'all',   label:'👥 All Students',count:allClassStudents.length, color:'#475569', bg:'#f1f5f9' },
-                        ].map(tab => (
-                            <button key={tab.id} onClick={() => setGenderTab(tab.id)} style={{
-                                flex:1, padding:'.65rem .4rem', fontWeight:genderTab===tab.id ? 800 : 600,
-                                color:  genderTab===tab.id ? tab.color : '#94a3b8',
-                                background: genderTab===tab.id ? tab.bg : 'transparent',
-                                border:'none', borderBottom: genderTab===tab.id ? `3px solid ${tab.color}` : '3px solid transparent',
-                                cursor:'pointer', transition:'all .15s', fontSize:'.85rem',
-                                display:'flex', alignItems:'center', justifyContent:'center', gap:'.4rem',
-                            }}>
-                                {tab.label}
-                                <span style={{ background:genderTab===tab.id ? tab.color : '#cbd5e1', color:'white', borderRadius:'999px', padding:'0 .45rem', fontSize:'.7rem', fontWeight:700 }}>{tab.count}</span>
-                            </button>
+                            { id:'all',   label:`All (${allClassStudents.length})` },
+                            { id:'boys',  label:`Boys (${boysCount})` },
+                            { id:'girls', label:`Girls (${girlsCount})` },
+                        ].map(g => (
+                            <button key={g.id} onClick={() => setGenderTab(g.id)} style={{ padding:'.42rem .85rem', fontSize:'.8rem', fontWeight: genderTab===g.id ? 800 : 600, background: genderTab===g.id ? '#0f172a' : 'white', color: genderTab===g.id ? 'white' : '#64748b', border:'none', cursor:'pointer', transition:'all .15s' }}>{g.label}</button>
                         ))}
                     </div>
                 </div>
 
-                {/* ── Current Month Status Cards ─────────────────────────── */}
-                <div>
-                    <div style={{ fontSize:'.72rem', fontWeight:800, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:'.55rem' }}>
-                        Current Month Status — {currentMonthLabel}
-                    </div>
-                    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))', gap:'.65rem' }}>
-                        {statusCards.map(card => {
-                            const active = activeFilter === card.id;
-                            return (
-                                <button
-                                    key={String(card.id)}
-                                    onClick={() => card.id !== null && handleCardClick(card.id)}
-                                    style={{
-                                        background: active ? card.color : card.bg,
-                                        border: `2px solid ${active ? card.color : card.border}`,
-                                        borderRadius:'12px', padding:'.8rem .6rem', textAlign:'center',
-                                        cursor: card.id !== null ? 'pointer' : 'default',
-                                        transition:'all .2s',
-                                        transform: active ? 'scale(1.03)' : 'scale(1)',
-                                        boxShadow: active ? `0 4px 18px ${card.color}40` : 'none',
-                                    }}
-                                >
-                                    <div style={{ fontSize:'1.2rem', marginBottom:'.15rem' }}>{card.icon}</div>
-                                    <div style={{ fontSize:'1.55rem', fontWeight:800, color: active ? 'white' : card.color }}>{card.value}</div>
-                                    <div style={{ fontSize:'.7rem', fontWeight:700, color: active ? 'rgba(255,255,255,.85)' : '#64748b', marginTop:'.15rem', lineHeight:1.3 }}>{card.label}</div>
-                                    {card.id !== null && (
-                                        <div style={{ fontSize:'.62rem', color: active ? 'rgba(255,255,255,.65)' : '#94a3b8', marginTop:'.2rem' }}>
-                                            {active ? '✕ clear filter' : 'click to filter'}
-                                        </div>
-                                    )}
-                                </button>
-                            );
-                        })}
-                    </div>
+                {/* ── Status Cards ─────────────────────────────────────────── */}
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'.65rem' }}>
+                    {statusCards.map(card => (
+                        <button
+                            key={card.id}
+                            onClick={() => handleCardClick(card.id)}
+                            style={{
+                                padding:'.75rem .65rem', borderRadius:'12px', border:`1.5px solid ${activeFilter===card.id ? card.color : card.border}`,
+                                background: activeFilter===card.id ? card.color : card.bg,
+                                color: activeFilter===card.id ? 'white' : card.color,
+                                cursor:'pointer', textAlign:'center', transition:'all .18s', boxShadow: activeFilter===card.id ? `0 4px 12px ${card.color}44` : 'none',
+                            }}
+                        >
+                            <div style={{ fontSize:'1.45rem', fontWeight:800, lineHeight:1 }}>{card.value}</div>
+                            <div style={{ fontSize:'.68rem', fontWeight:700, opacity:.85, marginTop:'3px', textTransform:'uppercase', letterSpacing:'.3px' }}>{card.label}</div>
+                        </button>
+                    ))}
                 </div>
 
-                {/* ── Student Spreadsheet ───────────────────────────────── */}
-                <div style={{ background:'white', borderRadius:'14px', border:'1px solid #e2e8f0', overflow:'hidden', flex:1, display:'flex', flexDirection:'column' }}>
+                {/* ── Spreadsheet ──────────────────────────────────────────── */}
+                <div style={{ border:'1px solid #e2e8f0', borderRadius:'14px', overflow:'hidden', flex:1 }}>
+                    <div style={{ overflowX:'auto', overflowY:'auto', maxHeight:'60vh' }}>
+                        <table style={{ borderCollapse:'collapse', minWidth:'100%', tableLayout:'fixed' }}>
+                            <thead>
+                                <tr>
+                                    {/* Fixed left columns */}
+                                    <th style={{ ...THL, width:'38px', position:'sticky', left:0, zIndex:20 }}>#</th>
+                                    <th style={{ ...THL, width:'180px', position:'sticky', left:'38px', zIndex:20 }}>Student</th>
+                                    {selectedClasses.size > 1 && (
+                                        <th style={{ ...THL, width:'90px', position:'sticky', left:'218px', zIndex:20 }}>Class</th>
+                                    )}
+                                    <th style={{ ...TH, width:'70px' }}>Fee/mo</th>
 
-                    {/* Spreadsheet toolbar */}
-                    <div style={{ padding:'.8rem 1rem', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'.6rem', flexWrap:'wrap', background:'#f8fafc' }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:'.55rem', flexWrap:'wrap' }}>
-                            <span style={{ fontWeight:800, color:'#1e293b', fontSize:'.9rem' }}>Student Records</span>
-                            <span style={{ background:'#e2e8f0', color:'#475569', borderRadius:'999px', padding:'1px 10px', fontSize:'.75rem', fontWeight:700 }}>
-                                {visibleStudents.length} of {allClassStudents.length}
-                            </span>
-                            {activeFilter && (
-                                <span style={{ background:'#fef3c7', color:'#b45309', borderRadius:'999px', padding:'1px 10px', fontSize:'.73rem', fontWeight:700, display:'flex', alignItems:'center', gap:'.3rem' }}>
-                                    Filter: {activeFilter}
-                                    <button onClick={() => setActiveFilter(null)} style={{ background:'none', border:'none', cursor:'pointer', padding:0, color:'#b45309', display:'flex' }}><X size={11}/></button>
-                                </span>
-                            )}
-                        </div>
-                        <div style={{ display:'flex', gap:'.45rem', alignItems:'center' }}>
-                            {/* Print vouchers dropdown */}
-                            {allMonths.length > 0 && (
-                                <select
-                                    value={printMonth}
-                                    onChange={e => { if (e.target.value) { doPrintVouchers(e.target.value); setPrintMonth(''); } }}
-                                    style={{ padding:'.4rem .65rem', borderRadius:'8px', border:'1px solid #e2e8f0', fontSize:'.78rem', fontWeight:600, color:'#475569', background:'white', cursor:'pointer' }}
-                                >
-                                    <option value="" disabled>🖨 Print Vouchers…</option>
-                                    {allMonths.map(m => <option key={m} value={m}>{m}</option>)}
-                                </select>
-                            )}
-                            {/* Edit toggle */}
-                            <button
-                                onClick={() => setEditMode(p => !p)}
-                                style={{
-                                    padding:'.42rem .9rem', borderRadius:'8px',
-                                    border: `2px solid ${editMode ? '#f59e0b' : '#e2e8f0'}`,
-                                    background: editMode ? '#fffbeb' : 'white',
-                                    color:   editMode ? '#b45309' : '#475569',
-                                    fontWeight:700, fontSize:'.8rem', cursor:'pointer', display:'flex', alignItems:'center', gap:'.35rem', transition:'all .2s',
-                                }}
-                            >
-                                {editMode ? <><Check size={14}/> Done</> : <><Edit3 size={14}/> Edit</>}
-                            </button>
-                        </div>
-                    </div>
+                                    {/* Month columns */}
+                                    {allMonths.map(m => (
+                                        <th key={m} style={{ ...TH, width:'54px', background: m===currentMonthLabel ? '#1d4ed8' : '#0f172a' }}>
+                                            {shortMonthLabel(m)}
+                                        </th>
+                                    ))}
 
-                    {/* Table area */}
-                    {allClassStudents.length === 0 ? (
-                        <div style={{ textAlign:'center', padding:'3.5rem 2rem', color:'#94a3b8' }}>
-                            <div style={{ fontSize:'2.5rem', marginBottom:'.75rem' }}>👥</div>
-                            <div style={{ fontWeight:700, fontSize:'1rem', color:'#64748b' }}>No students in {selectedClass}</div>
-                        </div>
-                    ) : allMonths.length === 0 ? (
-                        <div style={{ textAlign:'center', padding:'3.5rem 2rem' }}>
-                            <div style={{ fontSize:'2.5rem', marginBottom:'.75rem' }}>📅</div>
-                            <div style={{ fontWeight:700, fontSize:'1rem', color:'#1e293b', marginBottom:'.4rem' }}>No months opened yet</div>
-                            <p style={{ color:'#64748b', marginBottom:'1.2rem', fontSize:'.88rem' }}>Click "Add Month" to start tracking fees for {selectedClass}</p>
-                            <button onClick={() => setShowAddMonth(true)} style={{ padding:'.6rem 1.4rem', background:'#2563eb', color:'white', border:'none', borderRadius:'10px', fontWeight:700, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:'.4rem' }}>
-                                <Plus size={15}/> Add Month
-                            </button>
-                        </div>
-                    ) : (
-                        <div style={{ overflowX:'auto', overflowY:'auto', flex:1, maxHeight:'62vh' }}>
-                            <table style={{ width:'100%', borderCollapse:'collapse', minWidth:`${300 + allMonths.length * 70}px` }}>
-                                <thead>
+                                    {/* Fixed right columns */}
+                                    <th style={{ ...TH, width:'72px', position:'sticky', right:'144px', zIndex:20, background:'#1e293b' }}>Total</th>
+                                    <th style={{ ...TH, width:'72px', position:'sticky', right:'72px',  zIndex:20, background:'#16a34a' }}>Paid</th>
+                                    <th style={{ ...TH, width:'72px', position:'sticky', right:0,        zIndex:20, background:'#dc2626' }}>Pending</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {visibleStudents.length === 0 && (
                                     <tr>
-                                        {/* Photo */}
-                                        <th style={{ ...TH, width:'44px', position:'sticky', left:0, zIndex:21 }}>📷</th>
-                                        {/* Serial # */}
-                                        <th style={{ ...TH, width:'50px', textAlign:'center', position:'sticky', left:'44px', zIndex:21 }}>#</th>
-                                        {/* Name */}
-                                        <th style={{ ...TH, minWidth:'170px', position:'sticky', left:'94px', zIndex:21 }}>Student</th>
-                                        {/* Fee/mo */}
-                                        <th style={{ ...TH, width:'88px', textAlign:'center' }}>Fee/mo</th>
-                                        {/* Month columns */}
-                                        {allMonths.map(month => (
-                                            <th key={month} style={{ ...TH, width:'68px', textAlign:'center', background:'#1e293b' }}>
-                                                <div style={{ fontSize:'.7rem', fontWeight:800 }}>{month.split(' ')[0].slice(0,3)}</div>
-                                                <div style={{ fontSize:'.62rem', fontWeight:500, opacity:.65 }}>{month.split(' ')[1]}</div>
-                                            </th>
-                                        ))}
-                                        {/* Total */}
-                                        <th style={{ ...TH, width:'92px', textAlign:'right', background:'#1e3a5f' }}>Total</th>
-                                        {/* Pending */}
-                                        <th style={{ ...TH, width:'92px', textAlign:'right', background:'#1e3a5f' }}>Pending</th>
+                                        <td colSpan={99} style={{ padding:'2rem', textAlign:'center', color:'#94a3b8', fontWeight:600, fontSize:'.9rem' }}>
+                                            {searchQuery || activeFilter ? 'No students match the current filter.' : 'No students in selected class(es).'}
+                                        </td>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    {visibleStudents.length === 0 ? (
-                                        <tr><td colSpan={4 + allMonths.length + 2} style={{ padding:'2.5rem', textAlign:'center', color:'#94a3b8', fontStyle:'italic' }}>No students match the current filter.</td></tr>
-                                    ) : visibleStudents.map((student, idx) => {
-                                        const free       = isFreeStudent(student, classDefaults);
-                                        const defaulter  = isDefaulter(student, currentMonthLabel);
-                                        const { totalPayable, pending } = getStudentTotals(student);
-                                        const monthlyFee = computeNet({}, classDefaults);
-                                        const rowBg      = defaulter && !free ? '#fffbeb' : idx % 2 === 0 ? 'white' : '#fafafa';
+                                )}
+                                {visibleStudents.map((student, idx) => {
+                                    const cd = (CLASS_FEE_DEFAULTS && CLASS_FEE_DEFAULTS[student.grade]) || classDefaults;
+                                    const isFree  = isFreeStudent(student, cd);
+                                    const defBadge= isDefaulter(student, currentMonthLabel, cd);
+                                    const totals  = getStudentTotals(student);
+                                    const leftBase= selectedClasses.size > 1 ? '308px' : '218px';
 
-                                        return (
-                                            <tr key={student.id} style={{ borderBottom:'1px solid #f1f5f9', background:rowBg }}>
-                                                {/* Photo */}
-                                                <td style={{ ...TD, width:'44px', position:'sticky', left:0, zIndex:1, background:rowBg, padding:'6px 4px' }}>
-                                                    <div style={{ width:'34px', height:'34px', borderRadius:'50%', overflow:'hidden', background:'linear-gradient(135deg,#e2e8f0,#cbd5e1)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto', flexShrink:0 }}>
-                                                        {(student.photo || student.image)
-                                                            ? <img src={student.photo || student.image} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
-                                                            : <span style={{ fontSize:'.68rem', fontWeight:800, color:'#94a3b8' }}>{student.name?.split(' ').map(n=>n[0]).join('').slice(0,2)}</span>
-                                                        }
-                                                    </div>
-                                                </td>
-                                                {/* Serial # */}
-                                                <td style={{ ...TD, position:'sticky', left:'44px', zIndex:1, background:rowBg, textAlign:'center', fontSize:'.75rem', color:'#94a3b8', fontWeight:700 }}>
-                                                    {student.serialNumber || '—'}
-                                                </td>
-                                                {/* Name + ID + Class + badges */}
-                                                <td style={{ ...TD, position:'sticky', left:'94px', zIndex:1, background:rowBg, borderRight:'2px solid #e2e8f0' }}>
-                                                    <div style={{ fontWeight:700, color:'#1e293b', fontSize:'.86rem', display:'flex', alignItems:'center', gap:'.3rem', flexWrap:'wrap', lineHeight:1.3 }}>
-                                                        {student.name}
-                                                        {free     && <span style={{ background:'#ede9fe', color:'#7c3aed', borderRadius:'999px', padding:'0 6px', fontSize:'.62rem', fontWeight:800 }}>FREE</span>}
-                                                        {defaulter && !free && <span style={{ background:'#fef3c7', color:'#b45309', borderRadius:'999px', padding:'0 6px', fontSize:'.62rem', fontWeight:800 }}>DEFAULTER</span>}
-                                                    </div>
-                                                    <div style={{ fontSize:'.71rem', color:'#94a3b8', fontWeight:600 }}>
-                                                        {student.id} · {student.grade}
-                                                    </div>
-                                                </td>
-                                                {/* Fee/mo */}
-                                                <td style={{ ...TD, textAlign:'center', fontWeight:800, fontSize:'.8rem', color: free ? '#7c3aed' : '#2563eb' }}>
-                                                    {free ? 'FREE' : `${currencySymbol} ${monthlyFee.toLocaleString()}`}
-                                                </td>
-                                                {/* Month cells */}
-                                                {allMonths.map(month => (
-                                                    <td key={month} style={{ ...TD, textAlign:'center', padding:'5px 3px' }}>
-                                                        {renderMonthCell(student, month, free)}
-                                                    </td>
-                                                ))}
-                                                {/* Total */}
-                                                <td style={{ ...TD, textAlign:'right', fontWeight:800, color:'#1e293b', fontSize:'.8rem', background:'#f8fafc', borderLeft:'1px solid #e2e8f0', paddingRight:'.8rem' }}>
-                                                    {free ? '—' : `${currencySymbol} ${totalPayable.toLocaleString()}`}
-                                                </td>
-                                                {/* Pending */}
-                                                <td style={{ ...TD, textAlign:'right', fontWeight:800, fontSize:'.8rem', paddingRight:'.8rem', color: pending > 0 ? '#dc2626' : '#16a34a', background: pending > 0 ? '#fef2f2' : '#f0fdf4' }}>
-                                                    {free ? '—' : `${currencySymbol} ${pending.toLocaleString()}`}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
+                                    return (
+                                        <tr key={student.id} style={{ background: idx%2===0 ? 'white' : '#fafafa', borderBottom:'1px solid #f1f5f9' }}>
+                                            {/* # */}
+                                            <td style={{ ...TD, position:'sticky', left:0, background: idx%2===0?'white':'#fafafa', zIndex:5, color:'#94a3b8', fontWeight:700, fontSize:'.75rem', textAlign:'center' }}>
+                                                {student.serialNumber || idx+1}
+                                            </td>
 
-                    {/* Edit mode banner */}
-                    {editMode && (
-                        <div style={{ padding:'.55rem 1rem', background:'#fffbeb', borderTop:'1px solid #fde68a', display:'flex', alignItems:'center', gap:'.5rem', fontSize:'.8rem', color:'#b45309', fontWeight:700 }}>
-                            <Edit3 size={14}/> Edit mode active — click any month cell to update that student's payment
+                                            {/* Student info */}
+                                            <td style={{ ...TD, position:'sticky', left:'38px', background: idx%2===0?'white':'#fafafa', zIndex:5, minWidth:'180px' }}>
+                                                <div style={{ display:'flex', alignItems:'center', gap:'.5rem' }}>
+                                                    <div style={{ width:'28px', height:'28px', borderRadius:'50%', overflow:'hidden', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', display:'flex', alignItems:'center', justifyContent:'center', color:'white', fontWeight:800, fontSize:'.65rem', flexShrink:0 }}>
+                                                        {(student.photo||student.image) ? <img src={student.photo||student.image} style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : student.name?.slice(0,2).toUpperCase()}
+                                                    </div>
+                                                    <div style={{ minWidth:0 }}>
+                                                        <div style={{ fontWeight:700, color:'#1e293b', fontSize:'.83rem', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                                                            {student.name}
+                                                            {isFree && <span style={{ marginLeft:'.3rem', padding:'1px 5px', borderRadius:'4px', fontSize:'.62rem', fontWeight:800, background:'#ede9fe', color:'#7c3aed' }}>FREE</span>}
+                                                            {defBadge && !isFree && <span style={{ marginLeft:'.3rem', padding:'1px 5px', borderRadius:'4px', fontSize:'.62rem', fontWeight:800, background:'#fef3c7', color:'#b45309' }}>DEF</span>}
+                                                        </div>
+                                                        <div style={{ fontSize:'.68rem', color:'#94a3b8' }}>{student.id}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+
+                                            {/* Class column (multi-select mode) */}
+                                            {selectedClasses.size > 1 && (
+                                                <td style={{ ...TD, position:'sticky', left:'218px', background: idx%2===0?'white':'#fafafa', zIndex:5, fontSize:'.78rem', fontWeight:700, color:'#475569' }}>
+                                                    {student.grade}
+                                                </td>
+                                            )}
+
+                                            {/* Fee/mo */}
+                                            <td style={{ ...TD, textAlign:'center', fontSize:'.78rem', fontWeight:700, color:'#475569' }}>
+                                                {currencySymbol} {computeNet({}, cd).toLocaleString()}
+                                            </td>
+
+                                            {/* Month cells */}
+                                            {allMonths.map(month => (
+                                                <td key={month} style={{ ...TD, background: month===currentMonthLabel ? (idx%2===0?'#f0f9ff':'#e8f4fd') : undefined }}>
+                                                    {renderMonthCell(student, month)}
+                                                </td>
+                                            ))}
+
+                                            {/* Total */}
+                                            <td style={{ ...TD, position:'sticky', right:'144px', background: idx%2===0?'#f8fafc':'#f1f5f9', zIndex:5, textAlign:'right', fontWeight:800, fontSize:'.82rem', color:'#1e293b', borderLeft:'1px solid #e2e8f0' }}>
+                                                {currencySymbol} {totals.totalPayable.toLocaleString()}
+                                            </td>
+
+                                            {/* Paid */}
+                                            <td style={{ ...TD, position:'sticky', right:'72px', background: idx%2===0?'#f0fdf4':'#e8fdf0', zIndex:5, textAlign:'right', fontWeight:800, fontSize:'.82rem', color:'#16a34a' }}>
+                                                {currencySymbol} {totals.totalPaid.toLocaleString()}
+                                            </td>
+
+                                            {/* Pending */}
+                                            <td style={{ ...TD, position:'sticky', right:0, background: totals.pending > 0 ? (idx%2===0?'#fef2f2':'#fde8e8') : (idx%2===0?'#f0fdf4':'#e8fdf0'), zIndex:5, textAlign:'right', fontWeight:800, fontSize:'.82rem', color: totals.pending > 0 ? '#dc2626' : '#16a34a' }}>
+                                                {currencySymbol} {totals.pending.toLocaleString()}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                    {/* Footer summary */}
+                    {visibleStudents.length > 0 && (
+                        <div style={{ padding:'.65rem 1rem', borderTop:'1px solid #e2e8f0', background:'#f8fafc', display:'flex', gap:'1.5rem', fontSize:'.8rem', fontWeight:700, color:'#64748b', flexWrap:'wrap' }}>
+                            <span>📊 {visibleStudents.length} students shown</span>
+                            <span style={{ color:'#16a34a' }}>✓ Paid: {stats.paid}</span>
+                            <span style={{ color:'#dc2626' }}>✗ Unpaid/Partial: {stats.unpaid}</span>
+                            {stats.defaulters > 0 && <span style={{ color:'#b45309' }}>⚠ Defaulters: {stats.defaulters}</span>}
+                            {editMode && <span style={{ color:'#2563eb', marginLeft:'auto' }}>✏️ Edit Mode — click any month cell to update</span>}
                         </div>
                     )}
                 </div>
             </div>
-
-            {/* ══ MODALS ══════════════════════════════════════════════════ */}
-            {showAddMonth && (
-                <AddMonthModal
-                    selectedClass={selectedClass}
-                    students={students}
-                    classDefaults={classDefaults}
-                    onClose={() => setShowAddMonth(false)}
-                    onSuccess={handleAddMonthSuccess}
-                    saveFeeRecords={saveFeeRecords}
-                    currencySymbol={currencySymbol}
-                />
-            )}
-            {quickPay && (
-                <QuickPayModal
-                    student={quickPay.student}
-                    record={quickPay.record}
-                    classDefaults={classDefaults}
-                    currencySymbol={currencySymbol}
-                    onClose={() => setQuickPay(null)}
-                    onSave={handleQuickPaySave}
-                />
-            )}
         </div>
     );
 };

@@ -325,15 +325,20 @@ const FeeSettingsTab = ({
                                 {/* Section-level auto defaults */}
                                 {expandedSec[sec.id] && (
                                     <div style={{ padding: '1rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '.85rem' }}>
-                                        <div>
-                                            <div style={{ fontSize: '.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: '.5rem' }}>
-                                                {secMode === 'auto' ? `Section Default — applies to all classes in ${sec.name}` : `Section Reference — used when switching to Auto`}
+                                        {/* Section default row — active in Auto, dimmed in Manual */}
+                                        <div style={{ opacity: secMode === 'manual' ? 0.45 : 1, transition: 'opacity .2s', pointerEvents: secMode === 'manual' ? 'none' : 'auto' }}>
+                                            <div style={{ fontSize: '.72rem', fontWeight: 700, color: secMode === 'auto' ? '#2563eb' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+                                                {secMode === 'auto'
+                                                    ? <>⚡ Section Default — applies to all classes in <strong>{sec.name}</strong></>
+                                                    : <>⚡ Section Default (inactive in Manual mode)</>
+                                                }
                                             </div>
                                             <FeeFields
                                                 values={secDef}
                                                 onChange={(key, val) => updateSectionDef(sec.id, key, val)}
                                                 currencySymbol={currencySymbol}
                                                 compact
+                                                disabled={secMode === 'manual'}
                                             />
                                             {secMode === 'auto' && (
                                                 <button
@@ -345,12 +350,14 @@ const FeeSettingsTab = ({
                                             )}
                                         </div>
 
-                                        {/* Per-class boxes (manual mode only) */}
+                                        {/* Per-class boxes — visible ONLY in manual mode */}
                                         {secMode === 'manual' && (
                                             <div style={{ borderTop: '1px dashed #e2e8f0', paddingTop: '.85rem', display: 'flex', flexDirection: 'column', gap: '.65rem' }}>
-                                                <div style={{ fontSize: '.72rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '.4px' }}>Individual Classes</div>
+                                                <div style={{ fontSize: '.72rem', fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '.4px', display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+                                                    ✏️ Individual Classes — set fees separately for each
+                                                </div>
                                                 {sec.sortedClasses.map(cls => (
-                                                    <div key={cls} style={{ background: '#f8fafc', borderRadius: '10px', padding: '.7rem .85rem', border: '1px solid #e2e8f0' }}>
+                                                    <div key={cls} style={{ background: '#fffbeb', borderRadius: '10px', padding: '.7rem .85rem', border: '1.5px solid #fde68a' }}>
                                                         <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '.85rem', marginBottom: '.45rem' }}>{cls}</div>
                                                         <FeeFields
                                                             values={classDefs[cls] || secDef}
