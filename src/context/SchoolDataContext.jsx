@@ -631,6 +631,37 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
         return { error };
     };
 
+    const saveStudentFeeOverride = async (studentId, feeOverride) => {
+        // feeOverride = object { tuitionFee, admissionFee, ... } to set, or null to remove override
+        const student = data.students.find(s => s.id === studentId);
+        if (!student) return { error: new Error('Student not found') };
+        const currentAdmissions = student.admissions && student.admissions.length > 0
+            ? student.admissions
+            : [{}];
+        const updatedAdmissions = currentAdmissions.map((adm, i) => {
+            if (i !== 0) return adm;
+            if (feeOverride === null) {
+                const copy = { ...adm };
+                delete copy.feeOverride;
+                return copy;
+            }
+            return { ...adm, feeOverride };
+        });
+        const { error } = await supabase
+            .from('students')
+            .update({ admissions: updatedAdmissions })
+            .eq('id', studentId);
+        if (!error) {
+            setData(prev => ({
+                ...prev,
+                students: prev.students.map(s =>
+                    s.id === studentId ? { ...s, admissions: updatedAdmissions } : s
+                )
+            }));
+        }
+        return { error };
+    };
+
     const updateExpenses = async (newList) => {
         const { error } = await _upsertMeta('EXPENSES', newList);
         if (!error) setExpenses(newList);
@@ -1113,6 +1144,7 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
             saveFeeSettings,
             feeSettings,
             saveAdvanceBalance,
+            saveStudentFeeOverride,
             updateExpenses,
             saveInquiry, deleteInquiry,
             saveAttendanceRecords,

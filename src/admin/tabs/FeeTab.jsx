@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Search, Plus, Printer, Edit3, X, ChevronDown, ChevronRight, Save, Check, AlertTriangle } from 'lucide-react';
 import { useSchoolData } from '../../context/SchoolDataContext';
 
@@ -61,6 +61,20 @@ function computeNet(record, defaults = {}) {
     const fin = Number(record?.lateFine     ?? 0);
     const dis = Number(record?.discount     ?? 0);
     return t + adm + ann + ex + tr + lab + fin - dis;
+}
+
+/**
+ * Returns the effective fee defaults for a student.
+ * If the student has a feeOverride stored in their admissions record, that takes priority.
+ * Falls back to class defaults.
+ */
+function getStudentEffectiveFee(student, classDefaults) {
+    const override = student.admissions?.[0]?.feeOverride;
+    if (override && typeof override === 'object') {
+        // merge — override only fields that are explicitly set
+        return { ...classDefaults, ...override };
+    }
+    return classDefaults;
 }
 
 /** Get student's admission month as numeric key (year*12 + monthIndex) */
@@ -400,6 +414,136 @@ const QuickPayModal = ({ student, record, month, classDefaults, currencySymbol, 
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   FEE OVERRIDE MODAL  (Edit Mode → click Fee/mo cell)
+───────────────────────────────────────────────────────────────────────────── */
+const FeeOverrideModal = ({ student, classDefaults, currencySymbol, onClose, onSave }) => {
+    const current = student.admissions?.[0]?.feeOverride || {};
+    const [tuitionFee,    setTuitionFee]    = useState(String(current.tuitionFee   ?? classDefaults.tuitionFee   ?? 0));
+    const [admissionFee,  setAdmissionFee]  = useState(String(current.admissionFee ?? classDefaults.admissionFee ?? 0));
+    const [annualFee,     setAnnualFee]     = useState(String(current.annualFee    ?? classDefaults.annualFee    ?? 0));
+    const [examFee,       setExamFee]       = useState(String(current.examFee      ?? classDefaults.examFee      ?? 0));
+    const [transportFee,  setTransportFee]  = useState(String(current.transportFee ?? classDefaults.transportFee ?? 0));
+    const [labFee,        setLabFee]        = useState(String(current.labFee       ?? classDefaults.labFee       ?? 0));
+    const [saving,        setSaving]        = useState(false);
+
+    const hasOverride = !!student.admissions?.[0]?.feeOverride;
+    const totalMonthly = Number(tuitionFee||0) + Number(admissionFee||0) + Number(annualFee||0) + Number(examFee||0) + Number(transportFee||0) + Number(labFee||0);
+    const classTotal   = computeNet({}, classDefaults);
+
+    const fields = [
+        ['Tuition Fee',   tuitionFee,   setTuitionFee,   '#2563eb'],
+        ['Admission Fee', admissionFee, setAdmissionFee, '#7c3aed'],
+        ['Annual Fee',    annualFee,    setAnnualFee,    '#0891b2'],
+        ['Exam Fee',      examFee,      setExamFee,      '#d97706'],
+        ['Transport Fee', transportFee, setTransportFee, '#16a34a'],
+        ['Lab Fee',       labFee,       setLabFee,       '#dc2626'],
+    ].filter(([, , , color], i) => [
+        Number(classDefaults.tuitionFee), Number(classDefaults.admissionFee),
+        Number(classDefaults.annualFee),  Number(classDefaults.examFee),
+        Number(classDefaults.transportFee), Number(classDefaults.labFee)
+    ][i] > 0 || [Number(tuitionFee), Number(admissionFee), Number(annualFee), Number(examFee), Number(transportFee), Number(labFee)][i] > 0);
+
+    const handleSave = async () => {
+        setSaving(true);
+        const feeOverride = {
+            tuitionFee:    Number(tuitionFee)   || 0,
+            admissionFee:  Number(admissionFee) || 0,
+            annualFee:     Number(annualFee)    || 0,
+            examFee:       Number(examFee)      || 0,
+            transportFee:  Number(transportFee) || 0,
+            labFee:        Number(labFee)       || 0,
+        };
+        await onSave(student.id, feeOverride);
+        setSaving(false);
+        onClose();
+    };
+
+    const handleReset = async () => {
+        setSaving(true);
+        await onSave(student.id, null); // null = remove override
+        setSaving(false);
+        onClose();
+    };
+
+    return (
+        <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.65)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }} onClick={onClose}>
+            <div onClick={e => e.stopPropagation()} style={{ background:'white', borderRadius:'16px', width:'100%', maxWidth:'460px', padding:'1.75rem', boxShadow:'0 25px 50px -12px rgba(0,0,0,.25)' }} className="animate-fade-in">
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem' }}>
+                    <div>
+                        <h3 style={{ fontSize:'1.05rem', fontWeight:800, color:'#1e293b', margin:0 }}>💰 Custom Fee — {student.name}</h3>
+                        <p style={{ color:'#64748b', fontSize:'.82rem', margin:'4px 0 0' }}>
+                            {student.id} · {student.grade}
+                            {hasOverride && <span style={{ marginLeft:'.5rem', padding:'1px 7px', borderRadius:'999px', background:'#fef3c7', color:'#b45309', fontSize:'.72rem', fontWeight:800 }}>CUSTOM</span>}
+                        </p>
+                    </div>
+                    <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8' }}><X size={20} /></button>
+                </div>
+
+                {/* Class default reference */}
+                <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'.65rem .9rem', marginBottom:'1rem', fontSize:'.8rem', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <span style={{ color:'#64748b', fontWeight:600 }}>Class default ({student.grade})</span>
+                    <span style={{ fontWeight:800, color:'#475569' }}>{currencySymbol} {classTotal.toLocaleString()} / mo</span>
+                </div>
+
+                {/* Fee fields */}
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.65rem', marginBottom:'1rem' }}>
+                    {fields.length === 0 ? (
+                        // If class has no defaults configured, show all 6 fields
+                        [['Tuition Fee', tuitionFee, setTuitionFee], ['Admission Fee', admissionFee, setAdmissionFee],
+                         ['Annual Fee', annualFee, setAnnualFee], ['Exam Fee', examFee, setExamFee],
+                         ['Transport Fee', transportFee, setTransportFee], ['Lab Fee', labFee, setLabFee]]
+                            .map(([lbl, val, setter]) => (
+                                <div key={lbl}>
+                                    <label style={{ display:'block', fontWeight:700, color:'#475569', fontSize:'.78rem', marginBottom:'.2rem' }}>{lbl}</label>
+                                    <div style={{ position:'relative' }}>
+                                        <span style={{ position:'absolute', left:'8px', top:'50%', transform:'translateY(-50%)', color:'#94a3b8', fontSize:'.75rem', fontWeight:700 }}>{currencySymbol}</span>
+                                        <input type="number" min="0" value={val} onChange={e => setter(e.target.value)} className="form-input" style={{ paddingLeft:'28px', width:'100%' }} />
+                                    </div>
+                                </div>
+                            ))
+                    ) : (
+                        fields.map(([lbl, val, setter, color]) => (
+                            <div key={lbl}>
+                                <label style={{ display:'block', fontWeight:700, color:'#475569', fontSize:'.78rem', marginBottom:'.2rem' }}>
+                                    {lbl}
+                                    <span style={{ display:'inline-block', marginLeft:'.3rem', width:'7px', height:'7px', borderRadius:'50%', background:color }} />
+                                </label>
+                                <div style={{ position:'relative' }}>
+                                    <span style={{ position:'absolute', left:'8px', top:'50%', transform:'translateY(-50%)', color:'#94a3b8', fontSize:'.75rem', fontWeight:700 }}>{currencySymbol}</span>
+                                    <input type="number" min="0" value={val} onChange={e => setter(e.target.value)} className="form-input" style={{ paddingLeft:'28px', width:'100%' }} />
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                {/* New total preview */}
+                <div style={{ background: totalMonthly !== classTotal ? '#fffbeb' : '#f0fdf4', border:`1.5px solid ${totalMonthly !== classTotal ? '#fde68a' : '#86efac'}`, borderRadius:'10px', padding:'.65rem 1rem', marginBottom:'1rem', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <span style={{ fontWeight:700, fontSize:'.85rem', color: totalMonthly !== classTotal ? '#b45309' : '#16a34a' }}>
+                        {totalMonthly !== classTotal ? '⚠ Custom total' : '✓ Same as class default'}
+                    </span>
+                    <span style={{ fontWeight:800, fontSize:'1.1rem', color:'#1e293b' }}>{currencySymbol} {totalMonthly.toLocaleString()}</span>
+                </div>
+
+                <div style={{ display:'flex', gap:'.6rem', justifyContent:'space-between', alignItems:'center' }}>
+                    {hasOverride ? (
+                        <button onClick={handleReset} disabled={saving} style={{ padding:'.5rem 1rem', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'white', color:'#dc2626', fontWeight:700, fontSize:'.8rem', cursor:'pointer' }}>
+                            🔄 Reset to Class Default
+                        </button>
+                    ) : <div />}
+                    <div style={{ display:'flex', gap:'.6rem' }}>
+                        <button onClick={onClose} style={{ padding:'.6rem 1.1rem', borderRadius:'8px', border:'1px solid #e2e8f0', background:'white', color:'#475569', fontWeight:600, cursor:'pointer' }}>Cancel</button>
+                        <button onClick={handleSave} disabled={saving} style={{ padding:'.6rem 1.4rem', borderRadius:'8px', border:'none', background:saving?'#94a3b8':'#2563eb', color:'white', fontWeight:700, cursor:saving?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:'.4rem' }}>
+                            {saving ? 'Saving…' : <><Save size={15}/> Save Fee</>}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
    TABLE CELL STYLES
 ───────────────────────────────────────────────────────────────────────────── */
 const TH = {
@@ -427,7 +571,7 @@ const FeeTab = ({
     schoolSettings   = {},
     showSaveMessage,
 }) => {
-    const { saveFeeRecords } = useSchoolData();
+    const { saveFeeRecords, saveStudentFeeOverride } = useSchoolData();
 
     /* ── State ─────────────────────────────────────────────────────────── */
     const [selectedClasses,   setSelectedClasses]   = useState(() => new Set([selectedClass].filter(Boolean)));
@@ -437,6 +581,7 @@ const FeeTab = ({
     const [editMode,          setEditMode]          = useState(false);
     const [showAddMonth,      setShowAddMonth]      = useState(false);
     const [quickPay,          setQuickPay]          = useState(null);
+    const [feeOverrideStudent, setFeeOverrideStudent] = useState(null); // student whose fee/mo is being edited
     const [sidebarOpen,       setSidebarOpen]       = useState(true);
     const [printMonth,        setPrintMonth]        = useState('');
     const [expandedSections,  setExpandedSections]  = useState(() => {
@@ -624,6 +769,17 @@ const FeeTab = ({
         await updateStudentFeeRecord(quickPay.student.id, updatedRecord.month, updatedRecord);
     };
 
+    const handleFeeOverrideSave = async (studentId, feeOverride) => {
+        if (!saveStudentFeeOverride) return;
+        await saveStudentFeeOverride(studentId, feeOverride);
+        if (showSaveMessage) {
+            showSaveMessage(feeOverride === null
+                ? 'Fee reset to class default.'
+                : 'Custom fee saved for this student.'
+            );
+        }
+    };
+
     const handleAddMonthSuccess = (label) => {
         if (showSaveMessage) showSaveMessage(`Month "${label}" opened for ${[...selectedClasses].join(', ')}!`);
     };
@@ -702,6 +858,15 @@ const FeeTab = ({
                     currencySymbol={currencySymbol}
                     onClose={() => setQuickPay(null)}
                     onSave={handleQuickPaySave}
+                />
+            )}
+            {feeOverrideStudent && (
+                <FeeOverrideModal
+                    student={feeOverrideStudent}
+                    classDefaults={(CLASS_FEE_DEFAULTS && CLASS_FEE_DEFAULTS[feeOverrideStudent.grade]) || classDefaults}
+                    currencySymbol={currencySymbol}
+                    onClose={() => setFeeOverrideStudent(null)}
+                    onSave={handleFeeOverrideSave}
                 />
             )}
 
@@ -974,10 +1139,37 @@ const FeeTab = ({
                                                 </td>
                                             )}
 
-                                            {/* Fee/mo */}
-                                            <td style={{ ...TD, textAlign:'center', fontSize:'.78rem', fontWeight:700, color:'#475569' }}>
-                                                {currencySymbol} {computeNet({}, cd).toLocaleString()}
-                                            </td>
+                                            {/* Fee/mo — clickable in edit mode */}
+                                            {(() => {
+                                                const eff = getStudentEffectiveFee(student, cd);
+                                                const effTotal = computeNet({}, eff);
+                                                const classTotal = computeNet({}, cd);
+                                                const hasOverride = !!student.admissions?.[0]?.feeOverride;
+                                                return (
+                                                    <td
+                                                        style={{
+                                                            ...TD,
+                                                            textAlign:'center', fontSize:'.78rem', fontWeight:700,
+                                                            color: hasOverride ? '#b45309' : '#475569',
+                                                            cursor: editMode ? 'pointer' : 'default',
+                                                            background: editMode ? (idx%2===0?'#fffbeb':'#fef9e7') : undefined,
+                                                            transition:'background .15s',
+                                                        }}
+                                                        onClick={editMode ? () => setFeeOverrideStudent(student) : undefined}
+                                                        title={editMode ? 'Click to set custom fee for this student' : undefined}
+                                                    >
+                                                        <div>
+                                                            {currencySymbol} {effTotal.toLocaleString()}
+                                                        </div>
+                                                        {hasOverride && (
+                                                            <div style={{ fontSize:'.6rem', fontWeight:800, color:'#b45309', background:'#fef3c7', borderRadius:'4px', padding:'0 4px', marginTop:'2px', display:'inline-block' }}>CUSTOM</div>
+                                                        )}
+                                                        {editMode && !hasOverride && (
+                                                            <div style={{ fontSize:'.6rem', color:'#94a3b8', marginTop:'1px' }}>✏ edit</div>
+                                                        )}
+                                                    </td>
+                                                );
+                                            })()}
 
                                             {/* Month cells */}
                                             {allMonths.map(month => (
