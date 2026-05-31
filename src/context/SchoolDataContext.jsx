@@ -64,6 +64,7 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
     const [weights,           setWeights]           = useState(DEFAULT_WEIGHTS);
     const [classSerialStarts, setClassSerialStarts] = useState(DEFAULT_CLASS_SERIAL_STARTS);
     const [classFeeDefaults,  setClassFeeDefaults]  = useState(DEFAULT_CLASS_FEE_DEFAULTS);
+    const [feeSettings,       setFeeSettings]       = useState(null); // 3-level fee config
     const [expenses,          setExpenses]          = useState([]);  // legacy metadata
     const [inquiries,         setInquiries]         = useState([]);
     const [diaryEntries,      setDiaryEntries]      = useState([]);
@@ -161,7 +162,7 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 // Students — explicit columns, ordered by serial number
                 supabase
                     .from('students')
-                    .select('id, name, grade, image, serial_number, password, admissions')
+                    .select('id, name, grade, image, serial_number, password, admissions, advance_balance')
                     .eq('school_id', sid)
                     .eq('is_active', true)
                     .order('serial_number', { ascending: true, nullsFirst: false }),
@@ -348,6 +349,7 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
             setWeights(metaMap['WEIGHTS'] || DEFAULT_WEIGHTS);
             setClassSerialStarts(metaMap['CLASS_SERIAL_STARTS'] || DEFAULT_CLASS_SERIAL_STARTS);
             setClassFeeDefaults(metaMap['CLASS_FEE_DEFAULTS'] || DEFAULT_CLASS_FEE_DEFAULTS);
+            setFeeSettings(metaMap['FEE_SETTINGS'] || null);
             setExpenses(metaMap['EXPENSES'] || []);
             setInquiries(metaMap['INQUIRIES'] || []);
 
@@ -603,6 +605,29 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
     const updateClassFeeDefaults = async (newMap) => {
         const { error } = await _upsertMeta('CLASS_FEE_DEFAULTS', newMap);
         if (!error) setClassFeeDefaults(newMap);
+        return { error };
+    };
+
+    const saveFeeSettings = async (settingsObj) => {
+        const { error } = await _upsertMeta('FEE_SETTINGS', settingsObj);
+        if (!error) setFeeSettings(settingsObj);
+        return { error };
+    };
+
+    // ─── Save advance balance on a student ────────────────────────────────────
+    const saveAdvanceBalance = async (studentId, amount) => {
+        const { error } = await supabase
+            .from('students')
+            .update({ advance_balance: amount })
+            .eq('id', studentId);
+        if (!error) {
+            setData(prev => ({
+                ...prev,
+                students: prev.students.map(s =>
+                    s.id === studentId ? { ...s, advance_balance: amount } : s
+                )
+            }));
+        }
         return { error };
     };
 
@@ -1085,6 +1110,9 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
             updateWeights,
             updateClassSerialStarts,
             updateClassFeeDefaults,
+            saveFeeSettings,
+            feeSettings,
+            saveAdvanceBalance,
             updateExpenses,
             saveInquiry, deleteInquiry,
             saveAttendanceRecords,

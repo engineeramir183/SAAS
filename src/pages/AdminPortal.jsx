@@ -6,7 +6,7 @@ import {
     BellPlus, Trash2, Megaphone, PlusCircle, Lock,
     Building, School, Check, X, ChevronRight, Layout, Building2,
     GripVertical, ChevronUp, ChevronDown, Menu, TrendingDown, BookMarked,
-    Clock
+    Clock, CreditCard, Settings2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useSchoolData } from '../context/SchoolDataContext';
@@ -36,6 +36,8 @@ const PayrollTab = lazy(() => import('../admin/tabs/PayrollTab'));
 const LogsTab = lazy(() => import('../admin/tabs/LogsTab'));
 const DiaryTab = lazy(() => import('../admin/tabs/DiaryTab'));
 const WhatsAppSchedulerTab = lazy(() => import('../admin/tabs/WhatsAppSchedulerTab'));
+const PayFeesTab   = lazy(() => import('../admin/tabs/PayFeesTab'));
+const FeeSettingsTab = lazy(() => import('../admin/tabs/FeeSettingsTab'));
 
 
 const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
@@ -3162,7 +3164,9 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         { id: 'marks', label: 'Manage Exams', icon: Award, desc: 'Input exam marks and configure subject weights.', isPro: false },
         { id: 'scanner', label: 'QR Scanner', icon: Camera, desc: 'Instantly scan ID cards for daily attendance.', isPro: true },
         { id: 'attendance', label: 'Attendance', icon: Calendar, desc: 'Track daily attendance and absentees.', isPro: false },
-        { id: 'fees', label: 'Fee Management', icon: DollarSign, desc: 'Record tuition fees and payments.', isPro: false },
+        { id: 'fees',      label: 'Fee Management', icon: DollarSign, desc: 'Record tuition fees and payments.',           isPro: false },
+        { id: 'pay_fees',  label: 'Pay Fees',        icon: CreditCard, desc: 'Process student payments with smart allocation.', isPro: false },
+        { id: 'fee_settings', label: 'Fee Settings', icon: Settings2,  desc: 'Configure defaults: tuition, admission, paper fund and fines.', isPro: false },
         { id: 'expenses', label: 'Expense Tracker', icon: TrendingDown, desc: 'Log expenses and view net profit.', isPro: true },
         { id: 'payroll', label: 'HR & Payroll', icon: BellPlus, desc: 'Process salaries, generate payslips, and track HR costs.', isPro: false },
         { id: 'reports', label: 'Report Cards', icon: FileText, desc: 'View analysis and print student report cards.', isPro: true },
@@ -3624,13 +3628,42 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                  {/* Fee */}
                                 {activeTab === 'fees' && (
                                     <FeeTab
-                                        students={students} selectedClass={selectedClass} setSelectedClass={setSelectedClass} sectionClasses={sectionClasses}
-                                        openNewFeeMonth={openNewFeeMonth} toggleMonthFeeStatus={toggleMonthFeeStatus}
-                                        markAllPaidForMonth={markAllPaidForMonth} markAllUnpaidForMonth={markAllUnpaidForMonth}
-                                        deleteFeeMonth={deleteFeeMonth} updateStudentFeeRecord={updateStudentFeeRecord}
+                                        students={students} selectedClass={selectedClass} setSelectedClass={setSelectedClass}
+                                        sectionClasses={sectionClasses} sections={SECTIONS}
+                                        updateStudentFeeRecord={updateStudentFeeRecord}
                                         CLASS_FEE_DEFAULTS={CLASS_FEE_DEFAULTS} updateClassFeeDefaults={updateClassFeeDefaults}
-                                        currencySymbol={currencySymbol} schoolName={schoolName} schoolLogo={schoolSettings?.logo_url || '/logo.png'}
+                                        currencySymbol={currencySymbol} schoolName={schoolName}
+                                        schoolLogo={schoolSettings?.logo_url || '/logo.png'}
                                         schoolSettings={schoolSettings}
+                                        showSaveMessage={showSaveMessage}
+                                    />
+                                )}
+
+                                {/* Pay Fees */}
+                                {activeTab === 'pay_fees' && (
+                                    <PayFeesTab
+                                        students={students}
+                                        CLASS_FEE_DEFAULTS={CLASS_FEE_DEFAULTS}
+                                        sectionClasses={sectionClasses}
+                                        sections={SECTIONS}
+                                        updateStudentFeeRecord={updateStudentFeeRecord}
+                                        currencySymbol={currencySymbol}
+                                        schoolName={schoolName}
+                                        schoolLogo={schoolSettings?.logo_url || '/logo.png'}
+                                        schoolSettings={schoolSettings}
+                                        showSaveMessage={showSaveMessage}
+                                    />
+                                )}
+
+                                {/* Fee Settings */}
+                                {activeTab === 'fee_settings' && (
+                                    <FeeSettingsTab
+                                        sections={SECTIONS}
+                                        sectionClasses={sectionClasses}
+                                        CLASS_FEE_DEFAULTS={CLASS_FEE_DEFAULTS}
+                                        updateClassFeeDefaults={updateClassFeeDefaults}
+                                        currencySymbol={currencySymbol}
+                                        showSaveMessage={showSaveMessage}
                                     />
                                 )}
 

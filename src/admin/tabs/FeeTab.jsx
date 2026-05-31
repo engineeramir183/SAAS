@@ -1,1163 +1,862 @@
-import React, { useState } from 'react';
-import { PlusCircle, Trash2, X, Printer, Save, MessageCircle, Settings } from 'lucide-react';
-import { sendWhatsAppMessage, WhatsAppTemplates } from '../../services/WhatsAppService';
-import { sendPushNotification, PushTemplates } from '../../services/PushNotificationService';
+import React, { useState, useMemo } from 'react';
+import { Search, Plus, Printer, Edit3, X, ChevronDown, ChevronRight, Save, Check } from 'lucide-react';
+import { useSchoolData } from '../../context/SchoolDataContext';
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   HELPERS
+───────────────────────────────────────────────────────────────────────────── */
 
-const calculateArrears = (student, currentMonth, defaults) => {
-    if (!student.feeHistory) return 0;
-    const currentIdx = student.feeHistory.findIndex(h => h.month === currentMonth);
-    // If not found or it's the first record, we could consider all records if currentMonth is newer?
-    // Let's assume feeHistory is chronological or we can just sort by month.
-    // For safety, let's just sum all records where month < currentMonth (alphabetically sortable if format is YYYY-MM, but here it's "May 2026", so maybe use index if it's there).
-    // Actually, "openNewFeeMonth" pushes to the end. So index works.
-    
-    // We will just find all records that appear BEFORE currentMonth in the array
-    let arrears = 0;
-    for (let i = 0; i < student.feeHistory.length; i++) {
-        const h = student.feeHistory[i];
-        if (h.month === currentMonth) break; // Stop at current month
-        
-        const t = h.tuitionFee ?? defaults.tuitionFee ?? 1000;
-        const a = h.admissionFee ?? defaults.admissionFee ?? 0;
-        const an = h.annualFee ?? defaults.annualFee ?? 0;
-        const ex = h.examFee ?? defaults.examFee ?? 0;
-        const tr = h.transportFee ?? defaults.transportFee ?? 0;
-        const la = h.labFee ?? defaults.labFee ?? 0;
-        const late = h.lateFine ?? 0;
-        const disc = h.discount ?? 0;
-        const net = Number(t) + Number(a) + Number(an) + Number(ex) + Number(tr) + Number(la) + Number(late) - Number(disc);
-        const paid = Number(h.paidAmount ?? (h.status === 'paid' ? net : 0));
-        arrears += (net - paid);
-    }
-    return arrears > 0 ? arrears : 0;
-};
+function classSort(a, b) {
+    const numA = parseInt((a || '').match(/\d+/)?.[0] || '999');
+    const numB = parseInt((b || '').match(/\d+/)?.[0] || '999');
+    return numA !== numB ? numA - numB : (a || '').localeCompare(b || '');
+}
 
-const FeeModal = ({ student, record, onClose, updateStudentFeeRecord, classDefaults, currencySymbol = 'RS', schoolName = 'School' }) => {
-    const [formData, setFormData] = useState({
-        tuitionFee: record.tuitionFee ?? classDefaults.tuitionFee ?? 1000,
-        admissionFee: record.admissionFee ?? classDefaults.admissionFee ?? 0,
-        annualFee: record.annualFee ?? classDefaults.annualFee ?? 0,
-        examFee: record.examFee ?? classDefaults.examFee ?? 0,
-        transportFee: record.transportFee ?? classDefaults.transportFee ?? 0,
-        labFee: record.labFee ?? classDefaults.labFee ?? 0,
-        lateFine: record.lateFine ?? 0,
-        discount: record.discount ?? 0,
-        paidAmount: record.paidAmount || (record.status === 'paid' ? 1000 : 0),
-        status: record.status || 'unpaid',
-        paymentDate: record.paymentDate || new Date().toISOString().split('T')[0],
-        paymentMethod: record.paymentMethod || 'Cash',
-        isOnline: record.isOnline || false
-    });
+function getCurrentMonthLabel() {
+    return new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+}
 
-    const baseTotal = ['tuitionFee', 'admissionFee', 'annualFee', 'examFee', 'transportFee', 'labFee'].reduce((sum, key) => sum + Number(formData[key]), 0);
-    const previousArrears = calculateArrears(student, record.month, classDefaults);
-    const netPayable = baseTotal + Number(formData.lateFine) - Number(formData.discount) + previousArrears;
-    const balance = netPayable - Number(formData.paidAmount);
+function monthInputToLabel(val) {
+    if (!val) return '';
+    const [year, month] = val.split('-').map(Number);
+    return new Date(year, month - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+}
 
-    const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+function computeNet(record, defaults = {}) {
+    const t   = Number(record?.tuitionFee   ?? defaults.tuitionFee   ?? 0);
+    const adm = Number(record?.admissionFee ?? defaults.admissionFee ?? 0);
+    const ann = Number(record?.annualFee    ?? defaults.annualFee    ?? 0);
+    const ex  = Number(record?.examFee      ?? defaults.examFee      ?? 0);
+    const tr  = Number(record?.transportFee ?? defaults.transportFee ?? 0);
+    const lab = Number(record?.labFee       ?? defaults.labFee       ?? 0);
+    const fin = Number(record?.lateFine     ?? 0);
+    const dis = Number(record?.discount     ?? 0);
+    return t + adm + ann + ex + tr + lab + fin - dis;
+}
 
-    const handleSave = () => {
-        let finalStatus = formData.status;
-        if (Number(formData.paidAmount) >= netPayable && netPayable > 0) finalStatus = 'paid';
-        else if (Number(formData.paidAmount) > 0 && Number(formData.paidAmount) < netPayable) finalStatus = 'partial';
-        else if (Number(formData.paidAmount) === 0 && netPayable > 0) finalStatus = 'unpaid';
+function isFreeStudent(student, classDefaults) {
+    if (computeNet({}, classDefaults) === 0) return true;
+    const hist = student.feeHistory || [];
+    if (hist.length > 0 && hist.every(h => computeNet(h, classDefaults) === 0)) return true;
+    return false;
+}
 
-        updateStudentFeeRecord(student.id, record.month, {
-            ...formData,
-            status: finalStatus,
-            paidOn: finalStatus !== 'unpaid' ? new Date().toLocaleDateString() : null
-        });
+function isDefaulter(student, currentMonthLabel) {
+    const hist = student.feeHistory || [];
+    const idx  = hist.findIndex(h => h.month === currentMonthLabel);
+    const before = idx >= 0 ? hist.slice(0, idx) : hist;
+    return before.some(h => h.status === 'unpaid' || h.status === 'partial');
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   VOUCHER PRINT STYLES + BUILDER
+───────────────────────────────────────────────────────────────────────────── */
+const VOUCHER_CSS = `
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    * { box-sizing: border-box; }
+    body { font-family:'Inter',sans-serif; padding:10mm; color:#0f172a; background:#f8fafc; margin:0; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .receipt { background:white; border:1px solid #cbd5e1; border-radius:8px; padding:18px; box-shadow:0 2px 8px rgba(15,23,42,.05); page-break-inside:avoid; }
+    .receipt-header { text-align:center; border-bottom:2px solid #0f172a; padding-bottom:10px; margin-bottom:12px; }
+    .school-logo { width:40px; height:40px; object-fit:contain; margin-bottom:4px; }
+    .school-name { margin:0; font-size:15px; font-weight:800; color:#0f172a; text-transform:uppercase; letter-spacing:.3px; }
+    .receipt-badge { display:inline-block; border:1.5px solid #0f172a; color:#0f172a; font-size:8px; font-weight:800; padding:2px 8px; border-radius:4px; text-transform:uppercase; margin-top:4px; letter-spacing:1px; }
+    .rrow { display:flex; justify-content:space-between; align-items:center; padding:4px 0; font-size:11px; font-weight:600; border-bottom:1px solid #f1f5f9; }
+    .lbl { color:#64748b; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; }
+    .val { color:#0f172a; font-weight:700; }
+    .sb { padding:2px 6px; border-radius:4px; font-size:8px; font-weight:800; text-transform:uppercase; border:1px solid; }
+    .total-row { display:flex; justify-content:space-between; align-items:center; padding:7px 10px; background:#f8fafc; border:1.5px solid #0f172a; border-radius:5px; font-weight:800; font-size:12px; margin-top:8px; }
+    .btn-print { margin:0 auto 16px; display:block; padding:8px 20px; background:#0f172a; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.5px; }
+    @media print { .btn-print { display:none; } body { background:white; padding:5mm; } .receipt { box-shadow:none; } }
+`;
+
+function buildVoucherHTML(student, record, defaults, sym, schoolName, schoolLogo, schoolSettings) {
+    const net     = computeNet(record, defaults);
+    const paid    = Number(record?.paidAmount ?? 0);
+    const balance = Math.max(0, net - paid);
+    const status  = record?.status || 'unpaid';
+    const sbStyle = `background:${status==='paid'?'#f0fdf4':status==='partial'?'#fffbeb':'#fdf2f2'};color:${status==='paid'?'#16a34a':status==='partial'?'#b45309':'#dc2626'};border-color:${status==='paid'?'#bbf7d0':status==='partial'?'#fef3c7':'#fecaca'}`;
+
+    const feeRow = (label, val) => val > 0 ? `<div class="rrow"><span>${label}</span><span>${sym} ${Number(val).toLocaleString()}</span></div>` : '';
+
+    return `
+    <div class="receipt">
+        <div class="receipt-header">
+            ${schoolLogo ? `<img class="school-logo" src="${schoolLogo}" onerror="this.style.display='none'" />` : ''}
+            <h2 class="school-name">${schoolName}</h2>
+            <span class="receipt-badge">Fee Voucher — ${record?.month || ''}</span>
+        </div>
+        <div class="rrow"><span class="lbl">Student</span><span class="val">${student.name}</span></div>
+        <div class="rrow"><span class="lbl">ID</span><span class="val">${student.id}</span></div>
+        <div class="rrow"><span class="lbl">Serial #</span><span class="val">${student.serialNumber || '—'}</span></div>
+        <div class="rrow"><span class="lbl">Class</span><span class="val">${student.grade}</span></div>
+        <div class="rrow"><span class="lbl">Status</span><span class="sb" style="${sbStyle}">${status.toUpperCase()}</span></div>
+        <div style="height:6px"></div>
+        <div style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Breakdown</div>
+        ${feeRow('Tuition Fee',   Number(record?.tuitionFee   ?? defaults.tuitionFee   ?? 0))}
+        ${feeRow('Admission Fee', Number(record?.admissionFee ?? defaults.admissionFee ?? 0))}
+        ${feeRow('Annual',        Number(record?.annualFee    ?? defaults.annualFee    ?? 0))}
+        ${feeRow('Exam Fee',      Number(record?.examFee      ?? defaults.examFee      ?? 0))}
+        ${feeRow('Transport',     Number(record?.transportFee ?? defaults.transportFee ?? 0))}
+        ${feeRow('Lab / Other',   Number(record?.labFee       ?? defaults.labFee       ?? 0))}
+        ${Number(record?.lateFine??0) > 0 ? `<div class="rrow" style="color:#dc2626"><span>Late Fine</span><span>+ ${sym} ${Number(record.lateFine).toLocaleString()}</span></div>` : ''}
+        ${Number(record?.discount??0) > 0 ? `<div class="rrow" style="color:#16a34a"><span>Discount</span><span>- ${sym} ${Number(record.discount).toLocaleString()}</span></div>` : ''}
+        <div class="total-row"><span style="font-size:10px;text-transform:uppercase;letter-spacing:.3px">Net Payable</span><span>${sym} ${net.toLocaleString()}</span></div>
+        <div class="rrow" style="margin-top:8px"><span class="lbl">Amount Paid</span><span class="val">${sym} ${paid.toLocaleString()}</span></div>
+        <div class="rrow" style="color:#dc2626;font-weight:800"><span class="lbl" style="color:#dc2626">Balance Due</span><span style="font-size:13px">${sym} ${balance.toLocaleString()}</span></div>
+        <hr style="border:0;border-top:1px dashed #cbd5e1;margin:10px 0" />
+        ${record?.paymentMethod ? `<div class="rrow" style="font-size:10px"><span class="lbl">Method</span><span>${record.paymentMethod}</span></div>` : ''}
+        ${record?.paymentDate   ? `<div class="rrow" style="font-size:10px"><span class="lbl">Date</span><span>${record.paymentDate}</span></div>` : ''}
+        ${schoolSettings?.bank_account     ? `<div style="font-size:9px;color:#64748b;margin-top:6px">Bank: ${schoolSettings.bank_name||''} / ${schoolSettings.bank_account}</div>` : ''}
+        ${schoolSettings?.easypaisa_number ? `<div style="font-size:9px;color:#64748b">EasyPaisa: ${schoolSettings.easypaisa_number}</div>` : ''}
+        ${schoolSettings?.jazzcash_number  ? `<div style="font-size:9px;color:#64748b">JazzCash: ${schoolSettings.jazzcash_number}</div>` : ''}
+        <div style="text-align:center;font-size:8px;margin-top:12px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.5px">System Generated</div>
+    </div>`;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ADD MONTH MODAL
+───────────────────────────────────────────────────────────────────────────── */
+const AddMonthModal = ({ selectedClass, students, classDefaults, onClose, onSuccess, saveFeeRecords, currencySymbol }) => {
+    const [monthVal, setMonthVal] = useState('');
+    const [saving, setSaving]     = useState(false);
+    const [error, setError]       = useState('');
+
+    const handleAdd = async () => {
+        if (!monthVal) { setError('Please select a month.'); return; }
+        const label = monthInputToLabel(monthVal);
+        const cls   = students.filter(s => s.grade === selectedClass);
+        if (cls.length === 0) { setError('No students in this class.'); return; }
+        if (cls.some(s => (s.feeHistory || []).some(h => h.month === label))) {
+            setError(`"${label}" is already open for this class.`); return;
+        }
+        setSaving(true);
+        const records = cls.map(s => ({
+            student_id:   s.id,
+            month:        label,
+            status:       'unpaid',
+            tuitionFee:   classDefaults.tuitionFee   || 0,
+            admissionFee: classDefaults.admissionFee || 0,
+            annualFee:    classDefaults.annualFee    || 0,
+            examFee:      classDefaults.examFee      || 0,
+            transportFee: classDefaults.transportFee || 0,
+            labFee:       classDefaults.labFee       || 0,
+            lateFine: 0, discount: 0, paidAmount: 0,
+        }));
+        const { error: err } = await saveFeeRecords(records);
+        setSaving(false);
+        if (err) { setError('Save failed: ' + err.message); return; }
+        onSuccess(label);
         onClose();
     };
 
-    const handlePrintReceipt = () => {
-        const html = `<!DOCTYPE html><html><head><title>Fee Receipt - ${student.name}</title><style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-            * { box-sizing: border-box; }
-            body { font-family: 'Inter', sans-serif; padding: 20mm; color: #0f172a; background: #f8fafc; margin: 0; }
-            
-            .receipt { 
-                background: white; 
-                border: 1px solid #cbd5e1; 
-                border-radius: 8px; 
-                padding: 24px; 
-                max-width: 420px; 
-                margin: 0 auto; 
-                box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05); 
-                position: relative; 
-            }
-            
-            .receipt-header {
-                text-align: center;
-                border-bottom: 2px solid #0f172a;
-                padding-bottom: 12px;
-                margin-bottom: 16px;
-            }
-            
-            .school-logo {
-                width: 50px;
-                height: 50px;
-                object-fit: contain;
-                margin-bottom: 6px;
-            }
-            
-            .school-name {
-                margin: 0;
-                font-size: 18px;
-                font-weight: 800;
-                color: #0f172a;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-            
-            .receipt-badge {
-                display: inline-block;
-                border: 1.5px solid #0f172a;
-                color: #0f172a;
-                font-size: 9.5px;
-                font-weight: 800;
-                padding: 4px 12px;
-                border-radius: 4px;
-                text-transform: uppercase;
-                margin-top: 6px;
-                letter-spacing: 1px;
-            }
-            
-            .receipt-row {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 6px 0;
-                font-size: 11.5px;
-                font-weight: 600;
-                border-bottom: 1px solid #f1f5f9;
-            }
-            .receipt-row:last-child {
-                border-bottom: none;
-            }
-            
-            .label {
-                color: #64748b;
-                font-size: 9.5px;
-                font-weight: 700;
-                text-transform: uppercase;
-                letter-spacing: 0.3px;
-            }
-            
-            .value {
-                color: #0f172a;
-                font-weight: 700;
-            }
-            
-            .status-badge {
-                padding: 2px 8px;
-                border-radius: 4px;
-                font-size: 9px;
-                font-weight: 800;
-                text-transform: uppercase;
-                border: 1px solid;
-            }
-            
-            .total-row {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 10px 12px;
-                background: #f8fafc;
-                border: 1.5px solid #0f172a;
-                border-radius: 6px;
-                font-weight: 800;
-                font-size: 12.5px;
-                margin-top: 14px;
-            }
-            
-            .btn-print { 
-                margin: 20px auto; 
-                display: block; 
-                padding: 10px 22px; 
-                background: #0f172a; 
-                color: white; 
-                border: none; 
-                border-radius: 6px; 
-                cursor: pointer; 
-                font-weight: 700; 
-                font-size: 12px;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-                box-shadow: 0 4px 12px rgba(15,23,42,0.15);
-                transition: background 0.15s ease;
-            }
-            .btn-print:hover {
-                background: #1e293b;
-            }
-            
-            @media print { 
-                .btn-print { display: none; } 
-                body { background: white; padding: 0; } 
-                .receipt { box-shadow: none; border: 1px solid #cbd5e1; } 
-            }
-            </style></head>
-            <body>
-            <button class="btn-print" onclick="window.print()">Print Receipt</button>
-            <div class="receipt">
-            <div class="receipt-header">
-                ${schoolLogo ? `<img class="school-logo" src="${schoolLogo}" onerror="this.style.display='none'" />` : ''}
-                <h2 class="school-name">${schoolName}</h2>
-                <span class="receipt-badge">Fee Receipt — ${record.month}</span>
-            </div>
-            
-            <div class="receipt-row"><span class="label">Student Name</span> <span class="value">${student.name}</span></div>
-            <div class="receipt-row"><span class="label">Student ID</span> <span class="value">${student.id}</span></div>
-            <div class="receipt-row"><span class="label">Status</span> 
-                <span class="status-badge" style="
-                    background: ${formData.status === 'paid' ? '#f0fdf4' : (formData.status === 'partial' ? '#fffbeb' : '#fdf2f2')};
-                    color: ${formData.status === 'paid' ? '#16a34a' : (formData.status === 'partial' ? '#b45309' : '#dc2626')};
-                    border-color: ${formData.status === 'paid' ? '#bbf7d0' : (formData.status === 'partial' ? '#fef3c7' : '#fecaca')};
-                ">${formData.status}</span>
-            </div>
-            
-            <div style="height: 10px;"></div>
-            <div style="font-size: 9.5px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Breakdown</div>
-            
-            ${Number(formData.tuitionFee) > 0 ? `<div class="receipt-row"><span>Tuition Fee</span> <span>${currencySymbol} ${Number(formData.tuitionFee).toLocaleString()}</span></div>` : ''}
-            ${Number(formData.admissionFee) > 0 ? `<div class="receipt-row"><span>Admission Fee</span> <span>${currencySymbol} ${Number(formData.admissionFee).toLocaleString()}</span></div>` : ''}
-            ${Number(formData.annualFee) > 0 ? `<div class="receipt-row"><span>Annual Charges</span> <span>${currencySymbol} ${Number(formData.annualFee).toLocaleString()}</span></div>` : ''}
-            ${Number(formData.examFee) > 0 ? `<div class="receipt-row"><span>Exam Funds</span> <span>${currencySymbol} ${Number(formData.examFee).toLocaleString()}</span></div>` : ''}
-            ${Number(formData.transportFee) > 0 ? `<div class="receipt-row"><span>Transport Fee</span> <span>${currencySymbol} ${Number(formData.transportFee).toLocaleString()}</span></div>` : ''}
-            ${Number(formData.labFee) > 0 ? `<div class="receipt-row"><span>Lab / Other</span> <span>${currencySymbol} ${Number(formData.labFee).toLocaleString()}</span></div>` : ''}
-            
-            ${Number(formData.lateFine) > 0 ? `<div class="receipt-row" style="color:#dc2626;"><span>Late Fine</span> <span>+ ${currencySymbol} ${Number(formData.lateFine).toLocaleString()}</span></div>` : ''}
-            ${Number(formData.discount) > 0 ? `<div class="receipt-row" style="color:#16a34a;"><span>Concession</span> <span>- ${currencySymbol} ${Number(formData.discount).toLocaleString()}</span></div>` : ''}
-            
-            <div class="total-row"><span style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Net Payable</span> <span>${currencySymbol} ${Number(netPayable).toLocaleString()}</span></div>
-            <div class="receipt-row" style="margin-top:10px;"><span class="label">Amount Paid</span> <span class="value">${currencySymbol} ${Number(formData.paidAmount).toLocaleString()}</span></div>
-            <div class="receipt-row" style="color:#dc2626; font-weight:800;"><span class="label" style="color:#dc2626;">Balance Due</span> <span style="font-size:14px; font-weight:800;">${currencySymbol} ${Number(balance).toLocaleString()}</span></div>
-            
-            <hr style="border:0; border-top:1px dashed #cbd5e1; margin: 15px 0;" />
-            <div class="receipt-row" style="font-size:10.5px;"><span class="label">Payment Method</span> <span>${formData.paymentMethod}</span></div>
-            <div class="receipt-row" style="font-size:10.5px;"><span class="label">Processed Date</span> <span>${formData.paymentDate}</span></div>
-            
-            <div style="text-align:center; font-size:9px; margin-top:24px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">System Generated Receipt</div>
-            </div></body></html>`;
-        const win = window.open('', '_blank');
-        win.document.write(html);
-        win.document.close();
-    };
+    const hasDefaults = Object.values(classDefaults).some(v => Number(v) > 0);
 
     return (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }} onClick={onClose}>
-            <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '750px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} className="animate-fade-in">
-                <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', borderRadius: '16px 16px 0 0' }}>
+        <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.65)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }} onClick={onClose}>
+            <div onClick={e => e.stopPropagation()} style={{ background:'white', borderRadius:'16px', width:'100%', maxWidth:'420px', padding:'1.75rem', boxShadow:'0 25px 50px -12px rgba(0,0,0,.25)' }} className="animate-fade-in">
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem' }}>
                     <div>
-                        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>Fee Details — {record.month}</h3>
-                        <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>{student.name} ({student.id})</p>
+                        <h3 style={{ fontSize:'1.1rem', fontWeight:800, color:'#1e293b', margin:0 }}>➕ Add Fee Month</h3>
+                        <p style={{ color:'#64748b', fontSize:'.82rem', margin:'4px 0 0' }}>Opens a new fee month for all students in <strong>{selectedClass}</strong></p>
                     </div>
-                    <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b' }}><X size={24} /></button>
+                    <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:'2px' }}><X size={20} /></button>
                 </div>
-                
-                <div style={{ padding: '1.5rem', display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '1.5rem' }}>
-                    <div>
-                        <h4 style={{ fontSize: '0.9rem', textTransform: 'uppercase', color: '#475569', fontWeight: 800, marginBottom: '1rem', borderBottom: '2px solid #e2e8f0', paddingBottom: '0.5rem' }}>Fee Breakdown ({currencySymbol})</h4>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                            {['tuitionFee', 'admissionFee', 'annualFee', 'examFee', 'transportFee', 'labFee'].map(field => (
-                                <div key={field}>
-                                    <label className="form-label" style={{ fontSize: '0.75rem' }}>{(field.replace('Fee', '')).replace(/([A-Z])/g, ' $1').trim()} Fee</label>
-                                    <input type="number" name={field} className="form-input" style={{ width: '100%', padding: '0.4rem' }} value={formData[field]} onChange={handleChange} min="0" />
-                                </div>
+
+                <div style={{ marginBottom:'1rem' }}>
+                    <label style={{ display:'block', fontWeight:700, color:'#475569', fontSize:'.85rem', marginBottom:'.4rem' }}>Select Month & Year</label>
+                    <input type="month" value={monthVal} onChange={e => { setMonthVal(e.target.value); setError(''); }} className="form-input" style={{ width:'100%' }} />
+                    {monthVal && (
+                        <div style={{ color:'#2563eb', fontSize:'.8rem', fontWeight:700, marginTop:'.4rem' }}>
+                            📅 Will open: <strong>{monthInputToLabel(monthVal)}</strong>
+                        </div>
+                    )}
+                </div>
+
+                {hasDefaults && (
+                    <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'.75rem 1rem', marginBottom:'1rem' }}>
+                        <div style={{ fontWeight:700, color:'#475569', fontSize:'.78rem', textTransform:'uppercase', letterSpacing:'.4px', marginBottom:'.5rem' }}>
+                            Class Defaults ({currencySymbol})
+                        </div>
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.3rem .75rem', fontSize:'.82rem' }}>
+                            {[['Tuition', classDefaults.tuitionFee], ['Admission', classDefaults.admissionFee], ['Annual', classDefaults.annualFee], ['Exam', classDefaults.examFee], ['Transport', classDefaults.transportFee], ['Lab', classDefaults.labFee]].filter(([, v]) => Number(v) > 0).map(([k, v]) => (
+                                <div key={k} style={{ color:'#64748b' }}>{k}: <span style={{ color:'#1e293b', fontWeight:700 }}>{currencySymbol} {Number(v).toLocaleString()}</span></div>
                             ))}
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: '#f8fafc', borderRadius: '8px', marginTop: '1rem', fontWeight: 700 }}>
-        <span>Base Total:</span><span style={{ color: '#1e3a8a' }}>{currencySymbol} {baseTotal}</span>
-    </div>
-    {previousArrears > 0 && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', marginTop: '0.5rem', fontWeight: 700 }}>
-            <span style={{ color: '#dc2626' }}>Previous Arrears:</span><span style={{ color: '#dc2626' }}>+ {currencySymbol} {previousArrears}</span>
-        </div>
-    )}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '1rem' }}>
-                            <div>
-                                <label className="form-label" style={{ fontSize: '0.75rem', color: '#dc2626' }}>Late Fine (+)</label>
-                                <input type="number" name="lateFine" className="form-input" style={{ width: '100%', padding: '0.4rem', borderColor: '#fca5a5' }} value={formData.lateFine} onChange={handleChange} min="0" />
-                            </div>
-                            <div>
-                                <label className="form-label" style={{ fontSize: '0.75rem', color: '#16a34a' }}>Discount (-)</label>
-                                <input type="number" name="discount" className="form-input" style={{ width: '100%', padding: '0.4rem', borderColor: '#86efac' }} value={formData.discount} onChange={handleChange} min="0" />
-                            </div>
-                        </div>
                     </div>
+                )}
 
-                    <div style={{ background: '#f0f9ff', padding: '1.25rem', borderRadius: '12px', border: '1px solid #bae6fd' }}>
-                        <h4 style={{ fontSize: '0.9rem', textTransform: 'uppercase', color: '#0369a1', fontWeight: 800, marginBottom: '1rem' }}>Payment Status</h4>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem', paddingBottom: '0.75rem', borderBottom: '2px dashed #bae6fd' }}>
-                            <span>Net Payable:</span><span>{currencySymbol} {netPayable}</span>
-                        </div>
-                        <div style={{ marginBottom: '1rem' }}>
-                            <label className="form-label" style={{ fontWeight: 700 }}>Amount Paid ({currencySymbol})</label>
-                            <input type="number" name="paidAmount" className="form-input" style={{ width: '100%', fontSize: '1.1rem', fontWeight: 700 }} value={formData.paidAmount} onChange={handleChange} min="0" />
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem', fontWeight: 700, color: balance > 0 ? '#dc2626' : '#16a34a', marginBottom: '1.5rem' }}>
-                            <span>Balance Due:</span><span>{currencySymbol} {balance}</span>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
-                            <div>
-                                <label className="form-label">Payment Date</label>
-                                <input type="date" name="paymentDate" className="form-input" style={{ width: '100%' }} value={formData.paymentDate} onChange={handleChange} />
-                            </div>
-                            <div>
-                                <label className="form-label">Method</label>
-                                <select name="paymentMethod" className="form-input" style={{ width: '100%' }} value={formData.paymentMethod} onChange={handleChange}>
-                                    <option value="Cash">Cash</option>
-                                    <option value="Bank Transfer">Bank Transfer</option>
-                                    <option value="EasyPaisa">EasyPaisa</option>
-                                    <option value="JazzCash">JazzCash</option>
-                                    <option value="Cheque">Cheque</option>
-                                    <option value="Online Portal">Online Portal</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div style={{ marginBottom: '1rem' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700, color: '#0369a1' }}>
-                                <input type="checkbox" checked={formData.isOnline} onChange={e => setFormData({...formData, isOnline: e.target.checked})} />
-                                Mark as Online Payment
-                            </label>
-                        </div>
-                        <div>
-                            <label className="form-label">Manual Status Override</label>
-                            <select name="status" className="form-input" style={{ width: '100%', fontWeight: 700, color: formData.status === 'paid' ? '#16a34a' : (formData.status === 'partial' ? '#b45309' : '#dc2626') }} value={formData.status} onChange={handleChange}>
-                                <option value="paid">✅ Fully Paid</option>
-                                <option value="partial">⚠ Partially Paid</option>
-                                <option value="unpaid">❌ Unpaid / Defaulter</option>
-                            </select>
-                        </div>
+                {!hasDefaults && (
+                    <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'10px', padding:'.65rem .9rem', marginBottom:'1rem', fontSize:'.8rem', color:'#b45309', fontWeight:600 }}>
+                        ⚠ No fee defaults set for {selectedClass}. All fees will open as RS 0 (free students).
                     </div>
-                </div>
+                )}
 
-                <div style={{ padding: '1.25rem 1.5rem', background: '#f8fafc', borderTop: '1px solid #e2e8f0', borderRadius: '0 0 16px 16px', display: 'flex', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button onClick={handlePrintReceipt} className="btn" style={{ background: 'white', border: '2px solid #e2e8f0', color: '#475569', display: 'flex', gap: '0.4rem', alignItems: 'center', fontWeight: 700 }}>
-                            <Printer size={16} /> Print
-                        </button>
-                        <button 
-                            onClick={() => {
-                                const msg = `Fee Reminder for ${student.name} (${record.month}):\n\nTotal Due: ${currencySymbol} ${netPayable}\nPaid: ${currencySymbol} ${formData.paidAmount}\nBalance: ${currencySymbol} ${balance}\n\nPay via:\n${schoolSettings?.bank_account ? `- Bank: ${schoolSettings.bank_account} (${schoolSettings.bank_name})\n` : ''}${schoolSettings?.easypaisa_number ? `- EasyPaisa: ${schoolSettings.easypaisa_number}\n` : ''}${schoolSettings?.jazzcash_number ? `- JazzCash: ${schoolSettings.jazzcash_number}\n` : ''}\nThank you, ${schoolName}`;
-                                navigator.clipboard.writeText(msg);
-                                alert('Payment information copied to clipboard! You can now paste and send it to the parent.');
-                            }}
-                            className="btn" 
-                            style={{ background: '#f0f9ff', border: '2px solid #bae6fd', color: '#0369a1', display: 'flex', gap: '0.4rem', alignItems: 'center', fontWeight: 700 }}
-                        >
-                            <MessageCircle size={16} /> Share Link
-                        </button>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.75rem' }}>
-                        <button onClick={onClose} className="btn" style={{ background: 'white', border: '1px solid #e2e8f0', color: '#64748b' }}>Cancel</button>
-                        <button onClick={handleSave} className="btn btn-primary" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><Save size={16} /> Save Record</button>
-                    </div>
+                {error && (
+                    <div style={{ color:'#dc2626', fontSize:'.82rem', fontWeight:600, marginBottom:'.75rem', background:'#fef2f2', padding:'.5rem .75rem', borderRadius:'8px' }}>⚠ {error}</div>
+                )}
+
+                <div style={{ display:'flex', gap:'.75rem', justifyContent:'flex-end' }}>
+                    <button onClick={onClose} style={{ padding:'.6rem 1.25rem', borderRadius:'8px', border:'1px solid #e2e8f0', background:'white', color:'#475569', fontWeight:600, cursor:'pointer' }}>Cancel</button>
+                    <button onClick={handleAdd} disabled={saving || !monthVal} style={{ padding:'.6rem 1.5rem', borderRadius:'8px', border:'none', background: (!monthVal||saving)?'#93c5fd':'#2563eb', color:'white', fontWeight:700, cursor: (!monthVal||saving)?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:'.4rem', transition:'background .2s' }}>
+                        {saving ? 'Adding…' : <><Plus size={16} /> Add Month</>}
+                    </button>
                 </div>
             </div>
         </div>
     );
 };
 
-const FeeTab = ({
-    students, selectedClass, setSelectedClass, sectionClasses,
-    openNewFeeMonth, toggleMonthFeeStatus, markAllPaidForMonth,
-    markAllUnpaidForMonth, deleteFeeMonth, updateStudentFeeRecord,
-    CLASS_FEE_DEFAULTS, updateClassFeeDefaults,
-    currencySymbol = 'RS', schoolName = 'School', schoolLogo = '/logo.png',
-    schoolSettings = {}
-}) => {
-    const [genderTab, setGenderTab] = useState('all');
-    const [selectedFee, setSelectedFee] = useState(null);
-    const [showDefaultsModal, setShowDefaultsModal] = useState(false);
+/* ─────────────────────────────────────────────────────────────────────────────
+   QUICK PAY MODAL  (Edit Mode)
+───────────────────────────────────────────────────────────────────────────── */
+const QuickPayModal = ({ student, record, classDefaults, currencySymbol, onClose, onSave }) => {
+    const net = computeNet(record, classDefaults);
+    const [paidAmount,     setPaidAmount]     = useState(String(record?.paidAmount ?? 0));
+    const [paymentMethod,  setPaymentMethod]  = useState(record?.paymentMethod || 'Cash');
+    const [paymentDate,    setPaymentDate]    = useState(record?.paymentDate || new Date().toISOString().split('T')[0]);
+    const [saving, setSaving]                 = useState(false);
 
-    const classDefaults = (CLASS_FEE_DEFAULTS && CLASS_FEE_DEFAULTS[selectedClass]) || {
-        tuitionFee: 1000, admissionFee: 0, annualFee: 0, examFee: 0, transportFee: 0, labFee: 0
+    const paid    = Number(paidAmount) || 0;
+    const balance = net - paid;
+    const autoStatus = paid >= net && net > 0 ? 'paid' : paid > 0 ? 'partial' : 'unpaid';
+
+    const handleSave = async () => {
+        setSaving(true);
+        await onSave({ ...record, paidAmount: paid, status: autoStatus, paymentMethod, paymentDate });
+        setSaving(false);
+        onClose();
     };
-    const [defaultsForm, setDefaultsForm] = useState(classDefaults);
-
-    const handleSaveDefaults = async () => {
-        const newMap = { ...(CLASS_FEE_DEFAULTS || {}), [selectedClass]: defaultsForm };
-        await updateClassFeeDefaults(newMap);
-        setShowDefaultsModal(false);
-    };
-
-    const generateReceiptHTML = (student, h, localDefaults) => {
-        const previousArrears = calculateArrears(student, h.month, localDefaults);
-        const tuition = h.tuitionFee ?? localDefaults.tuitionFee ?? 1000;
-        const admission = h.admissionFee ?? localDefaults.admissionFee ?? 0;
-        const annual = h.annualFee ?? localDefaults.annualFee ?? 0;
-        const exam = h.examFee ?? localDefaults.examFee ?? 0;
-        const transport = h.transportFee ?? localDefaults.transportFee ?? 0;
-        const lab = h.labFee ?? localDefaults.labFee ?? 0;
-        const late = h.lateFine ?? 0;
-        const discount = h.discount ?? 0;
-        const paidAmount = h.paidAmount ?? (h.status === 'paid' ? (tuition + admission + annual + exam + transport + lab + late - discount) : 0);
-        
-        const netPayable = (tuition + admission + annual + exam + transport + lab) + late - discount + previousArrears;
-        const balance = netPayable - paidAmount;
-        const status = h.status || 'unpaid';
-
-        return `<div class="receipt">
-            <div class="receipt-header">
-                ${schoolLogo ? `<img class="school-logo" src="${schoolLogo}" onerror="this.style.display='none'" />` : ''}
-                <h2 class="school-name">${schoolName}</h2>
-                <span class="receipt-badge">Fee Receipt — ${h.month}</span>
-            </div>
-            
-            <div class="receipt-row"><span class="label">Student Name</span> <span class="value">${student.name}</span></div>
-            <div class="receipt-row"><span class="label">Student ID</span> <span class="value">${student.id}</span></div>
-            <div class="receipt-row"><span class="label">Status</span> 
-                <span class="status-badge" style="
-                    background: ${status === 'paid' ? '#f0fdf4' : (status === 'partial' ? '#fffbeb' : '#fdf2f2')};
-                    color: ${status === 'paid' ? '#16a34a' : (status === 'partial' ? '#b45309' : '#dc2626')};
-                    border-color: ${status === 'paid' ? '#bbf7d0' : (status === 'partial' ? '#fef3c7' : '#fecaca')};
-                ">${status.toUpperCase()}</span>
-            </div>
-            
-            <div style="height: 10px;"></div>
-            <div style="font-size: 9.5px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Breakdown</div>
-            
-            ${Number(tuition) > 0 ? `<div class="receipt-row"><span>Tuition Fee</span> <span>${currencySymbol} ${Number(tuition).toLocaleString()}</span></div>` : ''}
-            ${Number(admission) > 0 ? `<div class="receipt-row"><span>Admission Fee</span> <span>${currencySymbol} ${Number(admission).toLocaleString()}</span></div>` : ''}
-            ${Number(annual) > 0 ? `<div class="receipt-row"><span>Annual Charges</span> <span>${currencySymbol} ${Number(annual).toLocaleString()}</span></div>` : ''}
-            ${Number(exam) > 0 ? `<div class="receipt-row"><span>Exam Funds</span> <span>${currencySymbol} ${Number(exam).toLocaleString()}</span></div>` : ''}
-            ${Number(transport) > 0 ? `<div class="receipt-row"><span>Transport Fee</span> <span>${currencySymbol} ${Number(transport).toLocaleString()}</span></div>` : ''}
-            ${Number(lab) > 0 ? `<div class="receipt-row"><span>Lab / Other</span> <span>${currencySymbol} ${Number(lab).toLocaleString()}</span></div>` : ''}
-            
-            ${Number(late) > 0 ? `<div class="receipt-row" style="color:#dc2626;"><span>Late Fine</span> <span>+ ${currencySymbol} ${Number(late).toLocaleString()}</span></div>` : ''}
-            ${Number(discount) > 0 ? `<div class="receipt-row" style="color:#16a34a;"><span>Concession</span> <span>- ${currencySymbol} ${Number(discount).toLocaleString()}</span></div>` : ''}
-            ${Number(previousArrears) > 0 ? `<div class="receipt-row" style="color:#dc2626; font-weight:700;"><span>Previous Arrears</span> <span>+ ${currencySymbol} ${Number(previousArrears).toLocaleString()}</span></div>` : ''}
-            
-            <div class="total-row"><span style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Net Payable</span> <span>${currencySymbol} ${Number(netPayable).toLocaleString()}</span></div>
-            <div class="receipt-row" style="margin-top:10px;"><span class="label">Amount Paid</span> <span class="value">${currencySymbol} ${Number(paidAmount).toLocaleString()}</span></div>
-            <div class="receipt-row" style="color:#dc2626; font-weight:800;"><span class="label" style="color:#dc2626;">Balance Due</span> <span style="font-size:14px; font-weight:800;">${currencySymbol} ${Number(balance).toLocaleString()}</span></div>
-            
-            <hr style="border:0; border-top:1px dashed #cbd5e1; margin: 15px 0;" />
-            <div class="receipt-row" style="font-size:10.5px;"><span class="label">Payment Method</span> <span>${h.paymentMethod || 'Cash'}</span></div>
-            <div class="receipt-row" style="font-size:10.5px;"><span class="label">Processed Date</span> <span>${h.paymentDate || '—'}</span></div>
-            
-            <div class="receipt-footer">
-                ${schoolSettings?.bank_account ? `<div style="margin-bottom:2px;">Bank: ${schoolSettings.bank_name} / ${schoolSettings.bank_account}</div>` : ''}
-                ${schoolSettings?.easypaisa_number ? `<div style="margin-bottom:2px;">EasyPaisa: ${schoolSettings.easypaisa_number}</div>` : ''}
-                ${schoolSettings?.jazzcash_number ? `<div style="margin-bottom:2px;">JazzCash: ${schoolSettings.jazzcash_number}</div>` : ''}
-                ${schoolSettings?.payment_instructions ? `<div style="font-style:italic; margin-top:4px; font-size:8px; color:#64748b;">* ${schoolSettings.payment_instructions}</div>` : ''}
-                <div style="text-align:center; font-size:9px; margin-top:14px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">System Generated Receipt</div>
-            </div>
-        </div>`;
-    };
-
-    const printBulkChallans = (month) => {
-        let printHTML = `<!DOCTYPE html><html><head><title>Bulk Invoices - ${selectedClass} - ${month}</title>
-            <style>
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-                * { box-sizing: border-box; }
-                body { font-family: 'Inter', sans-serif; padding: 10mm; color: #0f172a; background: #f8fafc; margin: 0; }
-                
-                .grid { 
-                    display: grid; 
-                    grid-template-columns: 1fr 1fr; 
-                    gap: 20px; 
-                    padding: 0; 
-                }
-                
-                .receipt { 
-                    background: white; 
-                    border: 1px solid #cbd5e1; 
-                    border-radius: 8px; 
-                    padding: 20px; 
-                    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05); 
-                    position: relative; 
-                    page-break-inside: avoid;
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: space-between;
-                }
-                
-                .receipt-header {
-                    text-align: center;
-                    border-bottom: 2px solid #0f172a;
-                    padding-bottom: 10px;
-                    margin-bottom: 12px;
-                }
-                
-                .school-logo {
-                    width: 40px;
-                    height: 40px;
-                    object-fit: contain;
-                    margin-bottom: 4px;
-                }
-                
-                .school-name {
-                    margin: 0;
-                    font-size: 16px;
-                    font-weight: 800;
-                    color: #0f172a;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                }
-                
-                .receipt-badge {
-                    display: inline-block;
-                    border: 1.5px solid #0f172a;
-                    color: #0f172a;
-                    font-size: 9px;
-                    font-weight: 800;
-                    padding: 3px 10px;
-                    border-radius: 4px;
-                    text-transform: uppercase;
-                    margin-top: 4px;
-                    letter-spacing: 1px;
-                }
-                
-                .receipt-row {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 5px 0;
-                    font-size: 11px;
-                    font-weight: 600;
-                    border-bottom: 1px solid #f1f5f9;
-                }
-                .receipt-row:last-child {
-                    border-bottom: none;
-                }
-                
-                .label {
-                    color: #64748b;
-                    font-size: 9px;
-                    font-weight: 700;
-                    text-transform: uppercase;
-                    letter-spacing: 0.3px;
-                }
-                
-                .value {
-                    color: #0f172a;
-                    font-weight: 700;
-                }
-                
-                .status-badge {
-                    padding: 2px 6px;
-                    border-radius: 4px;
-                    font-size: 8px;
-                    font-weight: 800;
-                    text-transform: uppercase;
-                    border: 1px solid;
-                }
-                
-                .total-row {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 8px 10px;
-                    background: #f8fafc;
-                    border: 1.5px solid #0f172a;
-                    border-radius: 6px;
-                    font-weight: 800;
-                    font-size: 12px;
-                    margin-top: 10px;
-                }
-                
-                .receipt-footer {
-                    background: #f8fafc; 
-                    padding: 8px; 
-                    border-radius: 6px; 
-                    font-size: 10px;
-                    margin-top: 10px;
-                    border: 1px solid #e2e8f0;
-                }
-                
-                .btn-print { 
-                    margin: 0 auto 20px auto; 
-                    display: block; 
-                    padding: 10px 22px; 
-                    background: #0f172a; 
-                    color: white; 
-                    border: none; 
-                    border-radius: 6px; 
-                    cursor: pointer; 
-                    font-weight: 700; 
-                    font-size: 12px;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                    box-shadow: 0 4px 12px rgba(15,23,42,0.15);
-                    transition: background 0.15s ease;
-                }
-                .btn-print:hover {
-                    background: #1e293b;
-                }
-                
-                @media print { 
-                    .btn-print { display: none; } 
-                    body { background: white; padding: 0; } 
-                    .receipt { box-shadow: none; border: 1px solid #cbd5e1; } 
-                }
-            </style></head>
-            <body><button class="btn-print" onclick="window.print()">Print All Invoices</button>
-            <div class="grid">`;
-        
-        classStudents.forEach(student => {
-            const h = (student.feeHistory || []).find(hf => hf.month === month) || { month, status: 'unpaid' };
-            printHTML += generateReceiptHTML(student, h, classDefaults);
-        });
-        
-        printHTML += `</div></body></html>`;
-        const win = window.open('', '_blank');
-        win.document.write(printHTML);
-        win.document.close();
-    };
-
-    
-    const printClassFeeReport = (month) => {
-        let printHTML = `<!DOCTYPE html><html><head><title>Class Fee Summary - ${selectedClass} - ${month}</title>
-            <style>
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-                * { box-sizing: border-box; }
-                body { font-family: 'Inter', sans-serif; padding: 30px; color: #0f172a; background: white; margin: 0; }
-                
-                .report-header {
-                    text-align: center;
-                    border-bottom: 2px solid #0f172a;
-                    padding-bottom: 16px;
-                    margin-bottom: 24px;
-                }
-                .school-name {
-                    margin: 0;
-                    font-size: 24px;
-                    font-weight: 800;
-                    color: #0f172a;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                }
-                .report-title {
-                    font-size: 14px;
-                    color: #475569;
-                    font-weight: 700;
-                    text-transform: uppercase;
-                    margin-top: 6px;
-                    letter-spacing: 1px;
-                }
-                
-                table { 
-                    width: 100%; 
-                    border-collapse: collapse; 
-                    margin-top: 20px; 
-                    border: 1px solid #cbd5e1;
-                }
-                th { 
-                    background: #0f172a; 
-                    color: white;
-                    padding: 12px 14px; 
-                    text-align: left; 
-                    border: 1px solid #cbd5e1; 
-                    font-weight: 700; 
-                    font-size: 11px; 
-                    text-transform: uppercase; 
-                    letter-spacing: 0.5px;
-                }
-                td { 
-                    padding: 10px 14px; 
-                    border: 1px solid #cbd5e1; 
-                    font-size: 12.5px; 
-                    color: #334155;
-                }
-                tr:nth-child(even) td {
-                    background: #f8fafc;
-                }
-                
-                .summary-container { 
-                    display: grid;
-                    grid-template-columns: repeat(3, 1fr);
-                    gap: 16px;
-                    margin-top: 30px; 
-                    border: 1.5px solid #0f172a; 
-                    background: #f8fafc;
-                    padding: 16px; 
-                    border-radius: 6px;
-                }
-                .summary-card {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 4px;
-                }
-                .summary-lbl {
-                    font-size: 9.5px;
-                    font-weight: 800;
-                    color: #64748b;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                }
-                .summary-val {
-                    font-size: 18px;
-                    font-weight: 800;
-                    color: #0f172a;
-                }
-                
-                .btn-print { 
-                    margin-bottom: 20px; 
-                    padding: 10px 22px; 
-                    background: #0f172a; 
-                    color: white; 
-                    border: none; 
-                    border-radius: 6px; 
-                    font-weight: 700; 
-                    font-size: 12px;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                    cursor: pointer;
-                    box-shadow: 0 4px 12px rgba(15,23,42,0.15);
-                    transition: background 0.15s ease;
-                }
-                .btn-print:hover {
-                    background: #1e293b;
-                }
-                
-                @media print { 
-                    .btn-print { display: none; } 
-                    body { padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
-                }
-            </style></head>
-            <body><button class="btn-print" onclick="window.print()">Print Report</button>
-            <div class="report-header">
-                <h1 class="school-name">${schoolName}</h1>
-                <div class="report-title">Monthly Fee Report — Class ${selectedClass} (${month})</div>
-            </div>
-            <table>
-                <thead><tr><th>Student</th><th>Current Fee</th><th>Arrears</th><th>Total Due</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
-                <tbody>`;
-        
-        let grandTotal = 0, grandPaid = 0, grandBalance = 0;
-
-        classStudents.forEach((student) => {
-            const h = (student.feeHistory || []).find(hf => hf.month === month) || { month, status: 'unpaid' };
-            const previousArrears = calculateArrears(student, month, classDefaults);
-            
-            const t = h.tuitionFee ?? classDefaults.tuitionFee ?? 1000;
-            const a = h.admissionFee ?? classDefaults.admissionFee ?? 0;
-            const an = h.annualFee ?? classDefaults.annualFee ?? 0;
-            const ex = h.examFee ?? classDefaults.examFee ?? 0;
-            const tr = h.transportFee ?? classDefaults.transportFee ?? 0;
-            const la = h.labFee ?? classDefaults.labFee ?? 0;
-            const late = h.lateFine ?? 0;
-            const disc = h.discount ?? 0;
-            
-            const currentFee = (t + a + an + ex + tr + la) + late - disc;
-            const totalDue = currentFee + previousArrears;
-            const paid = Number(h.paidAmount ?? (h.status === 'paid' ? totalDue : 0));
-            const balance = totalDue - paid;
-            
-            grandTotal += totalDue;
-            grandPaid += paid;
-            grandBalance += balance;
-
-            printHTML += `<tr>
-                <td><strong>${student.name}</strong><br><span style="color:#64748b; font-size:10px; font-weight: 600;">ID: ${student.id}</span></td>
-                <td>${currencySymbol} ${Number(currentFee).toLocaleString()}</td>
-                <td style="color:${previousArrears > 0 ? '#dc2626' : 'inherit'}; font-weight:${previousArrears > 0 ? '700' : 'normal'};">${currencySymbol} ${Number(previousArrears).toLocaleString()}</td>
-                <td style="font-weight:700">${currencySymbol} ${Number(totalDue).toLocaleString()}</td>
-                <td style="color:#16a34a; font-weight:700;">${currencySymbol} ${Number(paid).toLocaleString()}</td>
-                <td style="color:${balance > 0 ? '#dc2626' : '#16a34a'}; font-weight:700;">${currencySymbol} ${Number(balance).toLocaleString()}</td>
-                <td><span style="
-                    font-size: 9px;
-                    font-weight: 800;
-                    text-transform: uppercase;
-                    padding: 2px 6px;
-                    border-radius: 4px;
-                    border: 1px solid;
-                    background: ${h.status === 'paid' ? '#f0fdf4' : (h.status === 'partial' ? '#fffbeb' : '#fdf2f2')};
-                    color: ${h.status === 'paid' ? '#16a34a' : (h.status === 'partial' ? '#b45309' : '#dc2626')};
-                    border-color: ${h.status === 'paid' ? '#bbf7d0' : (h.status === 'partial' ? '#fef3c7' : '#fecaca')};
-                ">${(h.status || 'unpaid').toUpperCase()}</span></td>
-            </tr>`;
-        });
-        
-        printHTML += `</tbody></table>
-            <div class="summary-container">
-                <div class="summary-card">
-                    <span class="summary-lbl">Total Expected</span>
-                    <span class="summary-val">${currencySymbol} ${Number(grandTotal).toLocaleString()}</span>
-                </div>
-                <div class="summary-card">
-                    <span class="summary-lbl" style="color: #16a34a;">Total Collected</span>
-                    <span class="summary-val" style="color: #16a34a;">${currencySymbol} ${Number(grandPaid).toLocaleString()}</span>
-                </div>
-                <div class="summary-card">
-                    <span class="summary-lbl" style="color: #dc2626;">Total Outstanding</span>
-                    <span class="summary-val" style="color: #dc2626;">${currencySymbol} ${Number(grandBalance).toLocaleString()}</span>
-                </div>
-            </div>
-            <div style="margin-top: 40px; display: flex; justify-content: space-between; font-size: 11px; color: #64748b; font-weight: 600;">
-                <span>Generated Date: ${new Date().toLocaleDateString()}</span>
-                <span>System Registrar Signature: _______________________</span>
-            </div>
-            </body></html>`;
-        
-        const win = window.open('', '_blank');
-        win.document.write(printHTML);
-        win.document.close();
-    };
-
-    const printDefaultersList = () => {
-        const defaulters = classStudents.filter(s => (s.feeHistory || []).some(h => h.status === 'unpaid' || h.status === 'partial'));
-        if (defaulters.length === 0) {
-            alert("Great news! There are no defaulters in this class.");
-            return;
-        }
-
-        let printHTML = `<!DOCTYPE html><html><head><title>Defaulters List - ${selectedClass}</title>
-            <style>
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-                * { box-sizing: border-box; }
-                body { font-family: 'Inter', sans-serif; padding: 30px; color: #0f172a; background: white; margin: 0; }
-                
-                .report-header {
-                    text-align: center;
-                    border-bottom: 2px solid #dc2626;
-                    padding-bottom: 16px;
-                    margin-bottom: 24px;
-                }
-                .school-name {
-                    margin: 0;
-                    font-size: 24px;
-                    font-weight: 800;
-                    color: #0f172a;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                }
-                .report-title {
-                    font-size: 14px;
-                    color: #dc2626;
-                    font-weight: 700;
-                    text-transform: uppercase;
-                    margin-top: 6px;
-                    letter-spacing: 1px;
-                }
-                
-                table { 
-                    width: 100%; 
-                    border-collapse: collapse; 
-                    margin-top: 20px; 
-                    border: 1px solid #cbd5e1;
-                }
-                th { 
-                    background: #dc2626; 
-                    color: white;
-                    padding: 12px 14px; 
-                    text-align: left; 
-                    border: 1px solid #cbd5e1; 
-                    font-weight: 700; 
-                    font-size: 11px; 
-                    text-transform: uppercase; 
-                    letter-spacing: 0.5px;
-                }
-                td { 
-                    padding: 10px 14px; 
-                    border: 1px solid #cbd5e1; 
-                    font-size: 12.5px; 
-                    color: #334155;
-                }
-                tr:nth-child(even) td {
-                    background: #fdf2f2;
-                }
-                
-                .btn-print { 
-                    margin-bottom: 20px; 
-                    padding: 10px 22px; 
-                    background: #dc2626; 
-                    color: white; 
-                    border: none; 
-                    border-radius: 6px; 
-                    font-weight: 700; 
-                    font-size: 12px;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                    cursor: pointer;
-                    box-shadow: 0 4px 12px rgba(220,38,38,0.15);
-                    transition: background 0.15s ease;
-                }
-                .btn-print:hover {
-                    background: #b91c1c;
-                }
-                
-                @media print { 
-                    .btn-print { display: none; } 
-                    body { padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
-                }
-            </style></head>
-            <body><button class="btn-print" onclick="window.print()">Print Defaulters List</button>
-            <div class="report-header">
-                <h1 class="school-name">${schoolName}</h1>
-                <div class="report-title">Fee Defaulters List — Class ${selectedClass}</div>
-            </div>
-            <table>
-                <thead><tr><th style="width: 50px;">#</th><th>Student Details</th><th>Father's Details</th><th>Phone Number</th><th>Defaulter Months</th></tr></thead>
-                <tbody>`;
-        
-        defaulters.forEach((student, index) => {
-            const unpaidMonths = (student.feeHistory || []).filter(h => h.status === 'unpaid' || h.status === 'partial').map(h => h.month.toUpperCase()).join(', ');
-            const fatherName = student.admissions?.[0]?.fatherName || '—';
-            const phone = student.admissions?.[0]?.fatherContact || student.admissions?.[0]?.contact || '—';
-            printHTML += `<tr>
-                <td>${index + 1}</td>
-                <td><strong>${student.name}</strong><br><span style="color:#64748b; font-size:10px; font-weight: 600;">ID: ${student.id}</span></td>
-                <td><strong>${fatherName}</strong></td>
-                <td><strong>${phone}</strong></td>
-                <td style="color:#dc2626; font-weight:700;">${unpaidMonths}</td>
-            </tr>`;
-        });
-        
-        printHTML += `</tbody></table>
-            <div style="margin-top: 40px; display: flex; justify-content: space-between; font-size: 11px; color: #64748b; font-weight: 600;">
-                <span>Total Defaulters: <strong>${defaulters.length}</strong></span>
-                <span>Generated Date: ${new Date().toLocaleDateString()}</span>
-            </div>
-            </body></html>`;
-        
-        const win = window.open('', '_blank');
-        win.document.write(printHTML);
-        win.document.close();
-    };
-
-    const allClassStudents = students
-        .filter(s => s.grade === selectedClass)
-        .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
-
-    const classStudents = allClassStudents.filter(s => {
-        if (genderTab === 'boys') return s.admissions?.[0]?.gender === 'Male';
-        if (genderTab === 'girls') return s.admissions?.[0]?.gender === 'Female';
-        return true;
-    });
-
-    const boysCount = allClassStudents.filter(s => s.admissions?.[0]?.gender === 'Male').length;
-    const girlsCount = allClassStudents.filter(s => s.admissions?.[0]?.gender === 'Female').length;
-
-    const allMonths = [...new Set(allClassStudents.flatMap(s => (s.feeHistory || []).map(h => h.month)))];
-    const totalEntries = classStudents.reduce((sum, s) => sum + (s.feeHistory || []).length, 0);
-    const totalPaid = classStudents.reduce((sum, s) => sum + (s.feeHistory || []).filter(h => h.status === 'paid').length, 0);
-    const totalUnpaid = totalEntries - totalPaid;
-    const studentsWithDues = classStudents.filter(s => (s.feeHistory || []).some(h => h.status === 'unpaid')).length;
-
-    const genderTabs = [
-        { id: 'boys', label: '👦 Boys', count: boysCount, color: '#0369a1', bg: '#e0f2fe' },
-        { id: 'girls', label: '👧 Girls', count: girlsCount, color: '#be185d', bg: '#fce7f3' },
-        { id: 'all', label: '👥 All Students', count: allClassStudents.length, color: '#475569', bg: '#f1f5f9' },
-    ];
 
     return (
-        <div className="animate-fade-in">
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-                <div>
-                    <h2 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#1e293b' }}>💰 Fee Management</h2>
-                    <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '0.25rem' }}>Track monthly fee payments for each student</p>
-                </div>
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <select className="form-input" style={{ padding: '0.5rem 0.8rem', minWidth: '160px' }} value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setGenderTab('all'); }}>
-                        {sectionClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <button onClick={() => { setDefaultsForm(classDefaults); setShowDefaultsModal(true); }} className="btn" style={{ gap: '0.4rem', background: '#f8fafc', border: '1px solid #cbd5e1', color: '#475569' }}>
-                        <Settings size={16} /> Defaults
-                    </button>
-                    <button onClick={openNewFeeMonth} className="btn btn-primary" style={{ gap: '0.4rem', background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', boxShadow: '0 2px 8px rgba(37,99,235,0.3)' }}>
-                        <PlusCircle size={16} /> Open New Month
-                    </button>
-                </div>
-            </div>
-
-            {/* Gender Tabs */}
-            <div style={{ display: 'flex', marginBottom: '1.5rem', borderRadius: '12px 12px 0 0', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-                {genderTabs.map(tab => (
-                    <button key={tab.id} onClick={() => setGenderTab(tab.id)} style={{
-                        flex: 1, padding: '0.85rem 1rem', fontWeight: genderTab === tab.id ? 800 : 600, fontSize: '0.95rem',
-                        color: genderTab === tab.id ? tab.color : '#94a3b8',
-                        background: genderTab === tab.id ? tab.bg : 'transparent', border: 'none',
-                        borderBottom: genderTab === tab.id ? `3px solid ${tab.color}` : '3px solid transparent',
-                        cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
-                    }}>
-                        {tab.label}
-                        <span style={{ background: genderTab === tab.id ? tab.color : '#cbd5e1', color: 'white', borderRadius: '999px', padding: '0.15rem 0.6rem', fontSize: '0.75rem', fontWeight: 700 }}>
-                            {tab.count}
-                        </span>
-                    </button>
-                ))}
-            </div>
-
-            {/* Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-                {[
-                    { label: 'Shown Students', val: classStudents.length, color: '#2563eb', bg: '#eff6ff' },
-                    { label: 'Months Tracked', val: allMonths.length, color: '#7c3aed', bg: '#f5f3ff' },
-                    { label: 'Paid Entries', val: totalPaid, color: '#16a34a', bg: '#f0fdf4' },
-                    { label: 'Unpaid Entries', val: totalUnpaid, color: '#dc2626', bg: '#fef2f2' },
-                ].map(stat => (
-                    <div key={stat.label} style={{ background: stat.bg, border: `1px solid ${stat.color}22`, borderRadius: '12px', padding: '1rem', textAlign: 'center' }}>
-                        <div style={{ fontSize: '1.8rem', fontWeight: 800, color: stat.color }}>{stat.val}</div>
-                        <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginTop: '0.2rem' }}>{stat.label}</div>
+        <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.65)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }} onClick={onClose}>
+            <div onClick={e => e.stopPropagation()} style={{ background:'white', borderRadius:'16px', width:'100%', maxWidth:'420px', padding:'1.75rem', boxShadow:'0 25px 50px -12px rgba(0,0,0,.25)' }} className="animate-fade-in">
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem' }}>
+                    <div>
+                        <h3 style={{ fontSize:'1.05rem', fontWeight:800, color:'#1e293b', margin:0 }}>💳 Pay Fee — {record?.month}</h3>
+                        <p style={{ color:'#64748b', fontSize:'.82rem', margin:'3px 0 0' }}>{student.name} · {student.id}</p>
                     </div>
-                ))}
-                
-                {/* Defaulter action box */}
-                <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '12px', padding: '1rem', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#b45309' }}>{studentsWithDues}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#b45309', fontWeight: 600, marginTop: '0.2rem', marginBottom: '0.5rem' }}>Students with Dues</div>
-                    <button onClick={printDefaultersList} className="btn" style={{ padding: '0.3rem', fontSize: '0.75rem', fontWeight: 700, background: '#ef4444', color: 'white', border: 'none', margin: '0 auto', width: '90%' }}>Print Report</button>
+                    <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8' }}><X size={20} /></button>
+                </div>
+
+                {/* Fee summary */}
+                <div style={{ background:'#f8fafc', borderRadius:'12px', padding:'.9rem 1rem', marginBottom:'1rem', display:'flex', justifyContent:'space-between', alignItems:'center', border:'1px solid #e2e8f0' }}>
+                    <div>
+                        <div style={{ fontSize:'.72rem', color:'#94a3b8', fontWeight:700, textTransform:'uppercase', letterSpacing:'.3px' }}>Net Payable</div>
+                        <div style={{ fontSize:'1.5rem', fontWeight:800, color:'#1e293b' }}>{currencySymbol} {net.toLocaleString()}</div>
+                    </div>
+                    <div style={{ textAlign:'right' }}>
+                        <div style={{ fontSize:'.72rem', color:'#94a3b8', fontWeight:700, textTransform:'uppercase', letterSpacing:'.3px' }}>Balance After Payment</div>
+                        <div style={{ fontSize:'1.1rem', fontWeight:800, color: balance > 0 ? '#dc2626' : '#16a34a' }}>
+                            {currencySymbol} {Math.max(0, balance).toLocaleString()}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Amount paid input */}
+                <div style={{ marginBottom:'.9rem' }}>
+                    <label style={{ display:'block', fontWeight:700, color:'#475569', fontSize:'.85rem', marginBottom:'.35rem' }}>Amount Paid ({currencySymbol})</label>
+                    <div style={{ display:'flex', gap:'.5rem' }}>
+                        <input
+                            type="number"
+                            value={paidAmount}
+                            onChange={e => setPaidAmount(e.target.value)}
+                            className="form-input"
+                            style={{ flex:1, fontSize:'1.1rem', fontWeight:700 }}
+                            min="0"
+                            autoFocus
+                        />
+                        <button
+                            onClick={() => setPaidAmount(String(net))}
+                            style={{ padding:'.5rem .85rem', background:'#f0fdf4', border:'1px solid #86efac', color:'#16a34a', borderRadius:'8px', fontWeight:700, fontSize:'.8rem', cursor:'pointer', whiteSpace:'nowrap' }}
+                        >
+                            Full
+                        </button>
+                    </div>
+                    <div style={{ marginTop:'.4rem' }}>
+                        <span style={{
+                            fontSize:'.75rem', fontWeight:800, padding:'2px 10px', borderRadius:'999px',
+                            background: autoStatus==='paid' ? '#f0fdf4' : autoStatus==='partial' ? '#fffbeb' : '#fef2f2',
+                            color:      autoStatus==='paid' ? '#16a34a' : autoStatus==='partial' ? '#b45309' : '#dc2626',
+                        }}>
+                            → {autoStatus==='paid' ? '✅ Fully Paid' : autoStatus==='partial' ? '⚠️ Partially Paid' : '❌ Unpaid'}
+                        </span>
+                    </div>
+                </div>
+
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.75rem', marginBottom:'1.25rem' }}>
+                    <div>
+                        <label style={{ display:'block', fontWeight:700, color:'#475569', fontSize:'.82rem', marginBottom:'.3rem' }}>Payment Method</label>
+                        <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="form-input" style={{ width:'100%' }}>
+                            {['Cash','Bank Transfer','EasyPaisa','JazzCash','Cheque','Online Portal'].map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label style={{ display:'block', fontWeight:700, color:'#475569', fontSize:'.82rem', marginBottom:'.3rem' }}>Payment Date</label>
+                        <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} className="form-input" style={{ width:'100%' }} />
+                    </div>
+                </div>
+
+                <div style={{ display:'flex', gap:'.75rem', justifyContent:'flex-end' }}>
+                    <button onClick={onClose} style={{ padding:'.6rem 1.25rem', borderRadius:'8px', border:'1px solid #e2e8f0', background:'white', color:'#475569', fontWeight:600, cursor:'pointer' }}>Cancel</button>
+                    <button onClick={handleSave} disabled={saving} style={{ padding:'.6rem 1.5rem', borderRadius:'8px', border:'none', background:saving?'#93c5fd':'#2563eb', color:'white', fontWeight:700, cursor:saving?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:'.4rem' }}>
+                        {saving ? 'Saving…' : <><Save size={16} /> Save</>}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   TABLE CELL STYLES
+───────────────────────────────────────────────────────────────────────────── */
+const TH = {
+    padding: '.65rem .6rem',
+    textAlign: 'left',
+    fontWeight: 700,
+    fontSize: '.73rem',
+    textTransform: 'uppercase',
+    letterSpacing: '.3px',
+    whiteSpace: 'nowrap',
+    position: 'sticky',
+    top: 0,
+    zIndex: 10,
+    background: '#0f172a',
+    color: 'white',
+};
+const TD = { padding: '.6rem .55rem', verticalAlign: 'middle' };
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MAIN FEE TAB
+───────────────────────────────────────────────────────────────────────────── */
+const FeeTab = ({
+    students,
+    selectedClass,
+    setSelectedClass,
+    sectionClasses,
+    sections,
+    updateStudentFeeRecord,
+    CLASS_FEE_DEFAULTS,
+    currencySymbol   = 'RS',
+    schoolName       = 'School',
+    schoolLogo       = '/logo.png',
+    schoolSettings   = {},
+    showSaveMessage,
+}) => {
+    const { saveFeeRecords } = useSchoolData();
+
+    /* ── State ─────────────────────────────────────────────────────────── */
+    const [searchQuery,       setSearchQuery]       = useState('');
+    const [genderTab,         setGenderTab]         = useState('all');
+    const [activeFilter,      setActiveFilter]      = useState(null);
+    const [editMode,          setEditMode]          = useState(false);
+    const [showAddMonth,      setShowAddMonth]      = useState(false);
+    const [quickPay,          setQuickPay]          = useState(null);
+    const [sidebarOpen,       setSidebarOpen]       = useState(true);
+    const [printMonth,        setPrintMonth]        = useState('');
+    const [expandedSections,  setExpandedSections]  = useState(() => {
+        const init = {};
+        (sections || []).forEach(s => { init[s.id] = true; });
+        return init;
+    });
+
+    const currentMonthLabel = getCurrentMonthLabel();
+
+    const classDefaults = useMemo(() =>
+        (CLASS_FEE_DEFAULTS && CLASS_FEE_DEFAULTS[selectedClass]) || {
+            tuitionFee: 0, admissionFee: 0, annualFee: 0, examFee: 0, transportFee: 0, labFee: 0,
+        },
+        [CLASS_FEE_DEFAULTS, selectedClass]
+    );
+
+    /* ── Base student list ─────────────────────────────────────────────── */
+    const allClassStudents = useMemo(() =>
+        students
+            .filter(s => s.grade === selectedClass)
+            .sort((a, b) => {
+                const sa = parseInt(a.serialNumber, 10), sb = parseInt(b.serialNumber, 10);
+                if (!isNaN(sa) && !isNaN(sb)) return sa - sb;
+                return a.id.localeCompare(b.id, undefined, { numeric: true });
+            }),
+        [students, selectedClass]
+    );
+
+    /* ── All months (insertion order) ─────────────────────────────────── */
+    const allMonths = useMemo(() => {
+        const seen = new Set(); const months = [];
+        allClassStudents.forEach(s =>
+            (s.feeHistory || []).forEach(h => {
+                if (!seen.has(h.month)) { seen.add(h.month); months.push(h.month); }
+            })
+        );
+        return months;
+    }, [allClassStudents]);
+
+    /* ── Current-month stats ───────────────────────────────────────────── */
+    const stats = useMemo(() => {
+        const total     = allClassStudents.length;
+        const paid      = allClassStudents.filter(s => (s.feeHistory||[]).some(h => h.month===currentMonthLabel && h.status==='paid')).length;
+        const unpaid    = allClassStudents.filter(s => (s.feeHistory||[]).some(h => h.month===currentMonthLabel && (h.status==='unpaid'||h.status==='partial'))).length;
+        const defaulters= allClassStudents.filter(s => isDefaulter(s, currentMonthLabel)).length;
+        const free      = allClassStudents.filter(s => isFreeStudent(s, classDefaults)).length;
+        return { total, paid, unpaid, defaulters, free };
+    }, [allClassStudents, currentMonthLabel, classDefaults]);
+
+    /* ── Gender counts ─────────────────────────────────────────────────── */
+    const boysCount  = allClassStudents.filter(s => s.admissions?.[0]?.gender === 'Male').length;
+    const girlsCount = allClassStudents.filter(s => s.admissions?.[0]?.gender === 'Female').length;
+
+    /* ── Visible / filtered students ──────────────────────────────────── */
+    const visibleStudents = useMemo(() => {
+        let list = allClassStudents;
+        if (genderTab === 'boys')  list = list.filter(s => s.admissions?.[0]?.gender === 'Male');
+        if (genderTab === 'girls') list = list.filter(s => s.admissions?.[0]?.gender === 'Female');
+        if (searchQuery) {
+            const q = searchQuery.toLowerCase();
+            list = list.filter(s =>
+                s.name?.toLowerCase().includes(q) ||
+                s.id?.toLowerCase().includes(q) ||
+                String(s.serialNumber || '').toLowerCase().includes(q)
+            );
+        }
+        if (activeFilter === 'paid')       list = list.filter(s => (s.feeHistory||[]).some(h => h.month===currentMonthLabel && h.status==='paid'));
+        if (activeFilter === 'unpaid')     list = list.filter(s => (s.feeHistory||[]).some(h => h.month===currentMonthLabel && (h.status==='unpaid'||h.status==='partial')));
+        if (activeFilter === 'defaulters') list = list.filter(s => isDefaulter(s, currentMonthLabel));
+        if (activeFilter === 'free')       list = list.filter(s => isFreeStudent(s, classDefaults));
+        return list;
+    }, [allClassStudents, genderTab, searchQuery, activeFilter, currentMonthLabel, classDefaults]);
+
+    /* ── Handlers ─────────────────────────────────────────────────────── */
+    const handleCardClick = (filter) => setActiveFilter(prev => prev === filter ? null : filter);
+
+    const handleQuickPaySave = async (updatedRecord) => {
+        if (!quickPay) return;
+        await updateStudentFeeRecord(quickPay.student.id, updatedRecord.month, updatedRecord);
+    };
+
+    const handleAddMonthSuccess = (label) => {
+        if (showSaveMessage) showSaveMessage(`Month "${label}" opened for ${selectedClass}!`);
+    };
+
+    /* ── Print vouchers ─────────────────────────────────────────────────── */
+    const doPrintVouchers = (month) => {
+        if (!month) return;
+        const targets = visibleStudents;
+        let html = `<!DOCTYPE html><html><head><title>Vouchers — ${selectedClass} — ${month}</title><style>${VOUCHER_CSS}</style></head><body>
+            <button class="btn-print" onclick="window.print()">🖨 Print All Vouchers (${targets.length})</button>
+            <div class="grid">`;
+        targets.forEach(student => {
+            const record = (student.feeHistory || []).find(h => h.month === month)
+                || { month, status: 'unpaid', paidAmount: 0, ...classDefaults };
+            html += buildVoucherHTML(student, record, classDefaults, currencySymbol, schoolName, schoolLogo, schoolSettings);
+        });
+        html += `</div></body></html>`;
+        const win = window.open('', '_blank');
+        win.document.write(html);
+        win.document.close();
+    };
+
+    /* ── Per-student totals ─────────────────────────────────────────────── */
+    const getStudentTotals = (student) => {
+        const hist         = student.feeHistory || [];
+        const totalPayable = hist.reduce((s, h) => s + computeNet(h, classDefaults), 0);
+        const totalPaid    = hist.reduce((s, h) => s + Number(h.paidAmount ?? 0), 0);
+        return { totalPayable, pending: Math.max(0, totalPayable - totalPaid) };
+    };
+
+    /* ── Month cell renderer ────────────────────────────────────────────── */
+    const renderMonthCell = (student, month, isFree) => {
+        if (isFree) return (
+            <div style={{ textAlign:'center', padding:'2px 0' }}>
+                <span style={{ padding:'2px 7px', borderRadius:'999px', fontSize:'.68rem', fontWeight:800, background:'#ede9fe', color:'#7c3aed' }}>FREE</span>
+            </div>
+        );
+        const rec = (student.feeHistory || []).find(h => h.month === month);
+        if (!rec) return <div style={{ textAlign:'center', color:'#d1d5db', fontSize:'.75rem' }}>—</div>;
+        const { status } = rec;
+        const isPaid    = status === 'paid';
+        const isPartial = status === 'partial';
+        const bg    = isPaid ? '#dcfce7' : isPartial ? '#fef3c7' : '#fee2e2';
+        const color = isPaid ? '#16a34a' : isPartial ? '#d97706' : '#dc2626';
+        const icon  = isPaid ? '✓' : isPartial ? '⚠' : '✗';
+
+        if (editMode) return (
+            <button
+                onClick={() => setQuickPay({ student, record: rec })}
+                title={`Edit ${month} — ${status} — click to update`}
+                style={{ padding:'3px 8px', borderRadius:'999px', fontSize:'.7rem', fontWeight:800, border:'none', cursor:'pointer', background:bg, color, display:'block', width:'100%', transition:'opacity .15s' }}
+                onMouseEnter={e => e.currentTarget.style.opacity='.65'}
+                onMouseLeave={e => e.currentTarget.style.opacity='1'}
+            >{icon}</button>
+        );
+        return (
+            <div style={{ textAlign:'center' }}>
+                <span style={{ padding:'2px 8px', borderRadius:'999px', fontSize:'.7rem', fontWeight:800, background:bg, color }}>{icon}</span>
+            </div>
+        );
+    };
+
+    /* ── Sorted classes fallback ─────────────────────────────────────────── */
+    const sortedClasses = [...(sectionClasses || [])].sort(classSort);
+
+    /* ── Status card config ──────────────────────────────────────────────── */
+    const statusCards = [
+        { id: null,         icon:'👥', label:'Total Students',  value:stats.total,      color:'#2563eb', bg:'#eff6ff',  border:'#bfdbfe' },
+        { id: 'paid',       icon:'✅', label:'Paid',             value:stats.paid,       color:'#16a34a', bg:'#f0fdf4',  border:'#86efac' },
+        { id: 'unpaid',     icon:'❌', label:'Unpaid / Partial', value:stats.unpaid,     color:'#dc2626', bg:'#fef2f2',  border:'#fca5a5' },
+        { id: 'defaulters', icon:'⚠️', label:'Defaulters',       value:stats.defaulters, color:'#b45309', bg:'#fffbeb',  border:'#fde68a' },
+        { id: 'free',       icon:'🆓', label:'Free Students',    value:stats.free,       color:'#7c3aed', bg:'#f5f3ff',  border:'#c4b5fd' },
+    ];
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       RENDER
+    ═══════════════════════════════════════════════════════════════════════ */
+    return (
+        <div className="animate-fade-in" style={{ display:'flex', height:'100%', minHeight:0 }}>
+
+            {/* ══ SIDEBAR ══════════════════════════════════════════════════ */}
+            <div style={{
+                width: sidebarOpen ? '216px' : '0',
+                minWidth: sidebarOpen ? '216px' : '0',
+                overflow: 'hidden',
+                transition: 'all .25s ease',
+                background: 'white',
+                borderRight: '1px solid #e2e8f0',
+                display: 'flex',
+                flexDirection: 'column',
+                flexShrink: 0,
+            }}>
+                <div style={{ padding:'.85rem .8rem', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                    <span style={{ fontWeight:800, fontSize:'.88rem', color:'#1e293b' }}>📚 Classes</span>
+                    <button onClick={() => setSidebarOpen(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:'2px', display:'flex' }}><X size={15} /></button>
+                </div>
+                <div style={{ flex:1, overflowY:'auto', padding:'.4rem' }}>
+                    {sections && sections.length > 0
+                        ? sections.map(sec => (
+                            <div key={sec.id} style={{ marginBottom:'.15rem' }}>
+                                <button
+                                    onClick={() => setExpandedSections(p => ({ ...p, [sec.id]: !p[sec.id] }))}
+                                    style={{ width:'100%', display:'flex', alignItems:'center', gap:'.45rem', padding:'.45rem .55rem', background:'transparent', border:'none', cursor:'pointer', color:'#64748b', fontWeight:700, fontSize:'.8rem', borderRadius:'7px', textAlign:'left' }}
+                                >
+                                    {expandedSections[sec.id] ? <ChevronDown size={13}/> : <ChevronRight size={13}/>}
+                                    {sec.name}
+                                </button>
+                                {expandedSections[sec.id] && (
+                                    <div style={{ paddingLeft:'.35rem' }}>
+                                        {(sec.classes || []).sort(classSort).map(cls => (
+                                            <button key={cls}
+                                                onClick={() => { setSelectedClass(cls); setActiveFilter(null); setSearchQuery(''); setEditMode(false); }}
+                                                style={{
+                                                    width:'100%', padding:'.42rem .7rem', borderRadius:'7px', border:'none', cursor:'pointer', textAlign:'left',
+                                                    fontSize:'.84rem', fontWeight: selectedClass===cls ? 800 : 600,
+                                                    background: selectedClass===cls ? '#eff6ff' : 'transparent',
+                                                    color:      selectedClass===cls ? '#2563eb' : '#64748b',
+                                                    borderLeft: `3px solid ${selectedClass===cls ? '#2563eb' : 'transparent'}`,
+                                                    transition:'all .12s', marginBottom:'1px',
+                                                }}
+                                            >{cls}</button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ))
+                        : sortedClasses.map(cls => (
+                            <button key={cls}
+                                onClick={() => { setSelectedClass(cls); setActiveFilter(null); setSearchQuery(''); setEditMode(false); }}
+                                style={{
+                                    width:'100%', padding:'.48rem .7rem', borderRadius:'8px', border:'none', cursor:'pointer', textAlign:'left',
+                                    fontSize:'.86rem', fontWeight: selectedClass===cls ? 800 : 600,
+                                    background: selectedClass===cls ? '#eff6ff' : 'transparent',
+                                    color:      selectedClass===cls ? '#2563eb' : '#64748b',
+                                    borderLeft: `3px solid ${selectedClass===cls ? '#2563eb' : 'transparent'}`,
+                                    transition:'all .12s', marginBottom:'2px',
+                                }}
+                            >{cls}</button>
+                        ))
+                    }
                 </div>
             </div>
 
-            {allMonths.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '4rem 2rem', background: 'white', borderRadius: '16px', border: '2px dashed #e2e8f0' }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📅</div>
-                    <h3 style={{ color: '#1e293b', marginBottom: '0.5rem' }}>No Fee Months Opened Yet</h3>
-                    <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Click "Open New Month" to start tracking fees for {selectedClass}.</p>
-                    <button onClick={openNewFeeMonth} className="btn btn-primary">
-                        <PlusCircle size={16} /> Open {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}
-                    </button>
+            {/* ══ MAIN ═════════════════════════════════════════════════════ */}
+            <div style={{ flex:1, minWidth:0, padding:'1.4rem', display:'flex', flexDirection:'column', gap:'1.1rem', overflowY:'auto' }}>
+
+                {/* ── Top bar ───────────────────────────────────────────── */}
+                <div style={{ display:'flex', alignItems:'center', gap:'.9rem', flexWrap:'wrap' }}>
+                    {!sidebarOpen && (
+                        <button onClick={() => setSidebarOpen(true)} style={{ padding:'.45rem .75rem', background:'#f1f5f9', border:'1px solid #e2e8f0', borderRadius:'8px', cursor:'pointer', color:'#475569', fontWeight:700, fontSize:'.8rem', display:'flex', alignItems:'center', gap:'.35rem' }}>
+                            <ChevronRight size={15}/> Classes
+                        </button>
+                    )}
+                    <div>
+                        <h2 style={{ fontSize:'1.45rem', fontWeight:800, color:'#1e293b', margin:0 }}>💰 Fee Management</h2>
+                        <p style={{ color:'#64748b', fontSize:'.8rem', margin:'2px 0 0' }}>{selectedClass} &middot; {currentMonthLabel}</p>
+                    </div>
+                    <div style={{ marginLeft:'auto', display:'flex', gap:'.55rem', alignItems:'center', flexWrap:'wrap' }}>
+                        <button
+                            onClick={() => setShowAddMonth(true)}
+                            style={{ padding:'.52rem 1rem', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', color:'white', border:'none', borderRadius:'10px', fontWeight:700, cursor:'pointer', fontSize:'.83rem', display:'flex', alignItems:'center', gap:'.35rem', boxShadow:'0 2px 8px rgba(37,99,235,.3)' }}
+                        >
+                            <Plus size={15}/> Add Month
+                        </button>
+                    </div>
                 </div>
-            ) : (
-                <>
-                    {/* Month cards */}
-                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
-                        {allMonths.map(month => {
-                            const paidCount = classStudents.filter(s => (s.feeHistory || []).some(h => h.month === month && h.status === 'paid')).length;
-                            const unpaidCount = classStudents.filter(s => (s.feeHistory || []).some(h => h.month === month && h.status === 'unpaid')).length;
-                            const allPaid = unpaidCount === 0;
+
+                {/* ── Search ────────────────────────────────────────────── */}
+                <div style={{ display:'flex', flexDirection:'column', gap:'.65rem' }}>
+                    <div style={{ position:'relative' }}>
+                        <Search size={15} style={{ position:'absolute', left:'11px', top:'50%', transform:'translateY(-50%)', color:'#94a3b8' }}/>
+                        <input
+                            type="text"
+                            placeholder="Search by Name, Serial No. or Student ID…"
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            className="form-input"
+                            style={{ paddingLeft:'34px', paddingRight:'34px', width:'100%', borderRadius:'10px' }}
+                        />
+                        {searchQuery && (
+                            <button onClick={() => setSearchQuery('')} style={{ position:'absolute', right:'10px', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#94a3b8', display:'flex' }}>
+                                <X size={15}/>
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Gender tabs */}
+                    <div style={{ display:'flex', borderRadius:'10px', overflow:'hidden', border:'1px solid #e2e8f0', background:'#f8fafc' }}>
+                        {[
+                            { id:'boys',  label:'👦 Boys',        count:boysCount,               color:'#0369a1', bg:'#e0f2fe' },
+                            { id:'girls', label:'👧 Girls',       count:girlsCount,              color:'#be185d', bg:'#fce7f3' },
+                            { id:'all',   label:'👥 All Students',count:allClassStudents.length, color:'#475569', bg:'#f1f5f9' },
+                        ].map(tab => (
+                            <button key={tab.id} onClick={() => setGenderTab(tab.id)} style={{
+                                flex:1, padding:'.65rem .4rem', fontWeight:genderTab===tab.id ? 800 : 600,
+                                color:  genderTab===tab.id ? tab.color : '#94a3b8',
+                                background: genderTab===tab.id ? tab.bg : 'transparent',
+                                border:'none', borderBottom: genderTab===tab.id ? `3px solid ${tab.color}` : '3px solid transparent',
+                                cursor:'pointer', transition:'all .15s', fontSize:'.85rem',
+                                display:'flex', alignItems:'center', justifyContent:'center', gap:'.4rem',
+                            }}>
+                                {tab.label}
+                                <span style={{ background:genderTab===tab.id ? tab.color : '#cbd5e1', color:'white', borderRadius:'999px', padding:'0 .45rem', fontSize:'.7rem', fontWeight:700 }}>{tab.count}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* ── Current Month Status Cards ─────────────────────────── */}
+                <div>
+                    <div style={{ fontSize:'.72rem', fontWeight:800, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:'.55rem' }}>
+                        Current Month Status — {currentMonthLabel}
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))', gap:'.65rem' }}>
+                        {statusCards.map(card => {
+                            const active = activeFilter === card.id;
                             return (
-                                <div key={month} style={{ background: allPaid ? '#f0fdf4' : '#fef2f2', border: `1px solid ${allPaid ? '#86efac' : '#fca5a5'}`, borderRadius: '12px', padding: '0.9rem 1.1rem', minWidth: '200px' }}>
-                                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b', marginBottom: '0.5rem' }}>{month}</div>
-                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.6rem' }}>
-                                        <span style={{ background: '#dcfce7', color: '#16a34a', padding: '0.15rem 0.6rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>✓ {paidCount} Paid</span>
-                                        <span style={{ background: '#fee2e2', color: '#dc2626', padding: '0.15rem 0.6rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>✗ {unpaidCount} Unpaid</span>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '0.4rem' }}>
-                                        <button onClick={() => printClassFeeReport(month)} style={{ flex: 1, padding: '0.3rem', fontSize: '0.7rem', fontWeight: 700, background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem' }}><Printer size={12}/> Report</button>
-                                        <button onClick={() => printBulkChallans(month)} style={{ flex: 1, padding: '0.3rem', fontSize: '0.7rem', fontWeight: 700, background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem' }}><Printer size={12}/> Print</button>
-                                        <button onClick={() => markAllPaidForMonth(month)} style={{ flex: 1, padding: '0.3rem', fontSize: '0.7rem', fontWeight: 700, background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>All Paid</button>
-                                        <button onClick={() => markAllUnpaidForMonth(month)} style={{ flex: 1, padding: '0.3rem', fontSize: '0.7rem', fontWeight: 700, background: '#64748b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Reset</button>
-                                        <button onClick={() => deleteFeeMonth(month)} style={{ padding: '0.3rem 0.5rem', fontSize: '0.7rem', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', cursor: 'pointer' }}><Trash2 size={12} /></button>
-                                    </div>
-                                </div>
+                                <button
+                                    key={String(card.id)}
+                                    onClick={() => card.id !== null && handleCardClick(card.id)}
+                                    style={{
+                                        background: active ? card.color : card.bg,
+                                        border: `2px solid ${active ? card.color : card.border}`,
+                                        borderRadius:'12px', padding:'.8rem .6rem', textAlign:'center',
+                                        cursor: card.id !== null ? 'pointer' : 'default',
+                                        transition:'all .2s',
+                                        transform: active ? 'scale(1.03)' : 'scale(1)',
+                                        boxShadow: active ? `0 4px 18px ${card.color}40` : 'none',
+                                    }}
+                                >
+                                    <div style={{ fontSize:'1.2rem', marginBottom:'.15rem' }}>{card.icon}</div>
+                                    <div style={{ fontSize:'1.55rem', fontWeight:800, color: active ? 'white' : card.color }}>{card.value}</div>
+                                    <div style={{ fontSize:'.7rem', fontWeight:700, color: active ? 'rgba(255,255,255,.85)' : '#64748b', marginTop:'.15rem', lineHeight:1.3 }}>{card.label}</div>
+                                    {card.id !== null && (
+                                        <div style={{ fontSize:'.62rem', color: active ? 'rgba(255,255,255,.65)' : '#94a3b8', marginTop:'.2rem' }}>
+                                            {active ? '✕ clear filter' : 'click to filter'}
+                                        </div>
+                                    )}
+                                </button>
                             );
                         })}
                     </div>
+                </div>
 
-                    {/* Student table */}
-                    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                        <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '65vh' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
+                {/* ── Student Spreadsheet ───────────────────────────────── */}
+                <div style={{ background:'white', borderRadius:'14px', border:'1px solid #e2e8f0', overflow:'hidden', flex:1, display:'flex', flexDirection:'column' }}>
+
+                    {/* Spreadsheet toolbar */}
+                    <div style={{ padding:'.8rem 1rem', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'.6rem', flexWrap:'wrap', background:'#f8fafc' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'.55rem', flexWrap:'wrap' }}>
+                            <span style={{ fontWeight:800, color:'#1e293b', fontSize:'.9rem' }}>Student Records</span>
+                            <span style={{ background:'#e2e8f0', color:'#475569', borderRadius:'999px', padding:'1px 10px', fontSize:'.75rem', fontWeight:700 }}>
+                                {visibleStudents.length} of {allClassStudents.length}
+                            </span>
+                            {activeFilter && (
+                                <span style={{ background:'#fef3c7', color:'#b45309', borderRadius:'999px', padding:'1px 10px', fontSize:'.73rem', fontWeight:700, display:'flex', alignItems:'center', gap:'.3rem' }}>
+                                    Filter: {activeFilter}
+                                    <button onClick={() => setActiveFilter(null)} style={{ background:'none', border:'none', cursor:'pointer', padding:0, color:'#b45309', display:'flex' }}><X size={11}/></button>
+                                </span>
+                            )}
+                        </div>
+                        <div style={{ display:'flex', gap:'.45rem', alignItems:'center' }}>
+                            {/* Print vouchers dropdown */}
+                            {allMonths.length > 0 && (
+                                <select
+                                    value={printMonth}
+                                    onChange={e => { if (e.target.value) { doPrintVouchers(e.target.value); setPrintMonth(''); } }}
+                                    style={{ padding:'.4rem .65rem', borderRadius:'8px', border:'1px solid #e2e8f0', fontSize:'.78rem', fontWeight:600, color:'#475569', background:'white', cursor:'pointer' }}
+                                >
+                                    <option value="" disabled>🖨 Print Vouchers…</option>
+                                    {allMonths.map(m => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                            )}
+                            {/* Edit toggle */}
+                            <button
+                                onClick={() => setEditMode(p => !p)}
+                                style={{
+                                    padding:'.42rem .9rem', borderRadius:'8px',
+                                    border: `2px solid ${editMode ? '#f59e0b' : '#e2e8f0'}`,
+                                    background: editMode ? '#fffbeb' : 'white',
+                                    color:   editMode ? '#b45309' : '#475569',
+                                    fontWeight:700, fontSize:'.8rem', cursor:'pointer', display:'flex', alignItems:'center', gap:'.35rem', transition:'all .2s',
+                                }}
+                            >
+                                {editMode ? <><Check size={14}/> Done</> : <><Edit3 size={14}/> Edit</>}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Table area */}
+                    {allClassStudents.length === 0 ? (
+                        <div style={{ textAlign:'center', padding:'3.5rem 2rem', color:'#94a3b8' }}>
+                            <div style={{ fontSize:'2.5rem', marginBottom:'.75rem' }}>👥</div>
+                            <div style={{ fontWeight:700, fontSize:'1rem', color:'#64748b' }}>No students in {selectedClass}</div>
+                        </div>
+                    ) : allMonths.length === 0 ? (
+                        <div style={{ textAlign:'center', padding:'3.5rem 2rem' }}>
+                            <div style={{ fontSize:'2.5rem', marginBottom:'.75rem' }}>📅</div>
+                            <div style={{ fontWeight:700, fontSize:'1rem', color:'#1e293b', marginBottom:'.4rem' }}>No months opened yet</div>
+                            <p style={{ color:'#64748b', marginBottom:'1.2rem', fontSize:'.88rem' }}>Click "Add Month" to start tracking fees for {selectedClass}</p>
+                            <button onClick={() => setShowAddMonth(true)} style={{ padding:'.6rem 1.4rem', background:'#2563eb', color:'white', border:'none', borderRadius:'10px', fontWeight:700, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:'.4rem' }}>
+                                <Plus size={15}/> Add Month
+                            </button>
+                        </div>
+                    ) : (
+                        <div style={{ overflowX:'auto', overflowY:'auto', flex:1, maxHeight:'62vh' }}>
+                            <table style={{ width:'100%', borderCollapse:'collapse', minWidth:`${300 + allMonths.length * 70}px` }}>
                                 <thead>
-                                    <tr style={{ background: '#0f172a', color: 'white' }}>
-                                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', position: 'sticky', top: 0, left: 0, background: '#0f172a', zIndex: 20, minWidth: '180px' }}>Student</th>
-                                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', position: 'sticky', top: 0, background: '#0f172a', zIndex: 10 }}>Dues</th>
-                                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, fontSize: '0.85rem', position: 'sticky', top: 0, background: '#0f172a', zIndex: 10 }}>Month-by-Month History (click to toggle)</th>
+                                    <tr>
+                                        {/* Photo */}
+                                        <th style={{ ...TH, width:'44px', position:'sticky', left:0, zIndex:21 }}>📷</th>
+                                        {/* Serial # */}
+                                        <th style={{ ...TH, width:'50px', textAlign:'center', position:'sticky', left:'44px', zIndex:21 }}>#</th>
+                                        {/* Name */}
+                                        <th style={{ ...TH, minWidth:'170px', position:'sticky', left:'94px', zIndex:21 }}>Student</th>
+                                        {/* Fee/mo */}
+                                        <th style={{ ...TH, width:'88px', textAlign:'center' }}>Fee/mo</th>
+                                        {/* Month columns */}
+                                        {allMonths.map(month => (
+                                            <th key={month} style={{ ...TH, width:'68px', textAlign:'center', background:'#1e293b' }}>
+                                                <div style={{ fontSize:'.7rem', fontWeight:800 }}>{month.split(' ')[0].slice(0,3)}</div>
+                                                <div style={{ fontSize:'.62rem', fontWeight:500, opacity:.65 }}>{month.split(' ')[1]}</div>
+                                            </th>
+                                        ))}
+                                        {/* Total */}
+                                        <th style={{ ...TH, width:'92px', textAlign:'right', background:'#1e3a5f' }}>Total</th>
+                                        {/* Pending */}
+                                        <th style={{ ...TH, width:'92px', textAlign:'right', background:'#1e3a5f' }}>Pending</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {classStudents.map((student, idx) => {
-                                        const history = student.feeHistory || [];
-                                        const unpaidMonths = history.filter(h => h.status === 'unpaid');
+                                    {visibleStudents.length === 0 ? (
+                                        <tr><td colSpan={4 + allMonths.length + 2} style={{ padding:'2.5rem', textAlign:'center', color:'#94a3b8', fontStyle:'italic' }}>No students match the current filter.</td></tr>
+                                    ) : visibleStudents.map((student, idx) => {
+                                        const free       = isFreeStudent(student, classDefaults);
+                                        const defaulter  = isDefaulter(student, currentMonthLabel);
+                                        const { totalPayable, pending } = getStudentTotals(student);
+                                        const monthlyFee = computeNet({}, classDefaults);
+                                        const rowBg      = defaulter && !free ? '#fffbeb' : idx % 2 === 0 ? 'white' : '#fafafa';
+
                                         return (
-                                            <tr key={student.id} style={{ borderBottom: '1px solid #f1f5f9', background: unpaidMonths.length > 0 ? '#fffbeb' : (idx % 2 === 0 ? 'white' : '#f8fafc') }}>
-                                                <td style={{ padding: '0.85rem 1rem', position: 'sticky', left: 0, background: unpaidMonths.length > 0 ? '#fffbeb' : (idx % 2 === 0 ? 'white' : '#f8fafc'), zIndex: 1, borderRight: '1px solid #e2e8f0' }}>
-                                                    <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>{student.name}</div>
-                                                    <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{student.id}</div>
-                                                </td>
-                                                <td style={{ padding: '0.85rem 1rem', minWidth: '100px' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                        {unpaidMonths.length > 0 ? (
-                                                            <span style={{ background: '#fee2e2', color: '#dc2626', padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                                                                ⚠ {unpaidMonths.length} Due{unpaidMonths.length > 1 ? 's' : ''}
-                                                            </span>
-                                                        ) : (
-                                                            <span style={{ background: '#dcfce7', color: '#16a34a', padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 700 }}>✓ Clear</span>
-                                                        )}
-                                                        {unpaidMonths.length > 0 && (student.admissions?.[0]?.fatherContact || student.admissions?.[0]?.whatsapp) && (
-                                                            <button onClick={() => {
-                                                                const phone = student.admissions[0].whatsapp || student.admissions[0].fatherContact;
-                                                                const msg = WhatsAppTemplates.feeOverdueReminder(student.name, unpaidMonths.map(m=>m.month).join(', '), schoolName);
-                                                                sendWhatsAppMessage(phone, msg, schoolSettings);
-
-                                                                // --- Parallel Push Notification (free) ---
-                                                                if (schoolSettings?.auto_push_fee_alert) {
-                                                                    const tmpl = PushTemplates.feeOverdue(student.name, unpaidMonths.map(m=>m.month).join(', '));
-                                                                    sendPushNotification(student.id, tmpl.title, tmpl.body, schoolSettings.school_id, { tag: tmpl.tag, urgent: tmpl.urgent });
-                                                                }
-
-                                                                alert('WhatsApp reminder sent to ' + student.name + ' parent.');
-                                                            }} title="Send WhatsApp Reminder"
-                                                               style={{ background: '#22c55e', color: 'white', border: 'none', padding: '0.3rem', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                                                                <MessageCircle size={14} />
-                                                            </button>
-                                                        )}
+                                            <tr key={student.id} style={{ borderBottom:'1px solid #f1f5f9', background:rowBg }}>
+                                                {/* Photo */}
+                                                <td style={{ ...TD, width:'44px', position:'sticky', left:0, zIndex:1, background:rowBg, padding:'6px 4px' }}>
+                                                    <div style={{ width:'34px', height:'34px', borderRadius:'50%', overflow:'hidden', background:'linear-gradient(135deg,#e2e8f0,#cbd5e1)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto', flexShrink:0 }}>
+                                                        {(student.photo || student.image)
+                                                            ? <img src={student.photo || student.image} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
+                                                            : <span style={{ fontSize:'.68rem', fontWeight:800, color:'#94a3b8' }}>{student.name?.split(' ').map(n=>n[0]).join('').slice(0,2)}</span>
+                                                        }
                                                     </div>
                                                 </td>
-                                                <td style={{ padding: '0.85rem 1rem' }}>
-                                                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                                                        {history.length === 0 ? (
-                                                            <span style={{ color: '#94a3b8', fontSize: '0.8rem', fontStyle: 'italic' }}>No records yet</span>
-                                                        ) : (
-                                                            history.map(h => {
-                                                                const isPaid = h.status === 'paid';
-                                                                const isPartial = h.status === 'partial';
-                                                                const isOnline = h.isOnline || h.paymentMethod === 'Online Portal';
-                                                                const bg = isPaid ? '#dcfce7' : (isPartial ? '#fef3c7' : '#fee2e2');
-                                                                const color = isPaid ? '#16a34a' : (isPartial ? '#d97706' : '#dc2626');
-                                                                const icon = isPaid ? (isOnline ? '🌐' : '✓') : (isPartial ? '⚠' : '✗');
-                                                                return (
-                                                                <button key={h.month} onClick={() => setSelectedFee({ student, record: h })}
-                                                                    title="Click to view & edit detailed fee record"
-                                                                    style={{ padding: '0.25rem 0.7rem', borderRadius: '999px', fontSize: '0.73rem', fontWeight: 700, border: 'none', cursor: 'pointer', background: bg, color: color, transition: 'all 0.15s ease', whiteSpace: 'nowrap' }}
-                                                                    onMouseEnter={e => e.currentTarget.style.opacity = '0.7'}
-                                                                    onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
-                                                                    {icon} {h.month}
-                                                                </button>
-                                                                );
-                                                            })
-                                                        )}
+                                                {/* Serial # */}
+                                                <td style={{ ...TD, position:'sticky', left:'44px', zIndex:1, background:rowBg, textAlign:'center', fontSize:'.75rem', color:'#94a3b8', fontWeight:700 }}>
+                                                    {student.serialNumber || '—'}
+                                                </td>
+                                                {/* Name + ID + Class + badges */}
+                                                <td style={{ ...TD, position:'sticky', left:'94px', zIndex:1, background:rowBg, borderRight:'2px solid #e2e8f0' }}>
+                                                    <div style={{ fontWeight:700, color:'#1e293b', fontSize:'.86rem', display:'flex', alignItems:'center', gap:'.3rem', flexWrap:'wrap', lineHeight:1.3 }}>
+                                                        {student.name}
+                                                        {free     && <span style={{ background:'#ede9fe', color:'#7c3aed', borderRadius:'999px', padding:'0 6px', fontSize:'.62rem', fontWeight:800 }}>FREE</span>}
+                                                        {defaulter && !free && <span style={{ background:'#fef3c7', color:'#b45309', borderRadius:'999px', padding:'0 6px', fontSize:'.62rem', fontWeight:800 }}>DEFAULTER</span>}
                                                     </div>
+                                                    <div style={{ fontSize:'.71rem', color:'#94a3b8', fontWeight:600 }}>
+                                                        {student.id} · {student.grade}
+                                                    </div>
+                                                </td>
+                                                {/* Fee/mo */}
+                                                <td style={{ ...TD, textAlign:'center', fontWeight:800, fontSize:'.8rem', color: free ? '#7c3aed' : '#2563eb' }}>
+                                                    {free ? 'FREE' : `${currencySymbol} ${monthlyFee.toLocaleString()}`}
+                                                </td>
+                                                {/* Month cells */}
+                                                {allMonths.map(month => (
+                                                    <td key={month} style={{ ...TD, textAlign:'center', padding:'5px 3px' }}>
+                                                        {renderMonthCell(student, month, free)}
+                                                    </td>
+                                                ))}
+                                                {/* Total */}
+                                                <td style={{ ...TD, textAlign:'right', fontWeight:800, color:'#1e293b', fontSize:'.8rem', background:'#f8fafc', borderLeft:'1px solid #e2e8f0', paddingRight:'.8rem' }}>
+                                                    {free ? '—' : `${currencySymbol} ${totalPayable.toLocaleString()}`}
+                                                </td>
+                                                {/* Pending */}
+                                                <td style={{ ...TD, textAlign:'right', fontWeight:800, fontSize:'.8rem', paddingRight:'.8rem', color: pending > 0 ? '#dc2626' : '#16a34a', background: pending > 0 ? '#fef2f2' : '#f0fdf4' }}>
+                                                    {free ? '—' : `${currencySymbol} ${pending.toLocaleString()}`}
                                                 </td>
                                             </tr>
                                         );
                                     })}
-                                    {classStudents.length === 0 && (
-                                        <tr><td colSpan={3} style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>No students found for selected filter.</td></tr>
-                                    )}
                                 </tbody>
                             </table>
                         </div>
-                    </div>
-                </>
-            )}
+                    )}
 
-            {/* Detailed Fee Modal */}
-            {selectedFee && (
-                <FeeModal 
-                    student={selectedFee.student} 
-                    record={selectedFee.record} 
-                    onClose={() => setSelectedFee(null)} 
-                    updateStudentFeeRecord={updateStudentFeeRecord}
+                    {/* Edit mode banner */}
+                    {editMode && (
+                        <div style={{ padding:'.55rem 1rem', background:'#fffbeb', borderTop:'1px solid #fde68a', display:'flex', alignItems:'center', gap:'.5rem', fontSize:'.8rem', color:'#b45309', fontWeight:700 }}>
+                            <Edit3 size={14}/> Edit mode active — click any month cell to update that student's payment
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* ══ MODALS ══════════════════════════════════════════════════ */}
+            {showAddMonth && (
+                <AddMonthModal
+                    selectedClass={selectedClass}
+                    students={students}
                     classDefaults={classDefaults}
+                    onClose={() => setShowAddMonth(false)}
+                    onSuccess={handleAddMonthSuccess}
+                    saveFeeRecords={saveFeeRecords}
                     currencySymbol={currencySymbol}
-                    schoolName={schoolName}
                 />
             )}
-
-            {showDefaultsModal && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }} onClick={() => setShowDefaultsModal(false)}>
-                    <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '400px', p: '0' }} className="animate-fade-in card">
-                        <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between' }}>
-                            <h3 style={{ margin: 0, fontWeight: 800 }}>Fee Defaults — {selectedClass}</h3>
-                            <button onClick={() => setShowDefaultsModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20}/></button>
-                        </div>
-                        {['tuitionFee', 'admissionFee', 'annualFee', 'examFee', 'transportFee', 'labFee'].map(field => (
-                            <div key={field} style={{ marginBottom: '0.75rem' }}>
-                                <label className="form-label" style={{ fontSize: '0.75rem' }}>{(field.replace('Fee', '')).replace(/([A-Z])/g, ' $1').trim()} Default ({currencySymbol})</label>
-                                <input type="number" className="form-input" value={defaultsForm[field]} onChange={e => setDefaultsForm({ ...defaultsForm, [field]: Number(e.target.value) })} style={{ width: '100%', padding: '0.4rem' }} />
-                            </div>
-                        ))}
-                        <button onClick={handleSaveDefaults} className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>Save Defaults</button>
-                    </div>
-                </div>
+            {quickPay && (
+                <QuickPayModal
+                    student={quickPay.student}
+                    record={quickPay.record}
+                    classDefaults={classDefaults}
+                    currencySymbol={currencySymbol}
+                    onClose={() => setQuickPay(null)}
+                    onSave={handleQuickPaySave}
+                />
             )}
         </div>
     );
