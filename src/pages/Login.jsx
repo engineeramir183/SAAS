@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { LogIn, User, Lock, AlertCircle, School, ShieldCheck, XCircle, MessageCircle, Ban } from 'lucide-react';
-import { developerCredentials } from '../data/schoolData';
 import { supabase } from '../supabaseClient';
 import { useSchoolData } from '../context/SchoolDataContext';
 import { useSuperAdmin } from '../context/SuperAdminContext';
 import { ActivityLogService } from '../services/ActivityLogService';
+import { hashPassword } from '../utils/crypto';
+import { saveAuthSession, saveSchoolCode, getSavedSchoolCode } from '../utils/authSession';
 
 // ─── Suspension Modal ─────────────────────────────────────────────────────────
 const SuspensionModal = ({ schoolName, whatsappNumber, onClose }) => {
@@ -110,10 +111,17 @@ const Login = ({
     setActiveSchoolId,
     onClose, // ← new: allows rendering as a modal
 }) => {
-    const { schoolData, adminCredentials } = useSchoolData();
+    const { schoolData } = useSchoolData();
     const { loginSuperAdmin }              = useSuperAdmin();
 
-    const [credentials, setCredentials] = useState({ schoolCode: '', username: '', password: '' });
+    const urlSchool = new URLSearchParams(window.location.search).get('school') || '';
+    const rememberedSchool = getSavedSchoolCode() || urlSchool || '';
+
+    const [credentials, setCredentials] = useState({
+        schoolCode: rememberedSchool,
+        username: '',
+        password: ''
+    });
     const [error,        setError]       = useState('');
     const [isLoading,    setIsLoading]   = useState(false);
     const [suspendedSchool, setSuspendedSchool] = useState(null); // { name, whatsappNumber }
@@ -124,48 +132,40 @@ const Login = ({
         setError('');
         setIsLoading(true);
 
-        const { schoolCode, username, password } = credentials;
-        
-        const u = username.trim().toLowerCase();
-        
-        // 1. Super Admin (Global system access — no school code required)
-        if (u === 'superadmin') {
-            const result = await loginSuperAdmin(u, password);
-            if (result.success) {
-                if (setIsSuperAdminPage) setIsSuperAdminPage(true);
-                setCurrentPage('superadmin');
-                setIsLoading(false);
-                return;
-            } else {
-                setError('Invalid Super Admin credentials.');
-                setIsLoading(false);
+        try {
+            const { schoolCode, username, password } = credentials;
+            const u = username.trim().toLowerCase();
+
+            // 1. Super Admin (Global system access — no school code required)
+            if (u === 'superadmin') {
+                const result = await loginSuperAdmin(u, password);
+                if (result.success) {
+                    saveAuthSession({ role: 'superadmin', page: 'superadmin' });
+                    setCurrentPage('superadmin');
+                } else {
+                    setError('Invalid Super Admin credentials.');
+                }
                 return;
             }
-        }
 
-        // 2. Developer (Global developer access — no school code required)
-        if (username === developerCredentials.username && password === developerCredentials.password) {
-            setIsDeveloper(true);
-            setCurrentPage('developer');
-            setIsLoading(false);
-            return;
-        }
+            // 2. Developer (Global developer access — no school code required)
+            const devUser = import.meta.env.VITE_DEV_USERNAME;
+            const devPass = import.meta.env.VITE_DEV_PASSWORD;
+            if (devUser && devPass && username === devUser && password === devPass) {
+                setIsDeveloper(true);
+                saveAuthSession({ role: 'developer', page: 'developer' });
+                setCurrentPage('developer');
+                return;
+            }
 
-        // ─── Mandatory School Code Check ───────────────────────────────────────
-        // From here on, a School Code is STRICTLY required to prevent unauthorized 
-        // cross-tenant access.
-        const sid = schoolCode.trim().toLowerCase();
-        if (!sid) {
-            setError('Please enter your School Code to identify your institution.');
-            setIsLoading(false);
-            return;
-        }
+            // ─── Mandatory School Code Check ───────────────────────────────────────
+            const sid = schoolCode.trim().toLowerCase();
+            if (!sid) {
+                setError('Please enter your School Code to identify your institution.');
+                return;
+            }
 
-        try {
             // 3. SECURE VERIFICATION: Direct database check for this specific tenant.
-            // This prevents the "Race Condition" where the UI might use old data 
-            // from a different school during the login transition.
-            
             // ── First, fetch the school record to check active status ──────────
             const { data: schoolRecord } = await supabase
                 .from('schools')
@@ -178,58 +178,121 @@ const Login = ({
                     name: schoolRecord.school_name,
                     whatsappNumber: schoolRecord.contact_phone || saasInfo?.whatsapp_number || '+92 345 7685122'
                 });
-                setIsLoading(false);
                 return;
             }
 
-            // First, try Admin login
-            const { data: adminData } = await supabase
+            // Hash the password using the new salted schema (school_id + '_' + username)
+            const saltedHash = await hashPassword(password, sid + '_' + username.toLowerCase());
+
+            // ── Admin login (try salted hash first) ──
+            let { data: adminData } = await supabase
                 .from('admins')
                 .select('*')
                 .eq('school_id', sid)
                 .eq('username', username)
-                .eq('password', password)
+                .eq('password', saltedHash)
                 .maybeSingle();
 
+            if (!adminData) {
+                // Try legacy unsalted hash fallback + auto-upgrade
+                const legacyHash = await hashPassword(password);
+                const { data: legacyHashAdmin } = await supabase
+                    .from('admins')
+                    .select('*')
+                    .eq('school_id', sid)
+                    .eq('username', username)
+                    .eq('password', legacyHash)
+                    .maybeSingle();
+                
+                if (legacyHashAdmin) {
+                    adminData = legacyHashAdmin;
+                    supabase.from('admins').update({ password: saltedHash })
+                        .eq('school_id', sid).eq('username', username).then(() => {});
+                } else {
+                    // Try legacy plaintext fallback + auto-upgrade
+                    const { data: legacyPlaintextAdmin } = await supabase
+                        .from('admins')
+                        .select('*')
+                        .eq('school_id', sid)
+                        .eq('username', username)
+                        .eq('password', password)
+                        .maybeSingle();
+                    if (legacyPlaintextAdmin) {
+                        adminData = legacyPlaintextAdmin;
+                        supabase.from('admins').update({ password: saltedHash })
+                            .eq('school_id', sid).eq('username', username).then(() => {});
+                    }
+                }
+            }
+
             if (adminData) {
-                setActiveSchoolId(sid); // Lock the app to this tenant
+                saveSchoolCode(sid);
+                saveAuthSession({ role: 'admin', schoolId: sid, user: { username }, page: 'admin' });
+                setActiveSchoolId(sid);
                 setIsAdmin(true);
                 setCurrentPage('admin');
-                setIsLoading(false);
-                // Log Admin login asynchronously
                 ActivityLogService.logActivity({
-                    schoolId: sid,
-                    username: username,
-                    role: 'admin',
-                    action: 'Login',
-                    targetName: 'Admin Dashboard',
+                    schoolId: sid, username, role: 'admin',
+                    action: 'Login', targetName: 'Admin Dashboard',
                     details: { timestamp: new Date().toISOString() }
                 });
                 return;
             }
 
-            // Next, try Student login
-            const { data: studentData } = await supabase
+            // Hash the password using the new salted schema (school_id + '_' + username)
+            const studentSaltedHash = await hashPassword(password, sid + '_' + username);
+
+            // ── Student login (try salted hash first) ──
+            let { data: studentData } = await supabase
                 .from('students')
                 .select('*')
                 .eq('school_id', sid)
                 .eq('id', username)
-                .eq('password', password)
+                .eq('password', studentSaltedHash)
                 .maybeSingle();
 
+            if (!studentData) {
+                // Try legacy unsalted hash fallback + auto-upgrade
+                const legacyHash = await hashPassword(password);
+                const { data: legacyHashStudent } = await supabase
+                    .from('students')
+                    .select('*')
+                    .eq('school_id', sid)
+                    .eq('id', username)
+                    .eq('password', legacyHash)
+                    .maybeSingle();
+                
+                if (legacyHashStudent) {
+                    studentData = legacyHashStudent;
+                    supabase.from('students').update({ password: studentSaltedHash })
+                        .eq('id', legacyHashStudent.id).then(() => {});
+                } else {
+                    // Try legacy plaintext fallback + auto-upgrade
+                    const { data: legacyPlaintextStudent } = await supabase
+                        .from('students')
+                        .select('*')
+                        .eq('school_id', sid)
+                        .eq('id', username)
+                        .eq('password', password)
+                        .maybeSingle();
+                    if (legacyPlaintextStudent) {
+                        studentData = legacyPlaintextStudent;
+                        supabase.from('students').update({ password: studentSaltedHash })
+                            .eq('id', legacyPlaintextStudent.id).then(() => {});
+                    }
+                }
+            }
+
             if (studentData) {
-                setActiveSchoolId(sid); // Lock the app to this tenant
+                saveSchoolCode(sid);
+                saveAuthSession({ role: 'student', schoolId: sid, user: studentData, page: 'portal' });
+                setActiveSchoolId(sid);
                 setIsLoggedIn(true);
                 setLoggedInStudent(studentData);
                 setCurrentPage('portal');
-                setIsLoading(false);
-                // Log Student login asynchronously
                 ActivityLogService.logActivity({
-                    schoolId: sid,
-                    username: studentData.name,
-                    role: 'student',
-                    action: 'Login',
-                    targetName: `Student Portal (${studentData.id})`,
+                    schoolId: sid, username: studentData.name, role: 'student',
+                    action: 'Login', targetName: `Student Portal (${studentData.id})`,
                     details: { student_id: studentData.id }
                 });
                 return;
@@ -240,6 +303,7 @@ const Login = ({
             setError('System error during login. Please contact support.');
             console.error(err);
         } finally {
+            // Always clear the loading state, even if an exception was thrown
             setIsLoading(false);
         }
     };

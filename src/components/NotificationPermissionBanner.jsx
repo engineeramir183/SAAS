@@ -109,6 +109,14 @@ const NotificationPermissionBanner = ({ schoolId, studentId, schoolSettings }) =
                             <div style={{ color: '#94a3b8', fontSize: '0.82rem', marginTop: '0.2rem' }}>Enable in browser settings to receive alerts.</div>
                         </div>
                     </div>
+                ) : status === 'error' ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <span style={{ fontSize: '1.6rem' }}>⚠️</span>
+                        <div>
+                            <div style={{ color: '#f8fafc', fontWeight: 700, fontSize: '0.95rem' }}>Setup Failed</div>
+                            <div style={{ color: '#94a3b8', fontSize: '0.82rem', marginTop: '0.2rem' }}>Could not enable notifications. Please try again later.</div>
+                        </div>
+                    </div>
                 ) : (
                     <>
                         {/* Header */}

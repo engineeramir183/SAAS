@@ -2,7 +2,11 @@ import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { Building, Globe, School, CheckCircle, ArrowRight, Upload, Sparkles, Layout } from 'lucide-react';
 
-const OnboardingWizard = ({ schoolData, onComplete, completeOnboarding }) => {
+const OnboardingWizard = ({
+    schoolData,
+    onComplete = () => {},
+    completeOnboarding = async () => ({})
+}) => {
     const [step, setStep] = useState(1);
     const [isUploading, setIsUploading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,23 +40,25 @@ const OnboardingWizard = ({ schoolData, onComplete, completeOnboarding }) => {
             alert('Upload failed: ' + err.message);
         } finally {
             setIsUploading(false);
+            if (e.target) e.target.value = '';
         }
     };
 
     const handleFinish = async () => {
         setIsSubmitting(true);
         try {
-            // 1. Sync basic school settings
-            await completeOnboarding({
+            const res = await completeOnboarding({
                 school_name: form.school_name,
                 logo_url: form.logo_url,
                 country: form.country,
                 currency_symbol: form.currency_symbol
             });
             
-            // 2. We can even seed metadata here if we wanted to
-            // For now, closing the wizard
-            onComplete();
+            if (res?.error) {
+                alert('Error completing setup: ' + res.error.message);
+            } else {
+                onComplete();
+            }
         } catch (err) {
             alert('Error completing setup: ' + err.message);
         } finally {

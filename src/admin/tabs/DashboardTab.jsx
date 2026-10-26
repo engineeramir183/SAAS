@@ -17,13 +17,24 @@ const DashboardTab = ({ students, schoolData, EXPENSES, adminTabs, setActiveTab,
     students?.forEach(student => {
         const h = (student.feeHistory || []).find(record => record.month === currentMonthLabel);
         if (h) {
-            // we estimate expected revenue based on existing bills. If not detailed, we approximate.
-            const due = h.totalDue || 0;
+            const t   = Number(h.tuitionFee   || 0);
+            const adm = Number(h.admissionFee || 0);
+            const ann = Number(h.annualFee    || 0);
+            const ex  = Number(h.examFee      || 0);
+            const tr  = Number(h.transportFee || 0);
+            const lab = Number(h.labFee       || 0);
+            const fin = Number(h.lateFine     || 0);
+            const dis = Number(h.discount     || 0);
+            const due = t + adm + ann + ex + tr + lab + fin - dis;
+
             totalExpectedRevenue += due;
             if (h.status === 'paid') {
                 totalCollectedRevenue += due;
-            } else if (h.amountPaid > 0) {
-                totalCollectedRevenue += h.amountPaid;
+            } else {
+                const paid = Number(h.paidAmount || 0);
+                if (paid > 0) {
+                    totalCollectedRevenue += paid;
+                }
             }
         }
     });

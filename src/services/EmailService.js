@@ -13,8 +13,9 @@ export const sendEmail = async (to_email, subject, message, settings) => {
     }
 
     try {
-        // Implementation for EmailJS or custom worker
-        // Example: EmailJS integration
+        // TODO: Wire up EmailJS or a custom serverless endpoint.
+        // The integration is intentionally unimplemented — return not_implemented
+        // so callers can distinguish "sent" from "not configured".
         /*
         const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
             method: 'POST',
@@ -23,17 +24,16 @@ export const sendEmail = async (to_email, subject, message, settings) => {
                 service_id: 'default_service',
                 template_id: 'template_id',
                 user_id: email_service_key,
-                template_params: {
-                    to_email,
-                    subject,
-                    message
-                }
+                template_params: { to_email, subject, message }
             })
         });
-        */
-        
-        console.log(`Email sent successfully to ${to_email}`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'EmailJS error');
         return { success: true };
+        */
+
+        console.warn(`[EmailService] Email delivery not implemented. To: ${to_email}, Subject: ${subject}`);
+        return { success: false, mode: 'not_implemented' };
     } catch (error) {
         console.error('Email Service Error:', error);
         return { success: false, error: error.message };

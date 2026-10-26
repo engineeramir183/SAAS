@@ -248,21 +248,44 @@ function showForegroundToast(title, body) {
         animation: slideInRight 0.3s ease;
         font-family: 'Inter', sans-serif;
     `;
-    toast.innerHTML = `
-        <style>
+
+    // Inject keyframe animation once into the document head
+    if (!document.getElementById('khr-toast-keyframes')) {
+        const style = document.createElement('style');
+        style.id = 'khr-toast-keyframes';
+        style.textContent = `
             @keyframes slideInRight {
                 from { transform: translateX(100%); opacity: 0; }
                 to   { transform: translateX(0);    opacity: 1; }
             }
-        </style>
-        <div style="display:flex;align-items:flex-start;gap:0.75rem">
-            <span style="font-size:1.4rem">🔔</span>
-            <div>
-                <div style="font-weight:700;font-size:0.95rem;margin-bottom:0.2rem">${title}</div>
-                <div style="font-size:0.82rem;color:#94a3b8;line-height:1.4">${body}</div>
-            </div>
-        </div>
-    `;
+        `;
+        document.head.appendChild(style);
+    }
+
+    // Build content safely using DOM APIs — textContent prevents XSS
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display:flex;align-items:flex-start;gap:0.75rem';
+
+    const bell = document.createElement('span');
+    bell.style.fontSize = '1.4rem';
+    bell.textContent = '🔔';
+
+    const textContainer = document.createElement('div');
+
+    const titleEl = document.createElement('div');
+    titleEl.style.cssText = 'font-weight:700;font-size:0.95rem;margin-bottom:0.2rem';
+    titleEl.textContent = title; // Safe: textContent, not innerHTML
+
+    const bodyEl = document.createElement('div');
+    bodyEl.style.cssText = 'font-size:0.82rem;color:#94a3b8;line-height:1.4';
+    bodyEl.textContent = body; // Safe: textContent, not innerHTML
+
+    textContainer.appendChild(titleEl);
+    textContainer.appendChild(bodyEl);
+    wrapper.appendChild(bell);
+    wrapper.appendChild(textContainer);
+    toast.appendChild(wrapper);
+
     document.body.appendChild(toast);
     setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 5000);
 }

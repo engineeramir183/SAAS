@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy, useMemo } from 'react';
 import {
     Users, Award, Calendar, DollarSign, LogOut,
     Save, CheckCircle, XCircle, Edit3, User,
@@ -15,6 +15,8 @@ import OnboardingWizard from '../components/OnboardingWizard';
 import { sendWhatsAppMessage, WhatsAppTemplates } from '../services/WhatsAppService';
 import { ActivityLogService } from '../services/ActivityLogService';
 import { sendPushNotification, PushTemplates } from '../services/PushNotificationService';
+import { validateName, validateCNIC, validatePhone, validateTextOnly, checkDuplicateCNIC } from '../utils/validation';
+import { clearAuthSession } from '../utils/authSession';
 
 // ── Lazily-loaded tab components (module-level so references are stable) ──
 const GradebookTab = lazy(() => import('../admin/tabs/GradebookTab'));
@@ -56,7 +58,10 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         setSaveMessage(msg);
         setTimeout(() => setSaveMessage(''), 3000);
     };
-    const sectionClasses = (SECTIONS || []).flatMap(s => s.classes || []);
+    const sectionClasses = useMemo(
+        () => (SECTIONS || []).flatMap(s => s.classes || []),
+        [SECTIONS]
+    );
     const [selectedClass, setSelectedClass] = useState(sectionClasses[0] || '');
     // Per-class subjects: SUBJECTS is now { className: [subject,...] }
     const classSubjects = (SUBJECTS && !Array.isArray(SUBJECTS) ? (SUBJECTS[selectedClass] || []) : []);
@@ -200,7 +205,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             console.log('[WEIGHTS MIGRATION] Done. Weights are now class-scoped.');
         });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [WEIGHTS, sectionClasses.join(',')]);
+    }, [WEIGHTS, sectionClasses]);
     // ─────────────────────────────────────────────────────────────────────────
 
     // ── Gradebook State ──
@@ -592,12 +597,14 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         const classStudents = allClassStudents
             .filter(s => gbGenderTab === 'all' ? true : (gbGenderTab === 'boys' ? s.admissions?.[0]?.gender === 'Male' : s.admissions?.[0]?.gender === 'Female'))
             .slice()
-            .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+            .sort((a, b) => String(a.id || '').localeCompare(String(b.id || ''), undefined, { numeric: true }));
         const subs = classSubjects;
         
         const printDate = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'long', year: 'numeric' });
         const sectionName = (SECTIONS || []).find(s => s.classes.includes(selectedClass))?.name || '';
         const genderLabel = gbGenderTab === 'all' ? 'All Students' : (gbGenderTab === 'boys' ? 'Boys' : 'Girls');
+
+        const escapeHTML = (str) => String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
 
         const gradeColors = (pct) => {
             if (pct === 'Absent' || pct === 'ABS' || pct === 'A') return { bg: '#f3f4f6', text: '#4b5563' };
@@ -652,8 +659,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             return `
                 <tr style="background:${idx % 2 === 0 ? '#ffffff' : '#f8fafc'}">
                     <td style="padding:10px; border:1px solid #cbd5e1; font-weight:600; font-size:11px; color:#64748b; text-align:center;">${idx + 1}</td>
-                    <td style="padding:10px; border:1px solid #cbd5e1; font-weight:700; font-size:12px; color:#0f172a;">${s.name.toUpperCase()}</td>
-                    <td style="padding:10px; border:1px solid #cbd5e1; font-size:11px; font-weight:600; color:#475569; text-align:center;">${s.id}</td>
+                    <td style="padding:10px; border:1px solid #cbd5e1; font-weight:700; font-size:12px; color:#0f172a;">${escapeHTML(s.name.toUpperCase())}</td>
+                    <td style="padding:10px; border:1px solid #cbd5e1; font-size:11px; font-weight:600; color:#475569; text-align:center;">${escapeHTML(s.id)}</td>
                     ${subCells}
                     <td style="text-align:center; padding:10px 8px; border:1px solid #cbd5e1; background:${overall !== null ? gc.bg : '#f8fafc'}; color:#334155;">
                         ${overallHTML}
@@ -671,14 +678,14 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         const topStudent = withResults.sort((a, b) => calcOverallPct(getTermResults(b, termLabel)) - calcOverallPct(getTermResults(a, termLabel)))[0];
 
         const subHeaders = subs.map(sub =>
-            `<th style="padding:10px 6px; background:#0f172a; color:white; font-size:10px; font-weight:800; text-align:center; min-width:85px; border:1px solid #cbd5e1">${sub.toUpperCase()}<br/><span style='font-weight:500;font-size:8.5px;color:#94a3b8'>Total: ${getSubjectTotal(sub, termLabel)}</span></th>`
+            `<th style="padding:10px 6px; background:#0f172a; color:white; font-size:10px; font-weight:800; text-align:center; min-width:85px; border:1px solid #cbd5e1">${escapeHTML(sub.toUpperCase())}<br/><span style='font-weight:500;font-size:8.5px;color:#94a3b8'>Total: ${getSubjectTotal(sub, termLabel)}</span></th>`
         ).join('');
 
         const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Result Report - ${selectedClass} - ${termLabel}</title>
+<title>Result Report - ${escapeHTML(selectedClass)} - ${escapeHTML(termLabel)}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
@@ -717,24 +724,24 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 <body>
 <div class="report-container">
 <div class="header">
-  <h1>${schoolName}</h1>
-  <p>Result Report &nbsp;|&nbsp; ${sectionName ? sectionName + ' — ' : ''}${selectedClass} &nbsp;|&nbsp; ${termLabel} &nbsp;|&nbsp; Generated: ${printDate}</p>
+  <h1>${escapeHTML(schoolName)}</h1>
+  <p>Result Report &nbsp;|&nbsp; ${sectionName ? escapeHTML(sectionName) + ' — ' : ''}${escapeHTML(selectedClass)} &nbsp;|&nbsp; ${escapeHTML(termLabel)} &nbsp;|&nbsp; Generated: ${escapeHTML(printDate)}</p>
 </div>
 <div class="meta-bar">
-  <div class="meta-item"><span class="meta-label">Class</span><span class="meta-value">${selectedClass}</span></div>
-  ${sectionName ? `<div class="meta-item"><span class="meta-label">Section</span><span class="meta-value">${sectionName}</span></div>` : ''}
-  <div class="meta-item"><span class="meta-label">Term</span><span class="meta-value">${termLabel}</span></div>
-  <div class="meta-item"><span class="meta-label">Gender Filter</span><span class="meta-value">${genderLabel}</span></div>
+  <div class="meta-item"><span class="meta-label">Class</span><span class="meta-value">${escapeHTML(selectedClass)}</span></div>
+  ${sectionName ? `<div class="meta-item"><span class="meta-label">Section</span><span class="meta-value">${escapeHTML(sectionName)}</span></div>` : ''}
+  <div class="meta-item"><span class="meta-label">Term</span><span class="meta-value">${escapeHTML(termLabel)}</span></div>
+  <div class="meta-item"><span class="meta-label">Gender Filter</span><span class="meta-value">${escapeHTML(genderLabel)}</span></div>
   <div class="meta-item"><span class="meta-label">Total Students</span><span class="meta-value">${classStudents.length}</span></div>
   <div class="meta-item"><span class="meta-label">Appeared</span><span class="meta-value">${withResults.length}</span></div>
-  <div class="meta-item"><span class="meta-label">Date</span><span class="meta-value">${printDate}</span></div>
+  <div class="meta-item"><span class="meta-label">Date</span><span class="meta-value">${escapeHTML(printDate)}</span></div>
 </div>
 <div class="stats-bar">
   <div class="stat-card"><div class="stat-num" style="color:#15803d">${passCount}</div><div class="stat-lbl">Passed</div></div>
   <div class="stat-card"><div class="stat-num" style="color:#dc2626">${withResults.length - passCount}</div><div class="stat-lbl">Failed</div></div>
   <div class="stat-card"><div class="stat-num" style="color:#1e3a8a">${withResults.length ? Math.round((passCount / withResults.length) * 100) : 0}%</div><div class="stat-lbl">Pass Rate</div></div>
   <div class="stat-card"><div class="stat-num">${avgPct}%</div><div class="stat-lbl">Class Average</div></div>
-  ${topStudent ? `<div class="stat-card top-performer" style="flex:2;"><div class="stat-num" style="font-size:15px;color:#7c3aed">${topStudent.name.toUpperCase()}</div><div class="stat-lbl">Top Performer — ${calcOverallPct(getTermResults(topStudent, termLabel))}%</div></div>` : ''}
+  ${topStudent ? `<div class="stat-card top-performer" style="flex:2;"><div class="stat-num" style="font-size:15px;color:#7c3aed">${escapeHTML(topStudent.name.toUpperCase())}</div><div class="stat-lbl">Top Performer — ${calcOverallPct(getTermResults(topStudent, termLabel))}%</div></div>` : ''}
 </div>
 <div class="table-wrap">
 <table>
@@ -752,7 +759,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 </table>
 </div>
 <div class="footer">
-  ${schoolName.toUpperCase()} &nbsp;|&nbsp; ${selectedClass} &nbsp;|&nbsp; ${termLabel} &nbsp;|&nbsp; Printed: ${printDate} &nbsp;|&nbsp; Total Students: ${classStudents.length}
+  ${escapeHTML(schoolName.toUpperCase())} &nbsp;|&nbsp; ${escapeHTML(selectedClass)} &nbsp;|&nbsp; ${escapeHTML(termLabel)} &nbsp;|&nbsp; Printed: ${escapeHTML(printDate)} &nbsp;|&nbsp; Total Students: ${classStudents.length}
 </div>
 </div>
 <button class="print-btn no-print" onclick="window.print()">Print / Save PDF</button>
@@ -760,6 +767,10 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 </html>`;
 
         const win = window.open('', '_blank');
+        if (!win) {
+            alert('Popup blocked! Please allow popups for this site to print results.');
+            return;
+        }
         win.document.write(html);
         win.document.close();
         setTimeout(() => win.print(), 600);
@@ -770,36 +781,37 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         const classStudents = students
             .filter(s => s.grade === classToExport)
             .slice()
-            .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+            .sort((a, b) => String(a.id || '').localeCompare(String(b.id || ''), undefined, { numeric: true }));
 
-        
+        const escapeHTML = (str) => String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
 
         const pages = classStudents.map((s, idx) => {
+            const fatherName = (s.admissions?.[0]?.fatherName || '—');
             return `
             <div class="page">
                 <div class="card">
                     <div class="card-header">
-                        <h1>${schoolName}</h1>
+                        <h1>${escapeHTML(schoolName)}</h1>
                         <p>Student Login Credentials</p>
                     </div>
                     <div class="card-body">
-                        <h2>${s.name.toUpperCase()}</h2>
+                        <h2>${escapeHTML(s.name.toUpperCase())}</h2>
                         <div class="detail-row">
                             <span class="detail-label">Father's Name</span>
-                            <span class="detail-value">${(s.admissions?.[0]?.fatherName || '—').toUpperCase()}</span>
+                            <span class="detail-value">${escapeHTML(fatherName.toUpperCase())}</span>
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">Class</span>
-                            <span class="detail-value">${s.grade.toUpperCase()}</span>
+                            <span class="detail-value">${escapeHTML(s.grade.toUpperCase())}</span>
                         </div>
                         <div class="credentials-box">
                             <div class="cred-item">
                                 <span class="cred-label">Login ID / Username</span>
-                                <span class="cred-value">${s.id}</span>
+                                <span class="cred-value">${escapeHTML(s.id)}</span>
                             </div>
                             <div class="cred-item">
                                 <span class="cred-label">Password</span>
-                                <span class="cred-value" style="font-family:monospace;">${s.password || (s.id + '123')}</span>
+                                <span class="cred-value" style="font-family:monospace;">${escapeHTML(s.password || (s.id + '123'))}</span>
                             </div>
                         </div>
                         <p style="margin-top: 25px; font-size: 13px; color: #64748b; text-align: center; line-height: 1.5;">
@@ -815,7 +827,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Student Credentials - ${classToExport}</title>
+<title>Student Credentials - ${escapeHTML(classToExport)}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
@@ -852,6 +864,10 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 </html>`;
 
         const win = window.open('', '_blank');
+        if (!win) {
+            alert('Popup blocked! Please allow popups for this site to print credentials.');
+            return;
+        }
         win.document.write(html);
         win.document.close();
         setTimeout(() => win.print(), 600);
@@ -881,6 +897,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         contact: '', whatsapp: '', address: '', docs: { photos: false, bform: false, cnic: false }, photo: ''
     };
     const [admissionData, setAdmissionData] = useState(admissionInitialState);
+    const [isSavingAdmission, setIsSavingAdmission] = useState(false);
     const [selectedStudent, setSelectedStudent] = useState(null);
 
     const [editingFacultyId, setEditingFacultyId] = useState(null);
@@ -947,6 +964,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
+        clearAuthSession();
         setIsAdmin(false);
         setCurrentPage('home');
     };
@@ -1000,12 +1018,66 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
 
     // --- ADMISSION FORM PRINTING & SAVING ---
     const printAdmissionForm = async () => {
-        const d = admissionData;
+        if (isSavingAdmission) return; // Prevent double-clicking / duplicate submissions
 
-        if (!d.studentName.trim()) {
-            alert("Please enter Student Name first!");
+        const d = { ...admissionData };
+        // Ensure class is selected (fallback to first available class if empty)
+        const targetClass = d.applyingFor || sectionClasses[0] || (CLASSES && CLASSES[0]) || '';
+        d.applyingFor = targetClass;
+
+        // Validations
+        const nameErr = validateName(d.studentName, "Student's Name");
+        if (nameErr) {
+            alert(nameErr);
             return;
         }
+
+        if (d.bForm && d.bForm.trim()) {
+            const bErr = validateCNIC(d.bForm, 'B-Form / CNIC');
+            if (bErr) {
+                alert(bErr);
+                return;
+            }
+            const dupErr = checkDuplicateCNIC(d.bForm, students);
+            if (dupErr) {
+                alert(dupErr);
+                return;
+            }
+        }
+
+        if (d.fatherName && d.fatherName.trim()) {
+            const fnErr = validateName(d.fatherName, "Father's Name");
+            if (fnErr) {
+                alert(fnErr);
+                return;
+            }
+        }
+
+        if (d.fatherCnic && d.fatherCnic.trim()) {
+            const fcErr = validateCNIC(d.fatherCnic, "Father's CNIC");
+            if (fcErr) {
+                alert(fcErr);
+                return;
+            }
+        }
+
+        if (d.contact && d.contact.trim()) {
+            const cErr = validatePhone(d.contact, 'Contact Number');
+            if (cErr) {
+                alert(cErr);
+                return;
+            }
+        }
+
+        if (d.whatsapp && d.whatsapp.trim()) {
+            const wErr = validatePhone(d.whatsapp, 'WhatsApp Number');
+            if (wErr) {
+                alert(wErr);
+                return;
+            }
+        }
+
+        setIsSavingAdmission(true);
 
         // 1. Save to Supabase
         try {
@@ -1015,39 +1087,42 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             // Auto-assign serial number — globally unique across ALL students
             let autoSerial = d.serialNumber ? d.serialNumber : null;
             if (!autoSerial) {
-                const classStart = CLASS_SERIAL_STARTS?.[d.applyingFor];
+                const classStart = CLASS_SERIAL_STARTS?.[targetClass];
                 if (classStart !== undefined && classStart !== null) {
-                    // Floor: start from class starting serial (or 1 below it)
                     const floor = parseInt(classStart, 10) - 1;
-                    // Find the highest serial across ALL students in the entire college
                     const globalMaxSerial = students.reduce((max, s) => {
                         const sn = parseInt(s.serialNumber, 10);
                         return !isNaN(sn) ? Math.max(max, sn) : max;
                     }, floor);
-                    // New serial = max(floor, globalMax) + 1
                     autoSerial = String(Math.max(floor, globalMaxSerial) + 1);
                 }
             }
             // Also validate if admin manually entered a serial — block duplicates
             if (autoSerial && students.some(s => String(s.serialNumber) === String(autoSerial))) {
                 alert(`Serial number ${autoSerial} is already in use by another student. Please assign a unique serial number.`);
+                setIsSavingAdmission(false);
                 return;
             }
+
+            d.serialNumber = autoSerial || d.serialNumber || '';
 
             const newStudentRecord = {
                 id: studentId,
                 serial_number: autoSerial || null,
                 name: d.studentName,
                 password: (schoolSettings?.school_id?.split('-')[0]?.toLowerCase() || 'pass') + Math.floor(1000 + Math.random() * 9000),
-                grade: d.applyingFor,
+                grade: targetClass,
                 image: d.photo,
                 admissions: [d],
                 school_id: currentSchoolId
             };
 
-            const { error } = await supabase.from('students').insert([newStudentRecord]);
+            const { data: savedRows, error } = await supabase.from('students').insert([newStudentRecord]).select();
 
             if (error) throw error;
+
+            const savedStudent = savedRows && savedRows[0] ? savedRows[0] : newStudentRecord;
+            const finalId = savedStudent.id || studentId;
 
             await fetchData(); // Refresh local state
             ActivityLogService.logActivity({
@@ -1055,39 +1130,46 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 username: adminCredentials.username || 'admin',
                 role: 'admin',
                 action: 'Register Student',
-                targetName: `${d.studentName} (ID: ${studentId})`,
-                details: { class: d.applyingFor, serial: autoSerial }
+                targetName: `${d.studentName} (ID: ${finalId})`,
+                details: { class: targetClass, serial: autoSerial }
             });
-            showSaveMessage(`Student ${d.studentName} saved with ID: ${studentId}${autoSerial ? ` (Serial: ${autoSerial})` : ''}`);
 
             // WhatsApp Automation: Welcome Message
             if (schoolSettings?.auto_admission_alert) {
-                const welcomeMsg = WhatsAppTemplates.admissionWelcome(d.studentName, studentId, schoolName);
+                const welcomeMsg = WhatsAppTemplates.admissionWelcome(d.studentName, finalId, schoolName);
                 sendWhatsAppMessage(d.whatsapp, welcomeMsg, schoolSettings);
             }
+
+            // 2. Print Logic (using captured d)
+            const html = buildAdmissionFormHTML(d);
+            const printWin = window.open('', '_blank');
+            if (printWin) {
+                printWin.document.write(`<!DOCTYPE html><html><head><title>Admission Form - ${d.studentName || 'New Student'}</title><style>${ADMISSION_FORM_CSS}</style></head><body onload="setTimeout(()=>{window.print();},600)"><div class="no-print" style="text-align:center;padding:14px 20px;background:#0f172a;border-bottom:3px solid #1e293b;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;"><span style="color:white;font-weight:700;font-size:13px;">📄 To save as PDF: change <strong>Destination</strong> to <em>"Save as PDF"</em> in the print dialog</span><button onclick="window.print()" style="padding:9px 22px;background:white;color:#0f172a;border:none;border-radius:8px;cursor:pointer;font-weight:800;font-size:13px;">🖨️ Print / Save as PDF</button></div>${html}</body></html>`);
+                printWin.document.close();
+            }
+
+            // 3. Clear form and provide positive system evaluation (UI feedback)
+            setAdmissionData({
+                ...admissionInitialState,
+                applyingFor: targetClass
+            });
+            showSaveMessage(`✅ Student ${d.studentName} successfully registered in "${targetClass}"! ID: ${finalId}`);
+            alert(`✅ Student "${d.studentName}" has been successfully admitted and added to Class "${targetClass}"!
+
+ID: ${finalId}
+Serial: ${autoSerial || 'N/A'}
+
+The form data has been cleared for the next entry.`);
+
+            // Navigate to Class view to directly show the newly registered student in their class
+            setViewingClass(targetClass);
+            setActiveTab('classes');
         } catch (error) {
             console.error("Error saving admission:", error.message);
-            alert("Error saving to database, but printing will continue: " + error.message);
+            alert("Error saving student to database: " + error.message);
+        } finally {
+            setIsSavingAdmission(false);
         }
-
-        // 2. Print Logic
-
-        // Helper to create boxed character spans
-        const boxChars = (str, length) => {
-            const chars = (str || '').replace(/[^A-Z0-9 ]/gi, '').toUpperCase().split('');
-            let html = '';
-            for (let i = 0; i < length; i++) {
-                html += `<span class="cbox">${chars[i] === ' ' ? '&nbsp;' : (chars[i] || '')}</span>`;
-            }
-            return html;
-        };
-
-
-        // 2. Print Logic
-        const html = buildAdmissionFormHTML(d);
-        const printWin = window.open('', '_blank');
-        printWin.document.write(`<!DOCTYPE html><html><head><title>Admission Form - ${d.studentName || 'New Student'}</title><style>${ADMISSION_FORM_CSS}</style></head><body onload="setTimeout(()=>{window.print();},600)"><div class="no-print" style="text-align:center;padding:14px 20px;background:#0f172a;border-bottom:3px solid #1e293b;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;"><span style="color:white;font-weight:700;font-size:13px;">📄 To save as PDF: change <strong>Destination</strong> to <em>"Save as PDF"</em> in the print dialog</span><button onclick="window.print()" style="padding:9px 22px;background:white;color:#0f172a;border:none;border-radius:8px;cursor:pointer;font-weight:800;font-size:13px;">🖨️ Print / Save as PDF</button></div>${html}</body></html>`);
-        printWin.document.close();
     };
 
     // ── Global CSS for Admission Forms ──
@@ -1639,13 +1721,14 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             </div>
             
             <div class="metadata-row">
-                <div>APPLYING FOR: <span class="meta-val-underlined" style="min-width: 120px;">${applyingFor.toUpperCase()}</span></div>
+                <div>ADMISSION CLASS: <span class="meta-val-underlined" style="min-width: 140px; font-size: 13px; color: #1e3a8a; background: #eff6ff; padding: 2px 10px; border-radius: 4px;">${(applyingFor || 'NOT SPECIFIED').toUpperCase()}</span></div>
                 <div>SERIAL #: <span class="meta-val-highlight">${serialNumber || d.inquiryNumber || '0'}</span></div>
                 <div>DATE: <span class="meta-val-underlined">${formatDate(applicationDate)}</span></div>
             </div>
 
-            <div class="title-badge-container">
+            <div class="title-badge-container" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
                 <div class="title-badge">ADMISSION FORM</div>
+                ${applyingFor ? `<div style="font-size: 12px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.5px;">CLASS: <span style="text-decoration: underline;">${applyingFor.toUpperCase()}</span></div>` : ''}
             </div>
             
             <div style="display: grid; grid-template-columns: 3.2fr 1fr; gap: 20px; align-items: start;">
@@ -1838,6 +1921,10 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
     const printBlankAdmissionForm = (d) => {
         const html = buildAdmissionFormHTML(d);
         const printWin = window.open('', '_blank');
+        if (!printWin) {
+            alert('Popup blocked! Please allow popups for this site to print the admission form.');
+            return;
+        }
         printWin.document.write(`<!DOCTYPE html><html><head><title>Admission Form — ${d.studentName || 'New'}</title><style>${ADMISSION_FORM_CSS}</style></head><body onload="setTimeout(()=>{window.print();},600)"><div class="no-print" style="text-align:center;padding:16px 20px;background:#0f172a;border-bottom:3px solid #1e293b;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;"><span style="color:white;font-weight:700;font-size:14px;">📄 To save as PDF: change <strong>Destination</strong> to <em>"Save as PDF"</em> in the dialog → click Save</span><button onclick="window.print()" style="padding:10px 24px;background:white;color:#0f172a;border:none;border-radius:8px;cursor:pointer;font-weight:800;font-size:14px;">🖨️ Print / Save as PDF</button></div>${html}</body></html>`);
         printWin.document.close();
     };
@@ -1864,6 +1951,10 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         
         const pagesHTML = targetStudents.map(s => buildAdmissionFormHTML(s)).join('');
         const printWin = window.open('', '_blank');
+        if (!printWin) {
+            alert('Popup blocked! Please allow popups for this site to print admission forms.');
+            return;
+        }
         printWin.document.write(`<!DOCTYPE html><html><head><title>Admission Forms — ${mode === 'student' ? value : mode === 'class' ? value : 'All College'}</title><style>${ADMISSION_FORM_CSS}</style></head><body onload="setTimeout(()=>{window.print();},600)"><div class="no-print" style="text-align:center;padding:16px 20px;background:#0f172a;border-bottom:3px solid #1e293b;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;"><span style="color:white;font-weight:700;font-size:14px;">📄 To save as PDF: change <strong>Destination</strong> to <em>"Save as PDF"</em> in the dialog → click Save</span><button onclick="window.print()" style="padding:10px 24px;background:white;color:#0f172a;border:none;border-radius:8px;cursor:pointer;font-weight:800;font-size:14px;">🖨️ Print / Save as PDF (${targetStudents.length} form${targetStudents.length !== 1 ? 's' : ''})</button></div>${pagesHTML}</body></html>`);
         printWin.document.close();
     };
@@ -2431,13 +2522,6 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         e.target.value = '';
     };
 
-    const getGradeColor = (percentage) => {
-        if (percentage >= 90) return 'var(--color-success)';
-        if (percentage >= 75) return 'var(--color-primary)';
-        if (percentage >= 60) return 'var(--color-accent)';
-        return 'var(--color-danger)';
-    };
-
     // --- DOWNLOAD STUDENT REPORT ---
     const downloadStudentReport = (studentId) => {
         const student = students.find(s => s.id === studentId);
@@ -2456,6 +2540,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         const schoolPhone = schoolData.contact?.phone || '';
         const schoolEmail = schoolData.contact?.email || '';
 
+        const escapeHTML = (str) => String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+
         // Group results by term
         const termGroups = {};
         allResults.forEach(r => {
@@ -2467,17 +2553,17 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         const resultsRows = Object.entries(termGroups).map(([termName, termResults]) => {
             const termHeader = `
                 <tr style="background:linear-gradient(135deg,#1e3a5f,#2563eb);">
-                    <td colspan="4" style="padding:10px 16px;font-size:13px;font-weight:800;color:#fff;letter-spacing:0.5px;">📋 ${termName}</td>
+                    <td colspan="4" style="padding:10px 16px;font-size:13px;font-weight:800;color:#fff;letter-spacing:0.5px;">📋 ${escapeHTML(termName)}</td>
                 </tr>
             `;
             const rows = termResults.map((r, i) => `
                 <tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'}">
-                    <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;font-size:12px;font-weight:500;color:#1e293b;">${r.subject}</td>
+                    <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;font-size:12px;font-weight:500;color:#1e293b;">${escapeHTML(r.subject)}</td>
                     <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:center;">
                         <span style="display:inline-block;padding:3px 12px;border-radius:20px;font-weight:700;font-size:12px;background:${gradeBg(r.percentage)};color:${gradeColor(r.percentage)};">${r.percentage}%</span>
                     </td>
                     <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:center;">
-                        <span style="display:inline-block;width:34px;height:34px;line-height:34px;border-radius:50%;font-weight:800;font-size:13px;background:${gradeBg(r.percentage)};color:${gradeColor(r.percentage)};text-align:center;">${r.grade}</span>
+                        <span style="display:inline-block;width:34px;height:34px;line-height:34px;border-radius:50%;font-weight:800;font-size:13px;background:${gradeBg(r.percentage)};color:${gradeColor(r.percentage)};text-align:center;">${escapeHTML(r.grade)}</span>
                     </td>
                     <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;">
                         <div style="display:flex;align-items:center;gap:10px;">
@@ -2498,7 +2584,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 const termAvg = (term.results.reduce((s, r) => s + r.percentage, 0) / term.results.length).toFixed(1);
                 return `
                     <tr style="border-bottom:1px solid #edf2f7;">
-                        <td style="padding:10px 16px;font-size:13px;font-weight:600;color:#1a3a6b;">${term.term}</td>
+                        <td style="padding:10px 16px;font-size:13px;font-weight:600;color:#1a3a6b;">${escapeHTML(term.term)}</td>
                         <td style="padding:10px 16px;text-align:center;">
                             <span style="display:inline-block;padding:4px 16px;border-radius:20px;font-weight:700;font-size:13px;background:${gradeBg(parseFloat(termAvg))};color:${gradeColor(parseFloat(termAvg))};">${termAvg}%</span>
                         </td>
@@ -2532,7 +2618,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         <!DOCTYPE html>
         <html lang="en">
         <head>
-            <title>Report Card — ${student.name}</title>
+            <title>Report Card — ${escapeHTML(student.name)}</title>
             <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
             <style>
                 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -2604,9 +2690,9 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                             <img src="${schoolSettings?.logo_url || '/logo.png'}" style="width:100%;height:100%;object-fit:contain;" onerror="this.parentElement.innerHTML='<span style=font-size:30px>🏫</span>'" />
                         </div>
                         <div>
-                            <div class="school-name">${schoolName}</div>
-                            ${schoolAddress ? `<div class="school-sub">📍 ${schoolAddress}</div>` : ''}
-                            ${schoolPhone || schoolEmail ? `<div class="school-sub" style="margin-top:2px">${schoolPhone ? '📞 '+schoolPhone : ''}${schoolPhone && schoolEmail ? ' · ' : ''}${schoolEmail ? '✉ '+schoolEmail : ''}</div>` : ''}
+                            <div class="school-name">${escapeHTML(schoolName)}</div>
+                            ${schoolAddress ? `<div class="school-sub">📍 ${escapeHTML(schoolAddress)}</div>` : ''}
+                            ${schoolPhone || schoolEmail ? `<div class="school-sub" style="margin-top:2px">${schoolPhone ? '📞 '+escapeHTML(schoolPhone) : ''}${schoolPhone && schoolEmail ? ' · ' : ''}${schoolEmail ? '✉ '+escapeHTML(schoolEmail) : ''}</div>` : ''}
                         </div>
                     </div>
                     <div class="report-badge">
@@ -2617,13 +2703,13 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                 </div>
                 <div class="student-bar">
                     <div class="avatar">
-                        ${(student.photo || student.image) ? `<img src="${student.photo || student.image}" alt="${student.name}" />` : `<span class="avatar-initials">${student.name.split(' ').map(n => n[0]).join('').substring(0,2)}</span>`}
+                        ${(student.photo || student.image) ? `<img src="${student.photo || student.image}" alt="${escapeHTML(student.name)}" />` : `<span class="avatar-initials">${student.name.split(' ').map(n => n[0]).join('').substring(0,2)}</span>`}
                     </div>
                     <div class="meta-grid">
-                        <div class="meta-cell"><div class="meta-lbl">Student Name</div><div class="meta-val">${student.name}</div></div>
-                        <div class="meta-cell"><div class="meta-lbl">Student ID</div><div class="meta-val">${student.id}</div></div>
-                        <div class="meta-cell"><div class="meta-lbl">Class</div><div class="meta-val">${student.grade}</div></div>
-                        <div class="meta-cell"><div class="meta-lbl">Report Date</div><div class="meta-val">${today}</div></div>
+                        <div class="meta-cell"><div class="meta-lbl">Student Name</div><div class="meta-val">${escapeHTML(student.name)}</div></div>
+                        <div class="meta-cell"><div class="meta-lbl">Student ID</div><div class="meta-val">${escapeHTML(student.id)}</div></div>
+                        <div class="meta-cell"><div class="meta-lbl">Class</div><div class="meta-val">${escapeHTML(student.grade)}</div></div>
+                        <div class="meta-cell"><div class="meta-lbl">Report Date</div><div class="meta-val">${escapeHTML(today)}</div></div>
                     </div>
                 </div>
                 <div class="summary-strip">
@@ -2660,8 +2746,8 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                     </div>
                 </div>
                 <div class="card-footer">
-                    <div class="footer-txt">Generated: ${today}</div>
-                    <div class="footer-school">${schoolName}</div>
+                    <div class="footer-txt">Generated: ${escapeHTML(today)}</div>
+                    <div class="footer-school">${escapeHTML(schoolName)}</div>
                     <div class="footer-txt" style="font-style:italic">Computer-generated document</div>
                 </div>
                 <div class="bottom-accent"></div>
@@ -2671,6 +2757,10 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
         `;
 
         const reportWindow = window.open('', '_blank');
+        if (!reportWindow) {
+            alert('Popup blocked! Please allow popups for this site to view the report.');
+            return;
+        }
         reportWindow.document.write(html);
         reportWindow.document.close();
         showSaveMessage(`Report generated for ${student.name}!`);
@@ -3683,6 +3773,7 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
                                         admissionData={admissionData} setAdmissionData={setAdmissionData}
                                         admissionInitialState={admissionInitialState}
                                         printAdmissionForm={printAdmissionForm}
+                                        isSavingAdmission={isSavingAdmission}
                                         printAdmissionFormBulk={printAdmissionFormBulk}
                                         printBlankAdmissionForm={printBlankAdmissionForm}
                                         handleAdmissionPhotoUpload={handleAdmissionPhotoUpload}

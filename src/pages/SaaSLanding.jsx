@@ -218,11 +218,11 @@ const SaaSLanding = ({ setCurrentPage }) => {
                         <a key={href} href={href} className="nav-link" style={{ fontSize: '1rem' }}>{label}</a>
                     ))}
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginLeft: '1rem' }}>
-                        <button onClick={() => setCurrentPage('login')} style={{ background: 'transparent', border: 'none', color: '#4f46e5', fontWeight: 800, cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', transition: 'opacity 0.2s' }} onMouseOver={e => e.currentTarget.style.opacity = 0.8} onMouseOut={e => e.currentTarget.style.opacity = 1}>
-                            <LogIn size={18} /> Client Login
-                        </button>
-                        <button onClick={() => setCurrentPage('register')} className="btn-primary" style={{ padding: '0.7rem 1.6rem', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '1rem' }}>
+                        <button onClick={() => setCurrentPage('register')} className="btn-secondary" style={{ padding: '0.7rem 1.6rem', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '1rem' }}>
                             Register School
+                        </button>
+                        <button onClick={() => setCurrentPage('login')} className="btn-primary" style={{ padding: '0.7rem 1.6rem', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <LogIn size={18} /> Portal Login
                         </button>
                     </div>
                 </nav>
@@ -243,7 +243,10 @@ const SaaSLanding = ({ setCurrentPage }) => {
                     {[['#features', 'Features'], ['#pricing', 'Pricing'], ['#testimonials', 'Reviews'], ['#contact', 'Contact']].map(([href, label]) => (
                         <a key={href} href={href} onClick={() => setMobileMenuOpen(false)} style={{ textDecoration: 'none', color: '#0f172a', fontWeight: 800, fontSize: '1.2rem', padding: '0.5rem 0', borderBottom: '1px solid #f1f5f9' }}>{label}</a>
                     ))}
-                    <button onClick={() => { setCurrentPage('register'); setMobileMenuOpen(false); }} className="btn-primary" style={{ padding: '1rem', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '1.1rem', textAlign: 'center', marginTop: '0.5rem' }}>
+                    <button onClick={() => { setCurrentPage('login'); setMobileMenuOpen(false); }} className="btn-primary" style={{ padding: '1rem', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '1.1rem', textAlign: 'center', marginTop: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                        <LogIn size={20} /> Portal Login
+                    </button>
+                    <button onClick={() => { setCurrentPage('register'); setMobileMenuOpen(false); }} className="btn-secondary" style={{ padding: '1rem', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '1.1rem', textAlign: 'center' }}>
                         Register Your School
                     </button>
                 </div>
@@ -278,18 +281,18 @@ const SaaSLanding = ({ setCurrentPage }) => {
 
                 <div className="hero-btns animate-fade-up delay-300" style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap', position: 'relative', zIndex: 10 }}>
                     <button
-                        onClick={() => setCurrentPage('register')}
+                        onClick={() => setCurrentPage('login')}
                         className="btn-primary"
                         style={{ padding: '1.1rem 2.75rem', borderRadius: '16px', fontSize: '1.15rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}
                     >
-                        Register Your School <ArrowRight size={22} />
+                        <LogIn size={22} /> Portal Login
                     </button>
                     <button
-                        onClick={() => setCurrentPage('login')}
+                        onClick={() => setCurrentPage('register')}
                         className="btn-secondary"
                         style={{ padding: '1.1rem 2.75rem', borderRadius: '16px', fontSize: '1.15rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}
                     >
-                        <LogIn size={22} /> Portal Login
+                        Register Your School <ArrowRight size={22} />
                     </button>
                 </div>
 

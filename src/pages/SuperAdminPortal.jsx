@@ -34,6 +34,8 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
     const [pendingCount, setPendingCount] = useState(0);
     const [approvingReq, setApprovingReq] = useState(null);  // request being approved
     const [assignedSchoolId, setAssignedSchoolId] = useState(''); // code typed by super admin
+    const [revealReqPass, setRevealReqPass] = useState({}); // { reqId: boolean }
+    const [showRegPassword, setShowRegPassword] = useState(false);
 
     // SaaS Settings state
     const [saasForm, setSaasForm] = useState({
@@ -63,14 +65,21 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
     // ─── fetch pending registration requests ─────────────────────────────────
     const fetchRequests = async () => {
         setRequestsLoading(true);
-        const { data } = await supabase
-            .from('school_registration_requests')
-            .select('*')
-            .order('created_at', { ascending: false });
-        const list = data || [];
-        setRequests(list);
-        setPendingCount(list.filter(r => r.status === 'pending').length);
-        setRequestsLoading(false);
+        try {
+            const { data, error } = await supabase
+                .from('school_registration_requests')
+                .select('*')
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            const list = data || [];
+            setRequests(list);
+            setPendingCount(list.filter(r => r.status === 'pending').length);
+        } catch (err) {
+            console.error("Failed to fetch requests:", err);
+            setStatusMessage("Error fetching registration requests: " + (err.message || err));
+        } finally {
+            setRequestsLoading(false);
+        }
     };
 
     const approveRequest = async (req) => {
@@ -84,93 +93,134 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
         }
         if (!window.confirm(`Create school "${req.school_name}" with code "${assignedSchoolId.trim()}"?`)) return;
         setStatusMessage('Creating school...');
-        const schoolPayload = {
-            school_id:       assignedSchoolId.trim().toLowerCase(),
-            school_name:     req.school_name,
-            country:         req.country || 'Pakistan',
-            currency_symbol: 'RS',
-            contact_email:   req.contact_email || null,
-            contact_phone:   req.contact_phone || null,
-            plan:            'basic'
-        };
-        const adminPayload = { username: req.admin_username, password: req.admin_password };
-        const res = await registerSchool(schoolPayload, adminPayload);
-        if (res.success) {
-            await supabase.from('school_registration_requests')
-                .update({ status: 'approved', assigned_school_id: assignedSchoolId.trim().toLowerCase() })
-                .eq('id', req.id);
-            setStatusMessage(`✅ School "${req.school_name}" created with code "${assignedSchoolId.trim()}"!`);
-            setApprovingReq(null);
-            setAssignedSchoolId('');
-            
-            // ── Automated Notifications ──
-            if (saasInfo && req.contact_phone) {
-                const approvalMsg = WhatsAppTemplates.registrationApproval(req.school_name, window.location.origin);
-                await sendWhatsAppMessage(req.contact_phone, approvalMsg, saasInfo);
-            }
-            if (saasInfo && req.contact_email) {
-                const emailSub = `School Approved: ${req.school_name}`;
-                const emailMsg = `Congratulations! Your school ${req.school_name} has been approved. Your School Login Code is: ${assignedSchoolId.trim()}. You can now login at ${window.location.origin}`;
-                await sendEmail(req.contact_email, emailSub, emailMsg, saasInfo);
-            }
+        try {
+            const schoolPayload = {
+                school_id:       assignedSchoolId.trim().toLowerCase(),
+                school_name:     req.school_name,
+                country:         req.country || 'Pakistan',
+                currency_symbol: 'RS',
+                contact_email:   req.contact_email || null,
+                contact_phone:   req.contact_phone || null,
+                plan:            'basic'
+            };
+            const adminPayload = { username: req.admin_username, password: req.admin_password };
+            const res = await registerSchool(schoolPayload, adminPayload);
+            if (res.success) {
+                const { error: updateErr } = await supabase.from('school_registration_requests')
+                    .update({ status: 'approved', assigned_school_id: assignedSchoolId.trim().toLowerCase() })
+                    .eq('id', req.id);
+                if (updateErr) throw updateErr;
 
-            // Log action
-            await ActivityLogService.logActivity({
-                schoolId: 'platform',
-                username: 'superadmin',
-                role: 'super_admin',
-                action: 'Approve School Request',
-                targetName: req.school_name,
-                details: { school_id: assignedSchoolId.trim().toLowerCase(), plan: 'basic' }
-            });
+                setStatusMessage(`✅ School "${req.school_name}" created with code "${assignedSchoolId.trim()}"!`);
+                setApprovingReq(null);
+                setAssignedSchoolId('');
+                
+                // ── Automated Notifications ──
+                if (saasInfo && req.contact_phone) {
+                    try {
+                        const approvalMsg = WhatsAppTemplates.registrationApproval(req.school_name, window.location.origin);
+                        await sendWhatsAppMessage(req.contact_phone, approvalMsg, saasInfo);
+                    } catch (waErr) {
+                        console.error("Failed to send WhatsApp message:", waErr);
+                    }
+                }
+                if (saasInfo && req.contact_email) {
+                    try {
+                        const emailSub = `School Approved: ${req.school_name}`;
+                        const emailMsg = `Congratulations! Your school ${req.school_name} has been approved. Your School Login Code is: ${assignedSchoolId.trim()}. You can now login at ${window.location.origin}`;
+                        await sendEmail(req.contact_email, emailSub, emailMsg, saasInfo);
+                    } catch (emErr) {
+                        console.error("Failed to send email:", emErr);
+                    }
+                }
 
-            fetchRequests();
-            setTimeout(() => setStatusMessage(''), 4000);
-        } else {
-            setStatusMessage('Error: ' + (res.error?.message || 'Failed. The school code may already be taken.'));
+                // Log action
+                try {
+                    await ActivityLogService.logActivity({
+                        schoolId: 'platform',
+                        username: 'superadmin',
+                        role: 'super_admin',
+                        action: 'Approve School Request',
+                        targetName: req.school_name,
+                        details: { school_id: assignedSchoolId.trim().toLowerCase(), plan: 'basic' }
+                    });
+                } catch (logErr) {
+                    console.error("Failed to log activity:", logErr);
+                }
+
+                await fetchRequests();
+                setTimeout(() => setStatusMessage(''), 4000);
+            } else {
+                setStatusMessage('Error: ' + (res.error?.message || 'Failed. The school code may already be taken.'));
+            }
+        } catch (err) {
+            console.error(err);
+            setStatusMessage('System error: ' + (err.message || err));
         }
     };
 
     const rejectRequest = async (req) => {
         if (!window.confirm(`Reject request from "${req.school_name}"?`)) return;
-        await supabase.from('school_registration_requests')
-            .update({ status: 'rejected' })
-            .eq('id', req.id);
-        setStatusMessage(`Request from "${req.school_name}" rejected.`);
-        
-        // Log action
-        await ActivityLogService.logActivity({
-            schoolId: 'platform',
-            username: 'superadmin',
-            role: 'super_admin',
-            action: 'Reject School Request',
-            targetName: req.school_name,
-            details: { email: req.contact_email }
-        });
+        try {
+            const { error } = await supabase.from('school_registration_requests')
+                .update({ status: 'rejected' })
+                .eq('id', req.id);
+            if (error) throw error;
+            setStatusMessage(`Request from "${req.school_name}" rejected.`);
+            
+            // Log action
+            try {
+                await ActivityLogService.logActivity({
+                    schoolId: 'platform',
+                    username: 'superadmin',
+                    role: 'super_admin',
+                    action: 'Reject School Request',
+                    targetName: req.school_name,
+                    details: { email: req.contact_email }
+                });
+            } catch (logErr) {
+                console.error("Failed to log activity:", logErr);
+            }
 
-        fetchRequests();
-        setTimeout(() => setStatusMessage(''), 3000);
+            await fetchRequests();
+        } catch (err) {
+            console.error(err);
+            setStatusMessage('Error: ' + (err.message || err));
+        } finally {
+            setTimeout(() => setStatusMessage(''), 3000);
+        }
     };
 
     const deleteRequest = async (req) => {
         if (!window.confirm(`Are you sure you want to permanently delete the rejected request from "${req.school_name}"?`)) return;
-        await supabase.from('school_registration_requests')
-            .delete()
-            .eq('id', req.id);
-        setStatusMessage(`Request from "${req.school_name}" deleted permanently.`);
-        
-        // Log action
-        await ActivityLogService.logActivity({
-            schoolId: 'platform',
-            username: 'superadmin',
-            role: 'super_admin',
-            action: 'Delete School Request',
-            targetName: req.school_name,
-            details: { email: req.contact_email }
-        });
+        try {
+            const { error } = await supabase.from('school_registration_requests')
+                .delete()
+                .eq('id', req.id);
+            if (error) throw error;
+            setStatusMessage(`Request from "${req.school_name}" deleted permanently.`);
+            
+            // Log action
+            try {
+                await ActivityLogService.logActivity({
+                    schoolId: 'platform',
+                    username: 'superadmin',
+                    role: 'super_admin',
+                    action: 'Delete School Request',
+                    targetName: req.school_name,
+                    details: { email: req.contact_email }
+                });
+            } catch (logErr) {
+                console.error("Failed to log activity:", logErr);
+            }
 
-        fetchRequests();
-        setTimeout(() => setStatusMessage(''), 3000);
+            await fetchRequests();
+        } catch (err) {
+            console.error(err);
+            setStatusMessage('Error: ' + (err.message || err));
+        } finally {
+            setTimeout(() => setStatusMessage(''), 3000);
+        }
     };
 
     useEffect(() => {
@@ -215,74 +265,95 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
         setStatusMessage('');
         setSubmitting(true);
 
-        const schoolPayload = {
-            school_id: formData.school_id.trim().toLowerCase(),
-            school_name: formData.school_name,
-            country: formData.country,
-            currency_symbol: formData.currency_symbol,
-            contact_email: formData.contact_email,
-            plan: formData.plan
-        };
+        try {
+            const schoolPayload = {
+                school_id: formData.school_id.trim().toLowerCase(),
+                school_name: formData.school_name,
+                country: formData.country,
+                currency_symbol: formData.currency_symbol,
+                contact_email: formData.contact_email,
+                plan: formData.plan
+            };
 
-        const adminPayload = {
-            username: formData.admin_username,
-            password: formData.admin_password
-        };
+            const adminPayload = {
+                username: formData.admin_username,
+                password: formData.admin_password
+            };
 
-        const res = await registerSchool(schoolPayload, adminPayload);
-        if (res.success) {
-            setStatusMessage('School registered successfully!');
-            setIsRegistering(false);
-            
-            // Log action
-            await ActivityLogService.logActivity({
-                schoolId: 'platform',
-                username: 'superadmin',
-                role: 'super_admin',
-                action: 'Register School',
-                targetName: formData.school_name,
-                details: { school_id: formData.school_id.trim().toLowerCase(), plan: formData.plan }
-            });
+            const res = await registerSchool(schoolPayload, adminPayload);
+            if (res.success) {
+                setStatusMessage('School registered successfully!');
+                setIsRegistering(false);
+                
+                // Log action
+                try {
+                    await ActivityLogService.logActivity({
+                        schoolId: 'platform',
+                        username: 'superadmin',
+                        role: 'super_admin',
+                        action: 'Register School',
+                        targetName: formData.school_name,
+                        details: { school_id: formData.school_id.trim().toLowerCase(), plan: formData.plan }
+                    });
+                } catch (logErr) {
+                    console.error("Failed to log activity:", logErr);
+                }
 
-            setFormData({
-                school_id: '',
-                school_name: '',
-                country: 'Pakistan',
-                currency_symbol: 'RS',
-                contact_email: '',
-                plan: 'basic',
-                admin_username: '',
-                admin_password: ''
-            });
-            setTimeout(() => setStatusMessage(''), 4000);
-        } else {
-            setStatusMessage(`Error: ${error || 'Failed to register school'}`);
+                setFormData({
+                    school_id: '',
+                    school_name: '',
+                    country: 'Pakistan',
+                    currency_symbol: 'RS',
+                    contact_email: '',
+                    plan: 'basic',
+                    admin_username: '',
+                    admin_password: ''
+                });
+                setTimeout(() => setStatusMessage(''), 4000);
+            } else {
+                setStatusMessage(`Error: ${res.error?.message || res.error || 'Failed to register school'}`);
+            }
+        } catch (err) {
+            console.error(err);
+            setStatusMessage(`System error: ${err.message || err}`);
+        } finally {
+            setSubmitting(false);
         }
-        setSubmitting(false);
     };
 
     const toggleSchoolStatus = async (school) => {
         if (!window.confirm(`Are you sure you want to ${school.is_active ? 'deactivate' : 'reactivate'} ${school.school_name}?`)) return;
         
         setStatusMessage('Updating status...');
-        if (school.is_active) {
-            await deactivateSchool(school.school_id);
-        } else {
-            await reactivateSchool(school.school_id);
+        try {
+            const res = school.is_active 
+                ? await deactivateSchool(school.school_id) 
+                : await reactivateSchool(school.school_id);
+
+            if (res.error) {
+                setStatusMessage('Error updating status: ' + res.error.message);
+            } else {
+                // Log action
+                try {
+                    await ActivityLogService.logActivity({
+                        schoolId: 'platform',
+                        username: 'superadmin',
+                        role: 'super_admin',
+                        action: school.is_active ? 'Suspend School' : 'Reactivate School',
+                        targetName: school.school_name,
+                        details: { school_id: school.school_id }
+                    });
+                } catch (logErr) {
+                    console.error("Failed to log activity:", logErr);
+                }
+                setStatusMessage('Status updated.');
+            }
+        } catch (err) {
+            console.error(err);
+            setStatusMessage('Error: ' + (err.message || err));
+        } finally {
+            setTimeout(() => setStatusMessage(''), 3000);
         }
-
-        // Log action
-        await ActivityLogService.logActivity({
-            schoolId: 'platform',
-            username: 'superadmin',
-            role: 'super_admin',
-            action: school.is_active ? 'Suspend School' : 'Reactivate School',
-            targetName: school.school_name,
-            details: { school_id: school.school_id }
-        });
-
-        setStatusMessage('Status updated.');
-        setTimeout(() => setStatusMessage(''), 3000);
     };
 
     const toggleSchoolPlan = async (school) => {
@@ -290,35 +361,52 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
         if (!window.confirm(`Are you sure you want to change ${school.school_name}'s plan to ${newPlan.toUpperCase()}?`)) return;
 
         setStatusMessage(`Upgrading plan to ${newPlan.toUpperCase()}...`);
-        await updateSchoolPlan(school.school_id, newPlan);
-
-        // Log action
-        await ActivityLogService.logActivity({
-            schoolId: 'platform',
-            username: 'superadmin',
-            role: 'super_admin',
-            action: 'Update School Plan',
-            targetName: school.school_name,
-            details: { school_id: school.school_id, old_plan: school.plan, new_plan: newPlan }
-        });
-
-        setStatusMessage(`Plan updated to ${newPlan.toUpperCase()}.`);
-        setTimeout(() => setStatusMessage(''), 3000);
+        try {
+            const res = await updateSchoolPlan(school.school_id, newPlan);
+            if (res.error) {
+                setStatusMessage('Error updating plan: ' + res.error.message);
+            } else {
+                // Log action
+                try {
+                    await ActivityLogService.logActivity({
+                        schoolId: 'platform',
+                        username: 'superadmin',
+                        role: 'super_admin',
+                        action: 'Update School Plan',
+                        targetName: school.school_name,
+                        details: { school_id: school.school_id, old_plan: school.plan, new_plan: newPlan }
+                    });
+                } catch (logErr) {
+                    console.error("Failed to log activity:", logErr);
+                }
+                setStatusMessage(`Plan updated to ${newPlan.toUpperCase()}.`);
+            }
+        } catch (err) {
+            console.error(err);
+            setStatusMessage('Error: ' + (err.message || err));
+        } finally {
+            setTimeout(() => setStatusMessage(''), 3000);
+        }
     };
 
     const togglePushFeature = async (school, column) => {
         const current = school[column] || false;
         const newVal = !current;
-        const { error } = await supabase
-            .from('schools')
-            .update({ [column]: newVal })
-            .eq('school_id', school.school_id);
-        if (!error) {
-            // Optimistically update the viewingSchool panel
-            setViewingSchool(prev => ({ ...prev, [column]: newVal }));
-            await fetchAllSchools();
-        } else {
-            setStatusMessage('Error updating feature: ' + error.message);
+        try {
+            const { error } = await supabase
+                .from('schools')
+                .update({ [column]: newVal })
+                .eq('school_id', school.school_id);
+            if (!error) {
+                // Optimistically update the viewingSchool panel
+                setViewingSchool(prev => ({ ...prev, [column]: newVal }));
+                await fetchAllSchools();
+            } else {
+                setStatusMessage('Error updating feature: ' + error.message);
+            }
+        } catch (err) {
+            console.error(err);
+            setStatusMessage('Error updating feature: ' + (err.message || err));
         }
     };
 
@@ -475,7 +563,19 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                                 </div>
                                                 <div>
                                                     <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600, fontSize: '0.85rem', color: '#475569' }}>Admin Password</label>
-                                                    <input required type="text" name="admin_password" value={formData.admin_password} onChange={handleChange} placeholder="Secure Password" style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                                        <input required type={showRegPassword ? "text" : "password"} name="admin_password" value={formData.admin_password} onChange={handleChange} placeholder="Secure Password" style={{ width: '100%', padding: '0.6rem', paddingRight: '2.5rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowRegPassword(!showRegPassword)}
+                                                            style={{
+                                                                position: 'absolute', right: '10px', background: 'none', border: 'none',
+                                                                cursor: 'pointer', color: '#64748b', fontSize: '0.8rem', fontWeight: 600
+                                                            }}
+                                                        >
+                                                            {showRegPassword ? 'Hide' : 'Show'}
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -555,7 +655,7 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                             ))}
                                             {schools.length === 0 && (
                                                 <tr>
-                                                    <td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>No schools registered yet.</td>
+                                                    <td colSpan="7" style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>No schools registered yet.</td>
                                                 </tr>
                                             )}
                                         </tbody>
@@ -616,7 +716,17 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                                     <td style={{ padding: '1rem' }}>
                                                         <div style={{ fontSize: '0.82rem', color: '#475569' }}>
                                                             <span style={{ fontWeight: 600 }}>User:</span> {req.admin_username}<br />
-                                                            <span style={{ fontWeight: 600 }}>Pass:</span> {req.admin_password}
+                                                            <span style={{ fontWeight: 600 }}>Pass:</span> {revealReqPass[req.id] ? req.admin_password : '••••••••'}
+                                                            <button
+                                                                onClick={() => setRevealReqPass(prev => ({ ...prev, [req.id]: !prev[req.id] }))}
+                                                                style={{
+                                                                    background: 'none', border: 'none', color: '#3b82f6',
+                                                                    fontSize: '0.72rem', cursor: 'pointer', marginLeft: '0.4rem',
+                                                                    textDecoration: 'underline', padding: 0
+                                                                }}
+                                                            >
+                                                                {revealReqPass[req.id] ? 'Hide' : 'Show'}
+                                                            </button>
                                                         </div>
                                                     </td>
                                                     <td style={{ padding: '1rem', color: '#64748b', fontSize: '0.82rem' }}>{new Date(req.created_at).toLocaleDateString()}</td>
@@ -693,40 +803,40 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                                     <div>
                                         <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', color: '#475569', marginBottom: '0.4rem' }}>Business Name</label>
-                                        <input type="text" value={saasForm.business_name} onChange={e => setSaasForm({...saasForm, business_name: e.target.value})} style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                        <input type="text" value={saasForm.business_name} onChange={e => { const v = e.target.value; setSaasForm(p => ({ ...p, business_name: v })); }} style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
                                     </div>
                                     <div>
                                         <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', color: '#475569', marginBottom: '0.4rem' }}>Support/Sales Email</label>
-                                        <input type="email" value={saasForm.support_email} onChange={e => setSaasForm({...saasForm, support_email: e.target.value})} style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                        <input type="email" value={saasForm.support_email} onChange={e => { const v = e.target.value; setSaasForm(p => ({ ...p, support_email: v })); }} style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
                                     </div>
                                     <div>
                                         <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', color: '#475569', marginBottom: '0.4rem' }}>WhatsApp Number (with country code)</label>
-                                        <input type="text" value={saasForm.whatsapp_number} onChange={e => setSaasForm({...saasForm, whatsapp_number: e.target.value})} placeholder="+923001234567" style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                        <input type="text" value={saasForm.whatsapp_number} onChange={e => { const v = e.target.value; setSaasForm(p => ({ ...p, whatsapp_number: v })); }} placeholder="+923001234567" style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
                                     </div>
                                     <div style={{ marginTop: '1rem', padding: '1.25rem', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #e2e8f0' }}>
                                         <h4 style={{ margin: '0 0 1rem', fontSize: '0.9rem', color: '#0f172a' }}>Notification API Settings</h4>
                                         <div style={{ marginBottom: '1rem' }}>
                                             <label style={{ display: 'block', fontWeight: 600, fontSize: '0.75rem', color: '#64748b', marginBottom: '0.3rem' }}>WhatsApp API Key (Meta)</label>
-                                            <input type="password" value={saasForm.whatsapp_api_key} onChange={e => setSaasForm({...saasForm, whatsapp_api_key: e.target.value})} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                            <input type="password" value={saasForm.whatsapp_api_key} onChange={e => { const v = e.target.value; setSaasForm(p => ({ ...p, whatsapp_api_key: v })); }} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
                                         </div>
                                         <div style={{ marginBottom: '1rem' }}>
                                             <label style={{ display: 'block', fontWeight: 600, fontSize: '0.75rem', color: '#64748b', marginBottom: '0.3rem' }}>WhatsApp Phone ID</label>
-                                            <input type="text" value={saasForm.whatsapp_phone_id} onChange={e => setSaasForm({...saasForm, whatsapp_phone_id: e.target.value})} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                            <input type="text" value={saasForm.whatsapp_phone_id} onChange={e => { const v = e.target.value; setSaasForm(p => ({ ...p, whatsapp_phone_id: v })); }} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
                                         </div>
                                         <div>
                                             <label style={{ display: 'block', fontWeight: 600, fontSize: '0.75rem', color: '#64748b', marginBottom: '0.3rem' }}>Email Service Key (EmailJS)</label>
-                                            <input type="password" value={saasForm.email_service_key} onChange={e => setSaasForm({...saasForm, email_service_key: e.target.value})} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                            <input type="password" value={saasForm.email_service_key} onChange={e => { const v = e.target.value; setSaasForm(p => ({ ...p, email_service_key: v })); }} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
                                         </div>
                                     </div>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                                     <div>
                                         <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', color: '#475569', marginBottom: '0.4rem' }}>Landing Hero Title</label>
-                                        <input type="text" value={saasForm.hero_title} onChange={e => setSaasForm({...saasForm, hero_title: e.target.value})} style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                        <input type="text" value={saasForm.hero_title} onChange={e => { const v = e.target.value; setSaasForm(p => ({ ...p, hero_title: v })); }} style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
                                     </div>
                                     <div>
                                         <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', color: '#475569', marginBottom: '0.4rem' }}>Landing Hero Subtitle</label>
-                                        <textarea value={saasForm.hero_subtitle} onChange={e => setSaasForm({...saasForm, hero_subtitle: e.target.value})} rows={4} style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', resize: 'none' }} />
+                                        <textarea value={saasForm.hero_subtitle} onChange={e => { const v = e.target.value; setSaasForm(p => ({ ...p, hero_subtitle: v })); }} rows={4} style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', resize: 'none' }} />
                                     </div>
                                 </div>
                             </div>
@@ -765,7 +875,18 @@ const SuperAdminPortal = ({ setCurrentPage, setIsSuperAdminPage }) => {
                                                                 console.error(`Error fetching table ${table}:`, error);
                                                                 snapshot.tables[table] = { error: error.message, data: [] };
                                                             } else {
-                                                                snapshot.tables[table] = data || [];
+                                                                let tableData = data || [];
+                                                                // Sanitize sensitive credentials in client backups
+                                                                if (table === 'admins' || table === 'students') {
+                                                                    tableData = tableData.map(row => {
+                                                                        const sanitized = { ...row };
+                                                                        if ('password' in sanitized) {
+                                                                            sanitized.password = '•••••••• (redacted)';
+                                                                        }
+                                                                        return sanitized;
+                                                                    });
+                                                                }
+                                                                snapshot.tables[table] = tableData;
                                                             }
                                                         }
                                                         
@@ -1080,18 +1201,36 @@ const PlatformLogsView = ({ schools }) => {
     const [roleFilter, setRoleFilter] = useState('all');
     const [actionFilter, setActionFilter] = useState('all');
 
-    const loadAllLogs = async () => {
+    const loadAllLogs = async (isMountedRef) => {
+        const isMounted = isMountedRef && 'current' in isMountedRef ? isMountedRef.current : true;
         setLoading(true);
-        const { data } = await ActivityLogService.fetchAllActivityLogs(250);
-        setLogs(data || []);
-        setLoading(false);
+        try {
+            const { data, error } = await ActivityLogService.fetchAllActivityLogs(250);
+            if (isMounted) {
+                if (error) {
+                    console.error("Failed to load logs:", error);
+                } else {
+                    setLogs(data || []);
+                }
+            }
+        } catch (err) {
+            console.error("Exception loading logs:", err);
+        } finally {
+            if (isMounted) {
+                setLoading(false);
+            }
+        }
     };
 
     useEffect(() => {
-        loadAllLogs();
+        const isMounted = { current: true };
+        loadAllLogs(isMounted);
+        return () => {
+            isMounted.current = false;
+        };
     }, []);
 
-    const uniqueActions = ['all', ...new Set(logs.map(log => log.action))];
+    const uniqueActions = ['all', ...new Set(logs.map(log => log.action).filter(Boolean))];
 
     const filteredLogs = logs.filter(log => {
         const matchesSearch = 
@@ -1108,7 +1247,7 @@ const PlatformLogsView = ({ schools }) => {
     });
 
     const getActionBadgeColor = (action) => {
-        const act = action.toLowerCase();
+        const act = (action || '').toLowerCase();
         if (act.includes('login')) return { bg: '#e0f2fe', text: '#0369a1', border: '#bae6fd' };
         if (act.includes('mark') || act.includes('attendance')) return { bg: '#ecfdf5', text: '#047857', border: '#a7f3d0' };
         if (act.includes('gradebook') || act.includes('marks')) return { bg: '#f5f3ff', text: '#6d28d9', border: '#ddd6fe' };

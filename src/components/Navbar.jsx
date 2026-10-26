@@ -84,10 +84,10 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, isAdmin, isDeveloper 
                                     padding: '0.5rem 0'
                                 }}
                                 onMouseEnter={(e) => {
-                                    if (currentPage !== item.id) e.target.style.color = '#fff';
+                                    if (currentPage !== item.id) e.currentTarget.style.color = '#fff';
                                 }}
                                 onMouseLeave={(e) => {
-                                    if (currentPage !== item.id) e.target.style.color = 'rgba(255,255,255,0.85)';
+                                    if (currentPage !== item.id) e.currentTarget.style.color = 'rgba(255,255,255,0.85)';
                                 }}
                             >
                                 {item.label}

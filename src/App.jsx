@@ -17,6 +17,7 @@ import WhatsAppButton from './components/WhatsAppButton';
 import SuperAdminPortal from './pages/SuperAdminPortal';
 import SaaSLanding from './pages/SaaSLanding';
 import SchoolRegistrationForm from './pages/SchoolRegistrationForm';
+import { getAuthSession, clearAuthSession, saveAuthSession } from './utils/authSession';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // App — Multi-Tenant SaaS Edition
@@ -36,8 +37,15 @@ function App() {
     const initialPage   = searchParams.get('page');   // e.g. ?page=login
     const isSaaSMode = !initialSchool;
 
-    // Priority: ?page= param → school home → SaaS landing
+    // Check if we have a persisted session in localStorage
+    const savedSession = getAuthSession();
+
+    // Priority: saved active session -> ?page= param -> school home -> SaaS landing
     const getInitialPage = () => {
+        if (savedSession && savedSession.page) {
+            // Restore session page (e.g. admin, portal, developer, superadmin)
+            return savedSession.page;
+        }
         if (initialPage) return initialPage;   // direct deep-link
         if (isSaaSMode)  return 'saas';
         return 'home';
@@ -45,15 +53,17 @@ function App() {
 
     const [currentPage,     setCurrentPage]     = useState(getInitialPage());
 
-    const [isLoggedIn,      setIsLoggedIn]      = useState(false);
-    const [isAdmin,         setIsAdmin]         = useState(false);
-    const [isDeveloper,     setIsDeveloper]     = useState(false);
-    const [isSuperAdminPage, setIsSuperAdminPage] = useState(false);
-    const [loggedInStudent, setLoggedInStudent] = useState(null);
+    const [isLoggedIn,      setIsLoggedIn]      = useState(Boolean(savedSession?.role === 'student'));
+    const [isAdmin,         setIsAdmin]         = useState(Boolean(savedSession?.role === 'admin'));
+    const [isDeveloper,     setIsDeveloper]     = useState(Boolean(savedSession?.role === 'developer'));
+
+    const [loggedInStudent, setLoggedInStudent] = useState(savedSession?.role === 'student' ? savedSession.user : null);
 
     // ── Active school (tenant) ────────────────────────────────────────────────
-    // Uses the ?school= URL parameter by default. If none, points to SaaS mode.
-    const [activeSchoolId, setActiveSchoolId] = useState(initialSchool || null);
+    // Uses saved session school ID, or URL parameter, or null
+    const [activeSchoolId, setActiveSchoolId] = useState(
+        savedSession?.schoolId || initialSchool || null
+    );
 
 
     const renderPage = () => {
@@ -78,7 +88,6 @@ function App() {
                         setIsLoggedIn={setIsLoggedIn}
                         setIsAdmin={setIsAdmin}
                         setIsDeveloper={setIsDeveloper}
-                        setIsSuperAdminPage={setIsSuperAdminPage}
                         setCurrentPage={setCurrentPage}
                         setLoggedInStudent={setLoggedInStudent}
                         setActiveSchoolId={setActiveSchoolId}
@@ -111,7 +120,6 @@ function App() {
                 return (
                     <SuperAdminPortal
                         setCurrentPage={setCurrentPage}
-                        setIsSuperAdminPage={setIsSuperAdminPage}
                     />
                 );
             case 'register':

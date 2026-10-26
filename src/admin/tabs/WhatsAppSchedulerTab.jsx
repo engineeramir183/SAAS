@@ -67,6 +67,33 @@ const WhatsAppSchedulerTab = ({ schoolData, schoolSettings, updateSchoolSettings
         { id: 4, time: '09:30:05 AM', job: 'Daily Absence Alert', msg: 'WhatsApp payload pushed to Meta: S9-001 (Haris Khan). Status: SUCCESS', type: 'success' }
     ]);
 
+    const activeTimersRef = useRef([]);
+
+    // Clear simulation timers on unmount
+    useEffect(() => {
+        return () => {
+            activeTimersRef.current.forEach(timerId => clearTimeout(timerId));
+        };
+    }, []);
+
+    // Sync rules from async settings
+    useEffect(() => {
+        if (schoolSettings) {
+            setRules(prev => prev.map(r => {
+                if (r.id === 'job_absence') {
+                    return { ...r, enabled: schoolSettings.auto_attendance_alert ?? true };
+                }
+                if (r.id === 'job_fee_overdue') {
+                    return { ...r, enabled: schoolSettings.auto_fee_alert ?? true };
+                }
+                if (r.id === 'job_diary_urgent') {
+                    return { ...r, enabled: schoolSettings.auto_admission_alert ?? false };
+                }
+                return r;
+            }));
+        }
+    }, [schoolSettings]);
+
     const [isCronRunning, setIsCronRunning] = useState(false);
     const [cronTerminalOutput, setCronTerminalOutput] = useState([]);
     const [cronProgress, setCronProgress] = useState(0);
@@ -104,9 +131,15 @@ const WhatsAppSchedulerTab = ({ schoolData, schoolSettings, updateSchoolSettings
                 if (ruleId === 'job_fee_overdue') settingsPayload.auto_fee_alert = updatedEnabled;
                 if (ruleId === 'job_diary_urgent') settingsPayload.auto_admission_alert = updatedEnabled;
                 
-                await updateSchoolSettings(settingsPayload);
+                const { error } = await updateSchoolSettings(settingsPayload);
+                if (error) {
+                    alert('Failed to update schedule in database: ' + error.message);
+                    setRules(rules); // Rollback
+                }
             } catch (err) {
                 console.error("Failed to sync WhatsApp schedule toggle to database:", err);
+                alert("Error updating schedule setting.");
+                setRules(rules); // Rollback
             }
         }
     };
@@ -125,6 +158,10 @@ const WhatsAppSchedulerTab = ({ schoolData, schoolSettings, updateSchoolSettings
 
     // Trigger full scheduler simulation and build high-fidelity interactive terminal logs
     const runCronEngineSimulation = () => {
+        // Clear any running timers before starting a new one
+        activeTimersRef.current.forEach(timerId => clearTimeout(timerId));
+        activeTimersRef.current = [];
+
         setIsCronRunning(true);
         setCronProgress(0);
         setCronTerminalOutput([]);
@@ -147,7 +184,7 @@ const WhatsAppSchedulerTab = ({ schoolData, schoolSettings, updateSchoolSettings
         ];
 
         logsSequence.forEach((step, index) => {
-            setTimeout(() => {
+            const timerId = setTimeout(() => {
                 setCronTerminalOutput(prev => [...prev, `${step.t} ${step.m}`]);
                 setCronProgress(Math.round(((index + 1) / logsSequence.length) * 100));
 
@@ -167,6 +204,7 @@ const WhatsAppSchedulerTab = ({ schoolData, schoolSettings, updateSchoolSettings
                     ]);
                 }
             }, step.delay);
+            activeTimersRef.current.push(timerId);
         });
     };
 

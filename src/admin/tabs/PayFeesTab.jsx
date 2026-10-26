@@ -5,6 +5,17 @@ import { useSchoolData } from '../../context/SchoolDataContext';
 /* ─────────────────────────────────────────────────────────────────────────────
    HELPERS
 ───────────────────────────────────────────────────────────────────────────── */
+const monthOrder = {
+    January: 0, February: 1, March: 2, April: 3, May: 4, June: 5,
+    July: 6, August: 7, September: 8, October: 9, November: 10, December: 11
+};
+function parseMonthYear(str) {
+    if (!str) return 0;
+    const [m, y] = str.split(' ');
+    const monthNum = monthOrder[m] ?? 0;
+    const yearNum = parseInt(y) || 0;
+    return yearNum * 12 + monthNum;
+}
 function getCurrentMonthLabel() {
     return new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
 }
@@ -22,6 +33,7 @@ function getAcademicYearKey() {
     return `${y - 1}-${y}`;
 }
 function paperFundKey() { return `Paper Fund ${getAcademicYearKey()}`; }
+
 
 function computeNet(record, defaults = {}) {
     const t   = Number(record?.tuitionFee   ?? defaults.tuitionFee   ?? 0);
@@ -45,7 +57,9 @@ function classSort(a, b) {
    PAYMENT RECEIPT PRINT
 ───────────────────────────────────────────────────────────────────────────── */
 function printReceipt({ student, payment, schoolName, schoolLogo, currencySymbol }) {
-    const html = `<!DOCTYPE html><html><head><title>Receipt — ${student.name}</title>
+    const escapeHTML = (str) => String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+
+    const html = `<!DOCTYPE html><html><head><title>Receipt — ${escapeHTML(student.name)}</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
@@ -65,23 +79,27 @@ function printReceipt({ student, payment, schoolName, schoolLogo, currencySymbol
     <div class="card">
         <div class="header">
             ${schoolLogo ? `<img src="${schoolLogo}" class="logo" onerror="this.style.display='none'" />` : ''}
-            <div class="school">${schoolName}</div>
+            <div class="school">${escapeHTML(schoolName)}</div>
             <div class="badge">Payment Receipt</div>
         </div>
-        <div class="row"><span class="lbl">Student</span><span>${student.name}</span></div>
-        <div class="row"><span class="lbl">ID</span><span>${student.id}</span></div>
-        <div class="row"><span class="lbl">Class</span><span>${student.grade}</span></div>
-        <div class="row"><span class="lbl">Date</span><span>${payment.date}</span></div>
-        <div class="row"><span class="lbl">Method</span><span>${payment.method}</span></div>
+        <div class="row"><span class="lbl">Student</span><span>${escapeHTML(student.name)}</span></div>
+        <div class="row"><span class="lbl">ID</span><span>${escapeHTML(student.id)}</span></div>
+        <div class="row"><span class="lbl">Class</span><span>${escapeHTML(student.grade)}</span></div>
+        <div class="row"><span class="lbl">Date</span><span>${escapeHTML(payment.date)}</span></div>
+        <div class="row"><span class="lbl">Method</span><span>${escapeHTML(payment.method)}</span></div>
         <div style="height:8px"></div>
-        ${payment.items.map(item => `<div class="row"><span>${item.label}</span><span>${currencySymbol} ${item.amount.toLocaleString()}</span></div>`).join('')}
-        <div class="total"><span>Amount Received</span><span>${currencySymbol} ${payment.received.toLocaleString()}</span></div>
-        ${payment.advanceStored > 0 ? `<div class="row" style="color:#7c3aed"><span class="lbl" style="color:#7c3aed">Advance Stored</span><span>${currencySymbol} ${payment.advanceStored.toLocaleString()}</span></div>` : ''}
-        ${payment.remaining > 0 ? `<div class="row" style="color:#dc2626"><span class="lbl" style="color:#dc2626">Still Pending</span><span>${currencySymbol} ${payment.remaining.toLocaleString()}</span></div>` : ''}
+        ${(payment.items || []).map(item => `<div class="row"><span>${escapeHTML(item.label)}</span><span>${escapeHTML(currencySymbol)} ${item.amount.toLocaleString()}</span></div>`).join('')}
+        <div class="total"><span>Amount Received</span><span>${escapeHTML(currencySymbol)} ${payment.received.toLocaleString()}</span></div>
+        ${payment.advanceStored > 0 ? `<div class="row" style="color:#7c3aed"><span class="lbl" style="color:#7c3aed">Advance Stored</span><span>${escapeHTML(currencySymbol)} ${payment.advanceStored.toLocaleString()}</span></div>` : ''}
+        ${payment.remaining > 0 ? `<div class="row" style="color:#dc2626"><span class="lbl" style="color:#dc2626">Still Pending</span><span>${escapeHTML(currencySymbol)} ${payment.remaining.toLocaleString()}</span></div>` : ''}
         <div style="text-align:center;margin-top:14px;font-size:9px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.5px">System Generated</div>
         <button class="btn" onclick="window.print()">🖨 Print</button>
     </div></body></html>`;
     const w = window.open('', '_blank');
+    if (!w) {
+        alert('Popup blocked! Please allow popups for this site to print receipts.');
+        return;
+    }
     w.document.write(html);
     w.document.close();
 }
@@ -288,7 +306,7 @@ const PayFeesTab = ({
         // Pending dues (all months except current that are unpaid/partial)
         const unpaidMonths = history
             .filter(h => h.month !== currentMonth && h.month !== pfKey && (h.status === 'unpaid' || h.status === 'partial'))
-            .sort((a, b) => a.month.localeCompare(b.month));
+            .sort((a, b) => parseMonthYear(a.month) - parseMonthYear(b.month));
         const pendingTotal = unpaidMonths.reduce((sum, h) => sum + Math.max(0, computeNet(h, defaults) - Number(h.paidAmount ?? 0)), 0);
 
         // Paper fund
@@ -392,8 +410,8 @@ const PayFeesTab = ({
         // 4. Auto-advance to future open months
         if (pool > 0) {
             const futureMonths = feeData.history
-                .filter(h => h.month !== currentMonth && h.month !== pfKey && h.status === 'unpaid' && h.month > currentMonth)
-                .sort((a, b) => a.month.localeCompare(b.month));
+                .filter(h => h.month !== currentMonth && h.month !== pfKey && h.status === 'unpaid' && parseMonthYear(h.month) > parseMonthYear(currentMonth))
+                .sort((a, b) => parseMonthYear(a.month) - parseMonthYear(b.month));
             for (const h of futureMonths) {
                 if (pool <= 0) break;
                 const due = Math.max(0, computeNet(h, defaults) - Number(h.paidAmount ?? 0));

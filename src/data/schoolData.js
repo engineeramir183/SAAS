@@ -338,15 +338,3 @@ export const schoolData = {
         }
     ]
 };
-
-// Admin credentials (manages students, marks, attendance)
-export const adminCredentials = {
-    username: "admin",
-    password: "admin123"
-};
-
-// Developer credentials (manages school info, faculty, facilities)
-export const developerCredentials = {
-    username: "developer",
-    password: "dev123"
-};

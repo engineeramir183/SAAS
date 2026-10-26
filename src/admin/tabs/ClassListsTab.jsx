@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ChevronRight, Upload, Download, PlusCircle, Users, Edit3, Trash2, GripVertical, ChevronUp, ChevronDown, X, Hash, Check, Settings } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 const ClassListsTab = ({
-    students, setStudents,
+    students = [], setStudents = () => {},
     SECTIONS, CLASSES,
     updateSections, updateClasses,
     sectionClasses,
@@ -67,8 +67,8 @@ const ClassListsTab = ({
         const gInput = serialStartGirlsInput.trim();
         
         let newStudents = [...students];
-        const classStudentsMale = students.filter(s => s.grade === viewingClass && s.admissions?.[0]?.gender === 'Male').sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
-        const classStudentsFemale = students.filter(s => s.grade === viewingClass && s.admissions?.[0]?.gender === 'Female').sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+        const classStudentsMale = (students || []).filter(s => s.grade === viewingClass && s.admissions?.[0]?.gender === 'Male').sort((a, b) => String(a.id || '').localeCompare(String(b.id || ''), undefined, { numeric: true }));
+        const classStudentsFemale = (students || []).filter(s => s.grade === viewingClass && s.admissions?.[0]?.gender === 'Female').sort((a, b) => String(a.id || '').localeCompare(String(b.id || ''), undefined, { numeric: true }));
         const allNewSerials = [];
         
         const applySerials = (studentsList, startVal) => {
@@ -117,13 +117,15 @@ const ClassListsTab = ({
     };
 
     const printIDCards = (className) => {
-        const targetStudents = students.filter(s => s.grade === className).sort((a,b) => a.id.localeCompare(b.id, undefined, {numeric: true}));
+        const targetStudents = (students || []).filter(s => s.grade === className).sort((a,b) => String(a.id || '').localeCompare(String(b.id || ''), undefined, {numeric: true}));
         if(targetStudents.length === 0) {
             openConfirm('No Students', 'There are no students in this class to print ID cards for.', null, false);
             return;
         }
 
-        let html = `<!DOCTYPE html><html><head><title>ID Cards - ${className}</title><style>
+        const escapeHTML = (str) => String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+
+        let html = `<!DOCTYPE html><html><head><title>ID Cards - ${escapeHTML(className)}</title><style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
             * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
             body { background: #f8fafc; padding: 30px; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin: 0; }
@@ -279,30 +281,30 @@ const ClassListsTab = ({
             html += `<div class="id-card">
                 <div class="header">
                     ${schoolLogo ? `<img src="${schoolLogo}" style="height:22px;margin-bottom:3px;display:block;margin-left:auto;margin-right:auto;" />` : ''}
-                    ${schoolName || 'School Name'}
+                    ${escapeHTML(schoolName || 'School Name')}
                 </div>
                 <div class="photo-box"><img src="${photoSrc}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=e2e8f0&color=64748b'" /></div>
-                <div class="name">${s.name}</div>
+                <div class="name">${escapeHTML(s.name)}</div>
                 <div class="details" style="width: 60%;">
                     <div class="details-row">
                         <span class="label">Roll Number</span>
-                        <span class="value" style="color: #0f172a; font-weight: 800;">${s.id}</span>
+                        <span class="value" style="color: #0f172a; font-weight: 800;">${escapeHTML(s.id)}</span>
                     </div>
                     <div class="details-row">
                         <span class="label">Class</span>
-                        <span class="value">${s.grade}</span>
+                        <span class="value">${escapeHTML(s.grade)}</span>
                     </div>
                     <div class="details-row" style="flex-direction: column; align-items: flex-start; gap: 1px;">
                         <span class="label">B-Form / CNIC</span>
-                        <span class="value" style="font-size: 8.5px;">${bForm}</span>
+                        <span class="value" style="font-size: 8.5px;">${escapeHTML(bForm)}</span>
                     </div>
                     <div class="details-row">
                         <span class="label">Gender</span>
-                        <span class="value">${gender}</span>
+                        <span class="value">${escapeHTML(gender)}</span>
                     </div>
                 </div>
                 <div class="qr-container">
-                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=42x42&data=${s.id}" alt="QR" style="border:1px solid #cbd5e1; border-radius: 4px; padding: 2px; background: white; display: block;" />
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=42x42&data=${encodeURIComponent(s.id)}" alt="QR" style="border:1px solid #cbd5e1; border-radius: 4px; padding: 2px; background: white; display: block;" />
                 </div>
                 <div class="footer">Student Identity Card</div>
             </div>`;
@@ -310,6 +312,10 @@ const ClassListsTab = ({
 
         html += `</body></html>`;
         const win = window.open('', '_blank');
+        if (!win) {
+            alert('Popup blocked! Please allow popups for this site to print ID cards.');
+            return;
+        }
         win.document.write(html);
         win.document.close();
     };

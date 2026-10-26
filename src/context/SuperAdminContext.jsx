@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
+import { hashPassword } from '../utils/crypto';
+import { clearAuthSession, getAuthSession } from '../utils/authSession';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SuperAdminContext
@@ -22,7 +24,8 @@ export const useSuperAdmin = () => {
 };
 
 export const SuperAdminProvider = ({ children }) => {
-    const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+    const initialSuperAdmin = Boolean(getAuthSession()?.role === 'superadmin');
+    const [isSuperAdmin, setIsSuperAdmin] = useState(initialSuperAdmin);
     const [schools,      setSchools]      = useState([]);
     const [saasInfo,     setSaasInfo]     = useState(null);
     const [loading,      setLoading]      = useState(false);
@@ -33,13 +36,36 @@ export const SuperAdminProvider = ({ children }) => {
         setError(null);
         const cleanUser = username.trim().toLowerCase();
         const cleanPass = password.trim();
+        const hashedPass = await hashPassword(cleanPass);
 
-        const { data, error: err } = await supabase
+        // Try hashed password first (for accounts already upgraded)
+        let { data, error: err } = await supabase
             .from('super_admins')
             .select('*')
             .eq('username', cleanUser)
-            .eq('password', cleanPass)
+            .eq('password', hashedPass)
             .maybeSingle();
+
+        // Legacy fallback: check plaintext for existing accounts, then auto-upgrade
+        if (!data && !err) {
+            const { data: legacyData, error: legacyErr } = await supabase
+                .from('super_admins')
+                .select('*')
+                .eq('username', cleanUser)
+                .eq('password', cleanPass)
+                .maybeSingle();
+
+            if (legacyData) {
+                data = legacyData;
+                // Silently upgrade to hashed storage
+                supabase.from('super_admins')
+                    .update({ password: hashedPass })
+                    .eq('username', cleanUser)
+                    .then(() => {});
+            } else {
+                err = legacyErr;
+            }
+        }
 
         if (err || !data) {
             console.error('SuperAdmin Login Failed:', err || 'Account not found in super_admins table');
@@ -52,11 +78,8 @@ export const SuperAdminProvider = ({ children }) => {
         return { success: true };
     };
 
-    useEffect(() => {
-        fetchSaasInfo();
-    }, []);
-
     const logoutSuperAdmin = () => {
+        clearAuthSession();
         setIsSuperAdmin(false);
         setSchools([]);
     };
@@ -80,7 +103,7 @@ export const SuperAdminProvider = ({ children }) => {
         return { data, error: err };
     };
 
-    const fetchSaasInfo = async () => {
+    const fetchSaasInfo = useCallback(async () => {
         const { data, error: err } = await supabase
             .from('saas_info')
             .select('*')
@@ -89,7 +112,11 @@ export const SuperAdminProvider = ({ children }) => {
         
         if (!err && data) setSaasInfo(data);
         return { data, error: err };
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchSaasInfo();
+    }, [fetchSaasInfo]);
 
     const updateSaasInfo = async (updates) => {
         const { error: err } = await supabase
@@ -138,13 +165,14 @@ export const SuperAdminProvider = ({ children }) => {
             id:        `info-${schoolPayload.school_id}` // Unique ID per school
         }]);
 
-        // 3. Create the first admin account for this school
+        // 3. Create the first admin account for this school (store hashed password)
+        const hashedAdminPassword = await hashPassword(adminPayload.password);
         const { error: adminErr } = await supabase
             .from('admins')
             .insert([{
                 school_id: schoolPayload.school_id,
                 username:  adminPayload.username,
-                password:  adminPayload.password,
+                password:  hashedAdminPassword,
                 role:      'admin',
             }]);
 

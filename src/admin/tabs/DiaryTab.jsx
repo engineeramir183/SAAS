@@ -65,14 +65,14 @@ export default function DiaryTab({ showSaveMessage }) {
         : (SUBJECTS || []);
 
     // Students for the selected class (for private entries)
-    const classStudents = students.filter(s => s.grade === form.class);
+    const classStudents = (students || []).filter(s => s.grade === form.class);
 
     // ── Load diary when class or date filter changes ──────────────────────────
     useEffect(() => {
         if (!filterClass && displayClasses.length > 0) {
             setFilterClass(displayClasses[0]);
         }
-    }, [displayClasses]);
+    }, [displayClasses, filterClass]);
 
     useEffect(() => {
         if (filterClass) {
@@ -80,10 +80,10 @@ export default function DiaryTab({ showSaveMessage }) {
             fetchDiaryEntries({ className: filterClass, dateFrom: filterDate, dateTo: filterDate })
                 .finally(() => setLoading(false));
         }
-    }, [filterClass, filterDate]);
+    }, [filterClass, filterDate, fetchDiaryEntries]);
 
     // ── Filtered view ─────────────────────────────────────────────────────────
-    const displayed = diaryEntries.filter(e =>
+    const displayed = (diaryEntries || []).filter(e =>
         (filterType === 'All' || e.type === filterType)
     );
 
@@ -104,57 +104,79 @@ export default function DiaryTab({ showSaveMessage }) {
         if (!form.content.trim()) { showSaveMessage('❌ Content is required.'); return; }
         if (!form.class)          { showSaveMessage('❌ Please select a class.'); return; }
 
-        setSaving(true);
-        const payload = { ...form, student_id: form.student_id || null };
-        const { error } = await saveDiaryEntry(payload);
-        setSaving(false);
+        try {
+            setSaving(true);
+            const payload = { ...form, student_id: form.student_id || null };
+            const { error } = await saveDiaryEntry(payload);
 
-        if (error) {
-            showSaveMessage(`❌ Error: ${error.message}`);
-        } else {
-            showSaveMessage(form.id ? '✅ Entry updated!' : '✅ Diary entry saved!');
-            setShowForm(false);
+            if (error) {
+                showSaveMessage(`❌ Error: ${error.message}`);
+            } else {
+                showSaveMessage(form.id ? '✅ Entry updated!' : '✅ Diary entry saved!');
+                setShowForm(false);
 
-            // ── WhatsApp + Push alert for urgent entries (new entries only) ──────────
-            if (form.is_urgent && !form.id) {
-                const schoolName = schoolData?.name || 'School';
-                const title = form.title || form.type;
-                const targetStudents = form.student_id
-                    ? students.filter(s => s.id === form.student_id)
-                    : students.filter(s => s.grade === form.class);
+                // ── WhatsApp + Push alert for urgent entries (new entries only) ──────────
+                if (form.is_urgent && !form.id) {
+                    const schoolName = schoolData?.name || 'School';
+                    const title = form.title || form.type;
+                    const targetStudents = form.student_id
+                        ? (students || []).filter(s => s.id === form.student_id)
+                        : (students || []).filter(s => s.grade === form.class);
 
-                let waSent = 0;
-                for (const s of targetStudents) {
-                    const phone = s.admissions?.[0]?.whatsapp || s.admissions?.[0]?.contact;
-                    if (phone) {
-                        const msg = WhatsAppTemplates.urgentDiaryAlert(s.name, title, form.content, schoolName);
-                        sendWhatsAppMessage(phone, msg, schoolSettings);
-                        waSent++;
+                    let waSent = 0;
+                    for (const s of targetStudents) {
+                        const phone = s.admissions?.[0]?.whatsapp || s.admissions?.[0]?.contact;
+                        if (phone) {
+                            try {
+                                const msg = WhatsAppTemplates.urgentDiaryAlert(s.name, title, form.content, schoolName);
+                                await sendWhatsAppMessage(phone, msg, schoolSettings);
+                                waSent++;
+                            } catch (waErr) {
+                                console.error(`WhatsApp alert failed for ${s.name}:`, waErr);
+                            }
+                        }
+
+                        // --- Push notification (parallel, free) ---
+                        if (schoolSettings?.auto_push_diary_alert) {
+                            try {
+                                const tmpl = PushTemplates.diaryUrgent(s.name, title, form.type);
+                                await sendPushNotification(
+                                    s.id,
+                                    tmpl.title,
+                                    tmpl.body,
+                                    currentSchoolId || schoolSettings?.school_id,
+                                    { tag: tmpl.tag, urgent: tmpl.urgent }
+                                );
+                            } catch (pushErr) {
+                                console.error(`Push alert failed for ${s.name}:`, pushErr);
+                            }
+                        }
                     }
-
-                    // --- Push notification (parallel, free) ---
-                    if (schoolSettings?.auto_push_diary_alert) {
-                        const tmpl = PushTemplates.diaryUrgent(s.name, title, form.type);
-                        sendPushNotification(
-                            s.id,
-                            tmpl.title,
-                            tmpl.body,
-                            currentSchoolId || schoolSettings?.school_id,
-                            { tag: tmpl.tag, urgent: tmpl.urgent }
-                        );
-                    }
+                    if (waSent > 0) showSaveMessage(`✅ Entry saved! 📲 WhatsApp alert sent to ${waSent} parent(s).`);
                 }
-                if (waSent > 0) showSaveMessage(`✅ Entry saved! 📲 WhatsApp alert sent to ${waSent} parent(s).`);
             }
+        } catch (err) {
+            console.error("Diary save failed:", err);
+            showSaveMessage('❌ Error: Failed to save diary entry.');
+        } finally {
+            setSaving(false);
         }
     };
 
     // ── Delete ────────────────────────────────────────────────────────────────
     const handleDelete = async (id) => {
-        const { error } = await deleteDiaryEntry(id);
-        if (error) showSaveMessage(`❌ ${error.message}`);
-        else       showSaveMessage('🗑️ Entry deleted.');
-        setDeleteId(null);
+        if (!confirm('Are you sure you want to delete this diary entry?')) return;
+        try {
+            const { error } = await deleteDiaryEntry(id);
+            if (error) {
+                showSaveMessage(`❌ ${error.message}`);
+            } else {
+                showSaveMessage('✅ Entry deleted!');
+            }
+        } catch (err) {
+            console.error("Diary delete failed:", err);
+            showSaveMessage('❌ Error: Failed to delete diary entry.');
+        }
     };
 
     // ─────────────────────────────────────────────────────────────────────────

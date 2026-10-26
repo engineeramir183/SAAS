@@ -201,7 +201,6 @@ const AddMonthModal = ({ selectedClasses, allClassStudents, CLASS_FEE_DEFAULTS, 
         if (!monthVal) return;
         if (alreadyExists) { setError(`Month "${label}" already exists.`); return; }
         setSaving(true);
-        const targetMonthKey = monthLabelToKey(label);
         const records = allClassStudents
             .filter(s => studentOwesMonth(s, label)) // respect admission date
             .map(s => {
@@ -292,6 +291,10 @@ const QuickPayModal = ({ student, record, month, classDefaults, currencySymbol, 
     // Allow overriding fee amounts per record
     const [tuitionFee,    setTuitionFee]    = useState(String(record?.tuitionFee   ?? classDefaults.tuitionFee   ?? 0));
     const [admissionFee,  setAdmissionFee]  = useState(String(record?.admissionFee ?? classDefaults.admissionFee ?? 0));
+    const [annualFee,     setAnnualFee]     = useState(String(record?.annualFee    ?? classDefaults.annualFee    ?? 0));
+    const [examFee,       setExamFee]       = useState(String(record?.examFee      ?? classDefaults.examFee      ?? 0));
+    const [transportFee,  setTransportFee]  = useState(String(record?.transportFee ?? classDefaults.transportFee ?? 0));
+    const [labFee,        setLabFee]        = useState(String(record?.labFee       ?? classDefaults.labFee       ?? 0));
     const [lateFine,      setLateFine]      = useState(String(record?.lateFine     ?? 0));
     const [discount,      setDiscount]      = useState(String(record?.discount     ?? 0));
     const [paidAmount,    setPaidAmount]    = useState(String(record?.paidAmount   ?? 0));
@@ -300,7 +303,7 @@ const QuickPayModal = ({ student, record, month, classDefaults, currencySymbol, 
     const [saving,        setSaving]        = useState(false);
     const [tab,           setTab]           = useState('pay'); // 'pay' | 'edit'
 
-    const net     = Number(tuitionFee||0) + Number(admissionFee||0) + Number(lateFine||0) - Number(discount||0);
+    const net     = Number(tuitionFee||0) + Number(admissionFee||0) + Number(annualFee||0) + Number(examFee||0) + Number(transportFee||0) + Number(labFee||0) + Number(lateFine||0) - Number(discount||0);
     const paid    = Number(paidAmount) || 0;
     const balance = net - paid;
     const autoStatus = paid >= net && net > 0 ? 'paid' : paid > 0 ? 'partial' : 'unpaid';
@@ -312,6 +315,10 @@ const QuickPayModal = ({ student, record, month, classDefaults, currencySymbol, 
             month,
             tuitionFee:    Number(tuitionFee)   || 0,
             admissionFee:  Number(admissionFee) || 0,
+            annualFee:     Number(annualFee)    || 0,
+            examFee:       Number(examFee)      || 0,
+            transportFee:  Number(transportFee) || 0,
+            labFee:        Number(labFee)       || 0,
             lateFine:      Number(lateFine)     || 0,
             discount:      Number(discount)     || 0,
             paidAmount:    paid,
@@ -382,8 +389,17 @@ const QuickPayModal = ({ student, record, month, classDefaults, currencySymbol, 
                 </>)}
 
                 {tab === 'edit' && (<>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.65rem', marginBottom:'1rem' }}>
-                        {[['Tuition Fee', tuitionFee, setTuitionFee],['Admission Fee', admissionFee, setAdmissionFee],['Late Fine', lateFine, setLateFine],['Discount', discount, setDiscount]].map(([lbl, val, setter]) => (
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.65rem', marginBottom:'1rem', maxHeight:'180px', overflowY:'auto', padding:'2px' }}>
+                        {[
+                            ['Tuition Fee', tuitionFee, setTuitionFee],
+                            ['Admission Fee', admissionFee, setAdmissionFee],
+                            ['Annual Fee', annualFee, setAnnualFee],
+                            ['Exam Fee', examFee, setExamFee],
+                            ['Transport Fee', transportFee, setTransportFee],
+                            ['Lab Fee', labFee, setLabFee],
+                            ['Late Fine', lateFine, setLateFine],
+                            ['Discount', discount, setDiscount]
+                        ].map(([lbl, val, setter]) => (
                             <div key={lbl}>
                                 <label style={{ display:'block', fontWeight:700, color:'#475569', fontSize:'.78rem', marginBottom:'.2rem' }}>{lbl}</label>
                                 <input type="number" min="0" value={val} onChange={e => setter(e.target.value)} className="form-input" style={{ width:'100%', fontSize:'.9rem' }} />
@@ -558,7 +574,7 @@ const TD  = { padding: '.55rem .45rem', verticalAlign: 'middle' };
    MAIN FEE TAB
 ───────────────────────────────────────────────────────────────────────────── */
 const FeeTab = ({
-    students,
+    students = [],
     selectedClass,
     setSelectedClass,
     sectionClasses,
@@ -786,19 +802,29 @@ const FeeTab = ({
 
     /* ── Open next month for all classes ─────────────────────────────────── */
     const handleOpenNextMonth = async () => {
-        const d = new Date();
-        d.setMonth(d.getMonth() + 1);
-        const nextMonth = d.toLocaleString('default', { month: 'long', year: 'numeric' });
-        const records = allClassStudents
-            .filter(s => studentOwesMonth(s, nextMonth))
-            .filter(s => !(s.feeHistory||[]).some(h => h.month === nextMonth))
-            .map(s => {
-                const cd = (CLASS_FEE_DEFAULTS && CLASS_FEE_DEFAULTS[s.grade]) || classDefaults;
-                return { student_id: s.id, month: nextMonth, status:'unpaid', ...cd, lateFine:0, discount:0, paidAmount:0 };
-            });
-        if (records.length === 0) { if (showSaveMessage) showSaveMessage(`${nextMonth} already exists for all students.`); return; }
-        await saveFeeRecords(records);
-        if (showSaveMessage) showSaveMessage(`✅ ${nextMonth} opened for ${records.length} students!`);
+        try {
+            const d = new Date();
+            d.setDate(1);
+            d.setMonth(d.getMonth() + 1);
+            const nextMonth = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+            const records = (allClassStudents || [])
+                .filter(s => studentOwesMonth(s, nextMonth))
+                .filter(s => !(s.feeHistory||[]).some(h => h.month === nextMonth))
+                .map(s => {
+                    const cd = (CLASS_FEE_DEFAULTS && CLASS_FEE_DEFAULTS[s.grade]) || classDefaults;
+                    return { student_id: s.id, month: nextMonth, status:'unpaid', ...cd, lateFine:0, discount:0, paidAmount:0 };
+                });
+            if (records.length === 0) { if (showSaveMessage) showSaveMessage(`${nextMonth} already exists for all students.`); return; }
+            const { error } = await saveFeeRecords(records);
+            if (error) {
+                alert('Failed to open next month: ' + error.message);
+            } else {
+                if (showSaveMessage) showSaveMessage(`✅ ${nextMonth} opened for ${records.length} students!`);
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Failed to open next month.');
+        }
     };
 
     /* ── Print vouchers ──────────────────────────────────────────────────── */
@@ -816,6 +842,10 @@ const FeeTab = ({
         });
         html += `</div></body></html>`;
         const win = window.open('', '_blank');
+        if (!win) {
+            alert('Popup blocked! Please allow popups for this site to print vouchers.');
+            return;
+        }
         win.document.write(html);
         win.document.close();
     };

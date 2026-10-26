@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { CLASSES as LOCAL_CLASSES } from '../data/schoolData';
+import { hashPassword } from '../utils/crypto';
 
 // ─── Default values ──────────────────────────────────────────────────────────
 const DEFAULT_SUBJECTS         = {};
@@ -115,10 +116,8 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
             return;
         }
         try {
-            // Only show full loading screen on initial load or tenant switch
-            if (sid !== currentSchoolId || !data?.name) {
-                setLoading(true);
-            }
+            // Always show loading at the start of a fetch
+            setLoading(true);
 
             // Fire only the critical queries in parallel
             const [
@@ -130,7 +129,8 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 { data: admins },
                 attRecords,
                 feeRecords,
-                resRecords
+                resRecords,
+                inqRecords
             ] = await Promise.all([
                 // Master school settings (currency, logo, etc.)
                 supabase
@@ -182,7 +182,10 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 fetchRelationalTable('fee_records', sid),
 
                 // Fetch Relational Results (paginated)
-                fetchRelationalTable('exam_results', sid)
+                fetchRelationalTable('exam_results', sid),
+
+                // Fetch Relational Inquiries (paginated)
+                fetchRelationalTable('inquiry_records', sid)
             ]);
 
             // ── Update school settings ────────────────────────────────────────
@@ -230,6 +233,23 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                         isOnline: f.is_online
                     });
                 });
+
+                // Chronological Month Sorting
+                const monthOrder = {
+                    January: 0, February: 1, March: 2, April: 3, May: 4, June: 5,
+                    July: 6, August: 7, September: 8, October: 9, November: 10, December: 11
+                };
+                const parseMonthYear = (str) => {
+                    if (!str) return 0;
+                    const [m, y] = str.split(' ');
+                    const monthNum = monthOrder[m] ?? 0;
+                    const yearNum = parseInt(y) || 0;
+                    return yearNum * 12 + monthNum;
+                };
+                Object.keys(feesByStudent).forEach(sid => {
+                    feesByStudent[sid].sort((a, b) => parseMonthYear(a.month) - parseMonthYear(b.month));
+                });
+
 
                 // Group results by student
                 const resByStudent = {};
@@ -345,13 +365,45 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 setTerms(DEFAULT_TERMS);
             }
 
-            setSections(metaMap['SECTIONS'] || []);
+            let loadedSections = metaMap['SECTIONS'] || [];
+            if (!Array.isArray(loadedSections) || loadedSections.length === 0) {
+                loadedSections = [
+                    { id: "sec-a", name: "Section A", classes: currentClasses },
+                    { id: "sec-b", name: "Section B", classes: currentClasses }
+                ];
+            } else {
+                // Ensure all classes in currentClasses exist in at least one section so they are visible
+                const assigned = new Set(loadedSections.flatMap(s => s.classes || []));
+                const missing = currentClasses.filter(c => !assigned.has(c));
+                if (missing.length > 0 && loadedSections.length > 0) {
+                    loadedSections = loadedSections.map((s, idx) =>
+                        idx === 0 ? { ...s, classes: [...(s.classes || []), ...missing] } : s
+                    );
+                }
+            }
+            setSections(loadedSections);
             setWeights(metaMap['WEIGHTS'] || DEFAULT_WEIGHTS);
             setClassSerialStarts(metaMap['CLASS_SERIAL_STARTS'] || DEFAULT_CLASS_SERIAL_STARTS);
             setClassFeeDefaults(metaMap['CLASS_FEE_DEFAULTS'] || DEFAULT_CLASS_FEE_DEFAULTS);
             setFeeSettings(metaMap['FEE_SETTINGS'] || null);
             setExpenses(metaMap['EXPENSES'] || []);
-            setInquiries(metaMap['INQUIRIES'] || []);
+            
+            // Map relational database inquiries back to UI expected structure
+            const inquiriesList = (inqRecords || []).map(inq => ({
+                id: inq.id,
+                inquiryNumber: inq.inquiry_number,
+                studentName: inq.student_name,
+                fatherName: inq.father_name,
+                contact: inq.contact,
+                applyingFor: inq.applying_for,
+                date: inq.inquiry_date,
+                notes: inq.notes,
+                status: inq.status,
+                feeAdmission: inq.fee_admission,
+                feePaperFund: inq.fee_paper_fund,
+                feeMonthly: inq.fee_monthly
+            }));
+            setInquiries(inquiriesList);
 
         } catch (error) {
             console.error('Error fetching school data:', error);
@@ -390,6 +442,9 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
 
     // Re-fetch whenever the active school changes.
     // Skip entirely when schoolId is null (SaaS landing — no tenant selected).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // fetchData is intentionally omitted from deps — it is called with an
+    // explicit sid argument so stale closure is not an issue here.
     useEffect(() => {
         setCurrentSchoolId(schoolId);
         if (schoolId) {
@@ -463,9 +518,38 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
         
         if (!error) {
             setSchoolSettings(prev => ({ ...prev, ...finalSnapshot, is_onboarded: true }));
+
+            // Seed default metadata for this school
+            const defaultSubjects = {};
+            const defaultTerms = {};
+            LOCAL_CLASSES.forEach(c => {
+                defaultSubjects[c] = ["Mathematics", "Physics", "Chemistry", "English", "Urdu", "Computer Science", "Biology", "Islamic Studies", "Pakistan Studies"];
+                defaultTerms[c] = ["First Term 2026", "Mid Term 2026", "Final Term 2026"];
+            });
+            const defaultSections = [
+                { id: "sec-a", name: "Section A", classes: LOCAL_CLASSES },
+                { id: "sec-b", name: "Section B", classes: LOCAL_CLASSES }
+            ];
+
+            await Promise.all([
+                _upsertMeta('CLASSES', LOCAL_CLASSES),
+                _upsertMeta('SUBJECTS', defaultSubjects),
+                _upsertMeta('TERMS', defaultTerms),
+                _upsertMeta('SECTIONS', defaultSections),
+                _upsertMeta('CLASS_SERIAL_STARTS', {}),
+                _upsertMeta('CLASS_FEE_DEFAULTS', {}),
+                _upsertMeta('FEE_SETTINGS', null)
+            ]);
+
+            // Update local state directly so the UI responds immediately
+            setClasses(LOCAL_CLASSES);
+            setSubjects(defaultSubjects);
+            setTerms(defaultTerms);
+            setSections(defaultSections);
         }
         return { error };
     };
+
 
     const setFaculty = async (facultyList) => {
         const tagged = facultyList.map(f => ({ ...f, school_id: currentSchoolId }));
@@ -573,16 +657,19 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
     const updateClasses = async (newClassesList) => {
         const { error } = await _upsertMeta('CLASSES', newClassesList);
         if (!error) setClasses(newClassesList);
+        return { error };
     };
 
     const updateSubjects = async (newSubjectsMap) => {
         const { error } = await _upsertMeta('SUBJECTS', newSubjectsMap);
         if (!error) setSubjects(newSubjectsMap);
+        return { error };
     };
 
     const updateTerms = async (newTermsMap) => {
         const { error } = await _upsertMeta('TERMS', newTermsMap);
         if (!error) setTerms(newTermsMap);
+        return { error };
     };
 
     const updateSections = async (newSectionsList) => {
@@ -594,6 +681,7 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
     const updateWeights = async (newWeights) => {
         const { error } = await _upsertMeta('WEIGHTS', newWeights);
         if (!error) setWeights(newWeights);
+        return { error };
     };
 
     const updateClassSerialStarts = async (newMap) => {
@@ -877,13 +965,26 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
             fee_monthly: inq.feeMonthly ? Number(inq.feeMonthly) : 0
         };
         const { error } = await supabase.from('inquiry_records').upsert(payload);
-        if (!error) await fetchData();
+        if (!error) {
+            setInquiries(prev => {
+                const idx = prev.findIndex(item => item.id === inq.id);
+                if (idx > -1) {
+                    const next = [...prev];
+                    next[idx] = { ...inq };
+                    return next;
+                } else {
+                    return [...prev, { ...inq }];
+                }
+            });
+        }
         return { error };
     };
 
     const deleteInquiry = async (id) => {
         const { error } = await supabase.from('inquiry_records').delete().eq('id', id).eq('school_id', currentSchoolId);
-        if (!error) await fetchData();
+        if (!error) {
+            setInquiries(prev => prev.filter(item => item.id !== id));
+        }
         return { error };
     };
 
@@ -1085,12 +1186,13 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
     };
 
     const changeAdminPassword = async (newUsername, newPassword) => {
+        const hashedPassword = await hashPassword(newPassword, currentSchoolId + '_' + newUsername.toLowerCase());
         const { error } = await supabase
             .from('admins')
-            .update({ username: newUsername, password: newPassword })
+            .update({ username: newUsername, password: hashedPassword })
             .eq('school_id', currentSchoolId)
             .eq('role', 'admin');
-        if (!error) setAdminCredentials({ username: newUsername, password: newPassword });
+        if (!error) setAdminCredentials({ username: newUsername, password: hashedPassword });
         return { error };
     };
 

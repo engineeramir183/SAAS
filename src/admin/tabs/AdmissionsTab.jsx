@@ -1,16 +1,34 @@
 import React, { useState } from 'react';
 import { Save, Trash2, Camera, User, Users, Award, CheckCircle, Printer, ChevronDown, X, ClipboardList, Clipboard, CheckCircle2, FileText } from 'lucide-react';
 import { useSchoolData } from '../../context/SchoolDataContext';
+import {
+    filterName, validateName,
+    formatCNIC, validateCNIC,
+    formatPhone, validatePhone,
+    filterTextOnly, validateTextOnly,
+    filterAddress, checkDuplicateCNIC
+} from '../../utils/validation';
 
 const AdmissionsTab = ({
     admissionData, setAdmissionData, admissionInitialState,
     printAdmissionForm, printAdmissionFormBulk, printBlankAdmissionForm,
     handleAdmissionPhotoUpload, photoFileRef,
-    sectionClasses, students,
-    INQUIRIES, saveInquiry, deleteInquiry
+    sectionClasses = [], students = [],
+    INQUIRIES = [], saveInquiry, deleteInquiry,
+    isSavingAdmission = false
 }) => {
     const { schoolData } = useSchoolData();
     const update = (key, value) => setAdmissionData(prev => ({ ...prev, [key]: value }));
+
+    // ── Validation error state ──
+    const [errors, setErrors] = useState({});
+    const setError = (key, msg) => setErrors(prev => ({ ...prev, [key]: msg }));
+    const clearError = (key) => setErrors(prev => { const n = { ...prev }; delete n[key]; return n; });
+    const FieldError = ({ field }) => {
+        const msg = errors[field];
+        if (!msg) return null;
+        return <div style={{ color: '#dc2626', fontSize: '0.75rem', fontWeight: 600, marginTop: '0.25rem' }}>{msg}</div>;
+    };
 
     const [activeView, setActiveView] = useState('admission'); // 'admission', 'inquiry', 'inquiries_list', 'dashboard'
 
@@ -44,10 +62,10 @@ const AdmissionsTab = ({
     // -- Inquiry Print Functions --
 
     const handleSaveAndPrintBlankForm = () => {
-        if (!inquiryData.studentName.trim() || !inquiryData.contact.trim()) {
-            alert("Student Name and Contact are required.");
-            return;
-        }
+        const sNameErr = validateName(inquiryData.studentName, 'Student Name');
+        if (sNameErr) { alert(sNameErr); return; }
+        const phoneErr = validatePhone(inquiryData.contact, 'Contact Number');
+        if (phoneErr) { alert(phoneErr); return; }
         const newId = inquiryData.id || `INQ-${Date.now()}`;
         const newInquiry = { ...inquiryData, id: newId };
         saveInquiry(newInquiry);
@@ -58,11 +76,18 @@ const AdmissionsTab = ({
     };
 
     const handleSaveAndGenerateVoucher = () => {
-        if (!inquiryData.studentName.trim() || !inquiryData.contact.trim()) {
-            alert("Student Name and Contact are required.");
-            return;
-        }
+        const sNameErr = validateName(inquiryData.studentName, 'Student Name');
+        if (sNameErr) { alert(sNameErr); return; }
+        const phoneErr = validatePhone(inquiryData.contact, 'Contact Number');
+        if (phoneErr) { alert(phoneErr); return; }
         setVoucherModal(true);
+    };
+
+    const escapeHTML = (str) => String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+    const safeDateString = (dateStr) => {
+        if (!dateStr) return '—';
+        const d = new Date(dateStr);
+        return isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
     };
 
     const printVoucher = () => {
@@ -233,17 +258,17 @@ const AdmissionsTab = ({
         sections.forEach(copy => {
             html += `<div class="slip">
                 <div class="header-banner">
-                    <div class="school">${schoolData?.name || 'School Name'}</div>
+                    <div class="school">${escapeHTML(schoolData?.name || 'School Name')}</div>
                     <div style="font-size:9px; font-weight: 700; opacity:0.95; letter-spacing: 2px; text-transform: uppercase; margin-top: 2px;">Admission Voucher</div>
                 </div>
                 <div style="text-align:center; margin-bottom: 15px;">
-                    <span class="copy-badge">${copy}</span>
+                    <span class="copy-badge">${escapeHTML(copy)}</span>
                 </div>
                 <div class="info-box">
-                    <div class="row"><span class="label">Date</span><span class="val">${new Date().toLocaleDateString()}</span></div>
-                    <div class="row"><span class="label">Voucher #</span><span class="val">${newId}</span></div>
-                    <div class="row"><span class="label">Student Name</span><span class="val">${newInquiry.studentName}</span></div>
-                    <div class="row"><span class="label">Class</span><span class="val">${newInquiry.applyingFor}</span></div>
+                    <div class="row"><span class="label">Date</span><span class="val">${safeDateString(new Date())}</span></div>
+                    <div class="row"><span class="label">Voucher #</span><span class="val">${escapeHTML(newId)}</span></div>
+                    <div class="row"><span class="label">Student Name</span><span class="val">${escapeHTML(newInquiry.studentName)}</span></div>
+                    <div class="row"><span class="label">Class</span><span class="val">${escapeHTML(newInquiry.applyingFor)}</span></div>
                 </div>
                 
                 <div class="fees-box">
@@ -268,6 +293,10 @@ const AdmissionsTab = ({
         html += `</div></body></html>`;
         
         const printWindow = window.open('', '', 'width=1000,height=500');
+        if (!printWindow) {
+            alert('Popup blocked! Please allow popups for this site to print vouchers.');
+            return;
+        }
         printWindow.document.write(html);
         printWindow.document.close();
         printWindow.focus();
@@ -293,13 +322,17 @@ const AdmissionsTab = ({
         }
 
         const printWindow = window.open('', '', 'width=900,height=600');
+        if (!printWindow) {
+            alert('Popup blocked! Please allow popups for this site to print inquiries.');
+            return;
+        }
         let tableRows = filtered.slice().reverse().map(i => `
             <tr>
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${new Date(i.date).toLocaleDateString()}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #475569; font-weight: 600;">${i.inquiryNumber || '-'}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a;">${i.studentName}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">${i.contact}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #0f172a;">${i.applyingFor}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${safeDateString(i.date)}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #475569; font-weight: 600;">${escapeHTML(i.inquiryNumber || '-')}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a;">${escapeHTML(i.studentName)}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">${escapeHTML(i.contact)}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #0f172a;">${escapeHTML(i.applyingFor)}</td>
                 <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #334155;">
                     <div style="display:grid; grid-template-columns: auto 1fr; gap: 4px;">
                         <span>Adm:</span><strong style="color:#0f172a;">Rs. ${i.feeAdmission ? Number(i.feeAdmission).toLocaleString() : '0'}</strong>
@@ -309,7 +342,7 @@ const AdmissionsTab = ({
                 </td>
                 <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">
                     <span style="display:inline-block; padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; background: ${i.status === 'completed' ? '#f0fdf4' : '#fffbeb'}; color: ${i.status === 'completed' ? '#16a34a' : '#b45309'}; border: 1px solid ${i.status === 'completed' ? '#bbf7d0' : '#fef3c7'};">
-                        ${i.status}
+                        ${escapeHTML(i.status)}
                     </span>
                 </td>
             </tr>
@@ -356,8 +389,8 @@ const AdmissionsTab = ({
                 <body>
                     <button class="btn-print" onclick="window.print()">Print List</button>
                     <div style="text-align:center; margin-bottom: 25px;">
-                        <h2 style="margin: 0 0 6px 0;">${schoolData?.name || 'School Name'}</h2>
-                        <h3>${title} (Total RecordCount: ${filtered.length})</h3>
+                        <h2 style="margin: 0 0 6px 0;">${escapeHTML(schoolData?.name || 'School Name')}</h2>
+                        <h3>${escapeHTML(title)} (Total RecordCount: ${filtered.length})</h3>
                     </div>
                     <table>
                         <thead>
@@ -383,8 +416,23 @@ const AdmissionsTab = ({
     };
 
     const handleSaveInquiry = () => {
-        if (!inquiryData.studentName.trim() || !inquiryData.contact.trim()) {
-            alert("Student Name and Contact are required.");
+        const sNameErr = validateName(inquiryData.studentName, 'Student Name');
+        if (sNameErr) {
+            alert(sNameErr);
+            return;
+        }
+
+        if (inquiryData.fatherName && inquiryData.fatherName.trim()) {
+            const fNameErr = validateName(inquiryData.fatherName, 'Parent / Guardian Name');
+            if (fNameErr) {
+                alert(fNameErr);
+                return;
+            }
+        }
+
+        const phoneErr = validatePhone(inquiryData.contact, 'Contact Number');
+        if (phoneErr) {
+            alert(phoneErr);
             return;
         }
 
@@ -442,8 +490,8 @@ const AdmissionsTab = ({
 
     const allStudents = students || [];
     const filteredStudents = allStudents.filter(s =>
-        s.name?.toLowerCase().includes(bulkStudentSearch.toLowerCase()) ||
-        s.id?.toLowerCase().includes(bulkStudentSearch.toLowerCase())
+        (s.name ? String(s.name).toLowerCase() : '').includes(bulkStudentSearch.toLowerCase()) ||
+        (s.id ? String(s.id).toLowerCase() : '').includes(bulkStudentSearch.toLowerCase())
     );
 
     const handleBulkPrint = () => {
@@ -574,8 +622,18 @@ const AdmissionsTab = ({
                             <button onClick={() => setShowBulkModal(true)} className="btn" style={{ background: '#eff6ff', border: '1.5px solid #1e3a8a', color: '#1e3a8a', fontWeight: 700 }}>
                                 <Printer size={16} /> Print Forms <ChevronDown size={14} />
                             </button>
-                            <button onClick={printAdmissionForm} className="btn btn-primary" style={{ background: '#4d7c0f', borderColor: '#4d7c0f' }}>
-                                <Save size={18} /> Save &amp; Print Form
+                            <button
+                                onClick={printAdmissionForm}
+                                disabled={isSavingAdmission}
+                                className="btn btn-primary"
+                                style={{
+                                    background: isSavingAdmission ? '#65a30d' : '#4d7c0f',
+                                    borderColor: '#4d7c0f',
+                                    opacity: isSavingAdmission ? 0.75 : 1,
+                                    cursor: isSavingAdmission ? 'not-allowed' : 'pointer'
+                                }}
+                            >
+                                <Save size={18} /> {isSavingAdmission ? 'Saving Student...' : 'Save & Print Form'}
                             </button>
                         </div>
                     </div>
@@ -585,8 +643,16 @@ const AdmissionsTab = ({
                         <div className="grid grid-cols-2" style={{ gap: '2rem', marginBottom: '2rem', borderBottom: '1px solid var(--color-gray-100)', paddingBottom: '1.5rem' }}>
                             <div>
                                 <label className="form-label">Applying For (class)</label>
-                                <select className="form-input" value={admissionData.applyingFor} onChange={e => update('applyingFor', e.target.value)}>
+                                <select
+                                    className="form-input"
+                                    value={admissionData.applyingFor || sectionClasses[0] || ''}
+                                    onChange={e => update('applyingFor', e.target.value)}
+                                    style={{ fontWeight: 600 }}
+                                >
                                     {sectionClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                                    {admissionData.applyingFor && !sectionClasses.includes(admissionData.applyingFor) && (
+                                        <option value={admissionData.applyingFor}>{admissionData.applyingFor}</option>
+                                    )}
                                 </select>
                             </div>
                             <div>
@@ -617,11 +683,35 @@ const AdmissionsTab = ({
                             <div className="grid grid-cols-2" style={{ gap: '1.5rem' }}>
                                 <div>
                                     <label className="form-label">Student's Name (Capital Letters)</label>
-                                    <input type="text" className="form-input" placeholder="Enter full name" value={admissionData.studentName} onChange={e => update('studentName', e.target.value.toUpperCase())} />
+                                    <input type="text" className="form-input" placeholder="Enter full name" value={admissionData.studentName}
+                                        onChange={e => {
+                                            const filtered = filterName(e.target.value).toUpperCase();
+                                            update('studentName', filtered);
+                                            const err = validateName(filtered, "Student's name");
+                                            err ? setError('studentName', err) : clearError('studentName');
+                                        }}
+                                        style={errors.studentName ? { borderColor: '#dc2626' } : {}}
+                                    />
+                                    <FieldError field="studentName" />
                                 </div>
                                 <div>
                                     <label className="form-label">National ID / B-Form Number</label>
-                                    <input type="text" className="form-input" placeholder="e.g. 35202-0000000-0" value={admissionData.bForm} onChange={e => update('bForm', e.target.value)} />
+                                    <input type="text" className="form-input" placeholder="e.g. 35202-0000000-0" value={admissionData.bForm}
+                                        onChange={e => {
+                                            const formatted = formatCNIC(e.target.value);
+                                            update('bForm', formatted);
+                                            const err = validateCNIC(formatted, 'B-Form');
+                                            err ? setError('bForm', err) : clearError('bForm');
+                                            // Check duplicate
+                                            if (!err && formatted.length === 15) {
+                                                const dup = checkDuplicateCNIC(formatted, students);
+                                                dup ? setError('bForm', dup) : clearError('bForm');
+                                            }
+                                        }}
+                                        maxLength={15}
+                                        style={errors.bForm ? { borderColor: '#dc2626' } : {}}
+                                    />
+                                    <FieldError field="bForm" />
                                 </div>
                                 <div>
                                     <label className="form-label">Date of Birth</label>
@@ -629,7 +719,16 @@ const AdmissionsTab = ({
                                 </div>
                                 <div>
                                     <label className="form-label">Nationality</label>
-                                    <input type="text" className="form-input" placeholder="e.g. Pakistani" value={admissionData.nationality} onChange={e => update('nationality', e.target.value)} />
+                                    <input type="text" className="form-input" placeholder="e.g. Pakistani" value={admissionData.nationality}
+                                        onChange={e => {
+                                            const filtered = filterTextOnly(e.target.value);
+                                            update('nationality', filtered);
+                                            const err = validateTextOnly(filtered, 'Nationality');
+                                            err ? setError('nationality', err) : clearError('nationality');
+                                        }}
+                                        style={errors.nationality ? { borderColor: '#dc2626' } : {}}
+                                    />
+                                    <FieldError field="nationality" />
                                 </div>
                                 <div>
                                     <label className="form-label">Gender</label>
@@ -643,7 +742,16 @@ const AdmissionsTab = ({
                                 </div>
                                 <div>
                                     <label className="form-label">Religion</label>
-                                    <input type="text" className="form-input" placeholder="e.g. Islam" value={admissionData.religion} onChange={e => update('religion', e.target.value)} />
+                                    <input type="text" className="form-input" placeholder="e.g. Islam" value={admissionData.religion}
+                                        onChange={e => {
+                                            const filtered = filterTextOnly(e.target.value);
+                                            update('religion', filtered);
+                                            const err = validateTextOnly(filtered, 'Religion');
+                                            err ? setError('religion', err) : clearError('religion');
+                                        }}
+                                        style={errors.religion ? { borderColor: '#dc2626' } : {}}
+                                    />
+                                    <FieldError field="religion" />
                                 </div>
                                 <div>
                                     <label className="form-label">Student Photograph</label>
@@ -651,7 +759,7 @@ const AdmissionsTab = ({
                                         <div style={{ width: '60px', height: '80px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '4px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                             {admissionData.photo ? <img src={admissionData.photo} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Camera size={20} style={{ margin: 'auto', color: '#94a3b8' }} />}
                                         </div>
-                                        <button onClick={() => photoFileRef.current.click()} className="btn btn-sm" style={{ background: 'var(--color-primary)', color: 'white' }}>
+                                        <button onClick={() => photoFileRef?.current?.click()} className="btn btn-sm" style={{ background: 'var(--color-primary)', color: 'white' }}>
                                             <Camera size={14} /> Upload Photo
                                         </button>
                                     </div>
@@ -669,23 +777,64 @@ const AdmissionsTab = ({
                             <div className="grid grid-cols-2" style={{ gap: '1.5rem' }}>
                                 <div className="col-span-2">
                                     <label className="form-label">Father's Name (Capital Letters)</label>
-                                    <input type="text" className="form-input" value={admissionData.fatherName} onChange={e => update('fatherName', e.target.value.toUpperCase())} />
+                                    <input type="text" className="form-input" value={admissionData.fatherName}
+                                        onChange={e => {
+                                            const filtered = filterName(e.target.value).toUpperCase();
+                                            update('fatherName', filtered);
+                                            const err = validateName(filtered, "Father's name");
+                                            err ? setError('fatherName', err) : clearError('fatherName');
+                                        }}
+                                        style={errors.fatherName ? { borderColor: '#dc2626' } : {}}
+                                    />
+                                    <FieldError field="fatherName" />
                                 </div>
                                 <div>
                                     <label className="form-label">National ID / CNIC Number</label>
-                                    <input type="text" className="form-input" placeholder="35202-0000000-0" value={admissionData.fatherCnic} onChange={e => update('fatherCnic', e.target.value)} />
+                                    <input type="text" className="form-input" placeholder="35202-0000000-0" value={admissionData.fatherCnic}
+                                        onChange={e => {
+                                            const formatted = formatCNIC(e.target.value);
+                                            update('fatherCnic', formatted);
+                                            const err = validateCNIC(formatted, "Father's CNIC");
+                                            err ? setError('fatherCnic', err) : clearError('fatherCnic');
+                                        }}
+                                        maxLength={15}
+                                        style={errors.fatherCnic ? { borderColor: '#dc2626' } : {}}
+                                    />
+                                    <FieldError field="fatherCnic" />
                                 </div>
                                 <div>
                                     <label className="form-label">Contact Number</label>
-                                    <input type="text" className="form-input" value={admissionData.contact} onChange={e => update('contact', e.target.value)} />
+                                    <input type="text" className="form-input" placeholder="03XX-XXXXXXX" value={admissionData.contact}
+                                        onChange={e => {
+                                            const formatted = formatPhone(e.target.value);
+                                            update('contact', formatted);
+                                            const err = validatePhone(formatted, 'Contact number');
+                                            err ? setError('contact', err) : clearError('contact');
+                                        }}
+                                        maxLength={12}
+                                        style={errors.contact ? { borderColor: '#dc2626' } : {}}
+                                    />
+                                    <FieldError field="contact" />
                                 </div>
                                 <div>
                                     <label className="form-label">Mobile / WhatsApp Number</label>
-                                    <input type="text" className="form-input" value={admissionData.whatsapp} onChange={e => update('whatsapp', e.target.value)} />
+                                    <input type="text" className="form-input" placeholder="03XX-XXXXXXX" value={admissionData.whatsapp}
+                                        onChange={e => {
+                                            const formatted = formatPhone(e.target.value);
+                                            update('whatsapp', formatted);
+                                            const err = validatePhone(formatted, 'WhatsApp number');
+                                            err ? setError('whatsapp', err) : clearError('whatsapp');
+                                        }}
+                                        maxLength={12}
+                                        style={errors.whatsapp ? { borderColor: '#dc2626' } : {}}
+                                    />
+                                    <FieldError field="whatsapp" />
                                 </div>
                                 <div className="col-span-2">
                                     <label className="form-label">Home Address</label>
-                                    <textarea className="form-input" style={{ height: '80px' }} value={admissionData.address} onChange={e => update('address', e.target.value)} />
+                                    <textarea className="form-input" style={{ height: '80px' }} value={admissionData.address}
+                                        onChange={e => update('address', filterAddress(e.target.value))}
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -751,15 +900,46 @@ const AdmissionsTab = ({
                             </div>
                             <div>
                                 <label className="form-label">Student Name *</label>
-                                <input type="text" className="form-input" value={inquiryData.studentName} onChange={e => setInquiryData(prev => ({ ...prev, studentName: e.target.value }))} placeholder="Enter student's name" />
+                                <input type="text" className="form-input" value={inquiryData.studentName}
+                                    onChange={e => {
+                                        const filtered = filterName(e.target.value);
+                                        setInquiryData(prev => ({ ...prev, studentName: filtered }));
+                                        const err = validateName(filtered, 'Student name');
+                                        err ? setError('inq_studentName', err) : clearError('inq_studentName');
+                                    }}
+                                    placeholder="Enter student's name"
+                                    style={errors.inq_studentName ? { borderColor: '#dc2626' } : {}}
+                                />
+                                <FieldError field="inq_studentName" />
                             </div>
                             <div>
                                 <label className="form-label">Parent / Guardian Name</label>
-                                <input type="text" className="form-input" value={inquiryData.fatherName} onChange={e => setInquiryData(prev => ({ ...prev, fatherName: e.target.value }))} placeholder="Enter father's name" />
+                                <input type="text" className="form-input" value={inquiryData.fatherName}
+                                    onChange={e => {
+                                        const filtered = filterName(e.target.value);
+                                        setInquiryData(prev => ({ ...prev, fatherName: filtered }));
+                                        const err = validateName(filtered, 'Parent name');
+                                        err ? setError('inq_fatherName', err) : clearError('inq_fatherName');
+                                    }}
+                                    placeholder="Enter father's name"
+                                    style={errors.inq_fatherName ? { borderColor: '#dc2626' } : {}}
+                                />
+                                <FieldError field="inq_fatherName" />
                             </div>
                             <div>
                                 <label className="form-label">Contact Number *</label>
-                                <input type="text" className="form-input" value={inquiryData.contact} onChange={e => setInquiryData(prev => ({ ...prev, contact: e.target.value }))} placeholder="e.g. 0300-1234567" />
+                                <input type="text" className="form-input" value={inquiryData.contact}
+                                    onChange={e => {
+                                        const formatted = formatPhone(e.target.value);
+                                        setInquiryData(prev => ({ ...prev, contact: formatted }));
+                                        const err = validatePhone(formatted, 'Contact number');
+                                        err ? setError('inq_contact', err) : clearError('inq_contact');
+                                    }}
+                                    placeholder="e.g. 0300-1234567"
+                                    maxLength={12}
+                                    style={errors.inq_contact ? { borderColor: '#dc2626' } : {}}
+                                />
+                                <FieldError field="inq_contact" />
                             </div>
                             <div>
                                 <label className="form-label">Applying For (Class)</label>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Edit3, Trash2, Camera, PlusCircle, Users, DollarSign, Download, Printer, CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
+import { filterName, formatPhone, validatePhone } from '../../utils/validation';
 
 // Print Payslip Helper
 function printPayslip(member, monthLabel, schoolName) {
@@ -14,11 +15,13 @@ function printPayslip(member, monthLabel, schoolName) {
     const { base_salary, allowance, deduction, net_paid, paid_on } = payroll;
     const sym = 'RS';
 
+    const escapeHTML = (str) => String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+
     const html = `<!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <title>Payslip - ${member.name} - ${monthLabel}</title>
+        <title>Payslip - ${escapeHTML(member.name)} - ${escapeHTML(monthLabel)}</title>
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
             * { box-sizing: border-box; }
@@ -181,15 +184,15 @@ function printPayslip(member, monthLabel, schoolName) {
         <div class="slip">
             <div class="top-accent"></div>
             <div class="header">
-                <div class="school">${schoolName || 'School'}</div>
-                <div class="title">Official Salary Payslip — ${monthLabel}</div>
+                <div class="school">${escapeHTML(schoolName || 'School')}</div>
+                <div class="title">Official Salary Payslip — ${escapeHTML(monthLabel)}</div>
             </div>
             
             <div class="details-grid">
-                <div><div class="label">Employee Name</div><div class="value">${member.name}</div></div>
-                <div><div class="label">Designation</div><div class="value">${member.role || 'Staff'}</div></div>
-                <div><div class="label">Department</div><div class="value">${member.department || 'General'}</div></div>
-                <div><div class="label">Payment Status</div><div class="value" style="color: #16a34a; text-transform: uppercase; font-size: 12px; font-weight: 800;">PAID on ${paid_on || '—'}</div></div>
+                <div><div class="label">Employee Name</div><div class="value">${escapeHTML(member.name)}</div></div>
+                <div><div class="label">Designation</div><div class="value">${escapeHTML(member.role || 'Staff')}</div></div>
+                <div><div class="label">Department</div><div class="value">${escapeHTML(member.department || 'General')}</div></div>
+                <div><div class="label">Payment Status</div><div class="value" style="color: #16a34a; text-transform: uppercase; font-size: 12px; font-weight: 800;">PAID on ${escapeHTML(paid_on || '—')}</div></div>
             </div>
 
             <table class="calc-table">
@@ -207,12 +210,16 @@ function printPayslip(member, monthLabel, schoolName) {
                 <div class="sig-line">Employee Signature</div>
             </div>
             
-            <div style="text-align: center; margin-top: 35px; font-size: 9px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Generated on ${new Date().toLocaleDateString()}</div>
+            <div style="text-align: center; margin-top: 35px; font-size: 9px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Generated on ${escapeHTML(new Date().toLocaleDateString())}</div>
         </div>
         <script>window.onload = () => { window.print(); }</script>
     </body>
     </html>`;
     const win = window.open('', '_blank');
+    if (!win) {
+        alert('Popup blocked! Please allow popups for this site to print payslips.');
+        return;
+    }
     win.document.write(html);
     win.document.close();
 }
@@ -349,11 +356,14 @@ const FacultyTab = ({
                                     <div className="grid grid-cols-2" style={{ gap: '1rem' }}>
                                         <div>
                                             <label className="form-label">Full Name</label>
-                                            <input type="text" className="form-input" value={tempFacultyMember.name || ''} onChange={e => setTempFacultyMember({ ...tempFacultyMember, name: e.target.value })} />
+                                            <input type="text" className="form-input" value={tempFacultyMember.name || ''} onChange={e => setTempFacultyMember({ ...tempFacultyMember, name: filterName(e.target.value) })} />
                                         </div>
                                         <div>
                                             <label className="form-label">Contact / Phone</label>
-                                            <input type="text" className="form-input" placeholder="e.g. 0300-1234567" value={tempFacultyMember.phone || ''} onChange={e => setTempFacultyMember({ ...tempFacultyMember, phone: e.target.value })} />
+                                            <input type="text" className="form-input" placeholder="e.g. 0300-1234567" value={tempFacultyMember.phone || ''}
+                                                onChange={e => setTempFacultyMember({ ...tempFacultyMember, phone: formatPhone(e.target.value) })}
+                                                maxLength={12}
+                                            />
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-2" style={{ gap: '1rem' }}>

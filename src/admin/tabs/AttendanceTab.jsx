@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Download, Printer, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Edit3, Save, Check, Users, Filter } from 'lucide-react';
-import { supabase } from '../../supabaseClient';
-import { useSchoolData } from '../../context/SchoolDataContext';
-import { ActivityLogService } from '../../services/ActivityLogService';
 import { sendWhatsAppMessage, WhatsAppTemplates } from '../../services/WhatsAppService';
 import { sendPushNotification, PushTemplates } from '../../services/PushNotificationService';
+import { useSchoolData } from '../../context/SchoolDataContext';
 
 /* ─────────────────────────────────────────────
    PRINT HELPER  – opens a new window with a
@@ -47,6 +45,9 @@ function openPrintWindow(htmlBody, title = 'Attendance Report', schoolName = 'Sc
   .badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700}
   .badge.present{background:#dcfce7;color:#15803d}
   .badge.absent{background:#fee2e2;color:#dc2626}
+  .badge.leave{background:#f5f3ff;color:#7c3aed}
+  .badge.late{background:#fffbeb;color:#d97706}
+  .badge.holiday{background:#e0f2fe;color:#0284c7}
   .badge.unmarked{background:#fef9c3;color:#92400e}
   .pct-bar-wrap{background:#e2e8f0;border-radius:4px;height:7px;width:80px;display:inline-block;vertical-align:middle;overflow:hidden;}
   .pct-bar{height:100%;border-radius:4px}
@@ -55,6 +56,10 @@ function openPrintWindow(htmlBody, title = 'Attendance Report', schoolName = 'Sc
   .day-chip{padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700}
   .day-chip.p{background:#dcfce7;color:#15803d}
   .day-chip.a{background:#fee2e2;color:#dc2626}
+  .day-chip.l{background:#f5f3ff;color:#7c3aed}
+  .day-chip.lt{background:#fffbeb;color:#d97706}
+  .day-chip.h{background:#e0f2fe;color:#0284c7}
+
   .footer{margin-top:28px;border-top:1px solid #e2e8f0;padding-top:12px;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8}
   @media print{
     body{padding:16px 20px}
@@ -131,7 +136,11 @@ function buildDailyClassHTML(students, className, date, schoolName, genderFilter
         .filter(s => (s.attendance?.records || []).some(r => r.date === date))
         .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
 
-    const presentList = filtered.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === 'present'));
+    const activeStudents = filtered.filter(s => {
+        const rec = (s.attendance?.records || []).find(r => r.date === date);
+        return rec?.status !== 'holiday';
+    });
+    const presentList = filtered.filter(s => (s.attendance?.records || []).some(r => r.date === date && (r.status === 'present' || r.status === 'late' || r.status === 'leave')));
     const absentList = filtered.filter(s => (s.attendance?.records || []).some(r => r.date === date && r.status === 'absent'));
 
     const rows = filtered.map((s, i) => {
@@ -154,7 +163,7 @@ ${schoolHeader(schoolName, 'Daily Attendance Report', `Class: ${className} | Dat
   <div class="meta-card"><div class="val">${filtered.length}</div><div class="lbl">Total Students</div></div>
   <div class="meta-card green"><div class="val">${presentList.length}</div><div class="lbl">Present</div></div>
   <div class="meta-card red"><div class="val">${absentList.length}</div><div class="lbl">Absent</div></div>
-  <div class="meta-card amber"><div class="val">${filtered.length > 0 ? Math.round((presentList.length / filtered.length) * 100) : 0}%</div><div class="lbl">Attendance Rate</div></div>
+  <div class="meta-card amber"><div class="val">${activeStudents.length > 0 ? Math.round((presentList.length / activeStudents.length) * 100) : 0}%</div><div class="lbl">Attendance Rate</div></div>
 </div>
 <table>
   <thead><tr><th>#</th><th>Student Name</th><th>ID</th><th>Gender</th><th>Father Name</th><th>Status</th><th>Overall %</th></tr></thead>
@@ -188,14 +197,16 @@ function buildMonthlyClassHTML(students, className, year, month, schoolName, gen
 
     const rows = filtered.map((s, i) => {
         const monthRecs = (s.attendance?.records || []).filter(r => r.date.startsWith(prefix));
-        const present = monthRecs.filter(r => r.status === 'present').length;
+        const activeRecs = monthRecs.filter(r => r.status !== 'holiday');
+        const present = monthRecs.filter(r => r.status === 'present' || r.status === 'late' || r.status === 'leave').length;
         const absent = monthRecs.filter(r => r.status === 'absent').length;
-        const pct = monthRecs.length > 0 ? parseFloat(((present / monthRecs.length) * 100).toFixed(1)) : 0;
+        const pct = activeRecs.length > 0 ? parseFloat(((present / activeRecs.length) * 100).toFixed(1)) : 0;
         const chips = allDays.map(d => {
             const rec = monthRecs.find(r => r.date === d);
-            const cls = rec ? (rec.status === 'present' ? 'p' : 'a') : '';
+            const cls = rec ? (rec.status === 'present' ? 'p' : rec.status === 'absent' ? 'a' : rec.status === 'leave' ? 'l' : rec.status === 'late' ? 'lt' : rec.status === 'holiday' ? 'h' : '') : '';
+            const sym = rec ? (rec.status === 'present' ? '✓' : rec.status === 'absent' ? '✗' : rec.status === 'leave' ? '📋' : rec.status === 'late' ? '⏰' : rec.status === 'holiday' ? '🌴' : '') : '';
             const label = d.slice(8); // day digits
-            return `<span class="day-chip ${cls}" title="${d}">${label}${rec ? (rec.status === 'present' ? '✓' : '✗') : ''}</span>`;
+            return `<span class="day-chip ${cls}" title="${d}">${label}${sym}</span>`;
         }).join('');
         return `<tr>
           <td>${i + 1}</td>
@@ -203,20 +214,23 @@ function buildMonthlyClassHTML(students, className, year, month, schoolName, gen
           <td style="color:#64748b">${s.id}</td>
           <td>${present}</td>
           <td>${absent}</td>
-          <td>${monthRecs.length}</td>
+          <td>${activeRecs.length}</td>
           <td>${pctBar(pct)}</td>
           <td><div class="monthly-day-grid">${chips || '<span style="color:#94a3b8;font-size:10px">No records</span>'}</div></td>
         </tr>`;
     }).join('');
 
-    const totalPresent = filtered.reduce((sum, s) => sum + (s.attendance?.records || []).filter(r => r.date.startsWith(prefix) && r.status === 'present').length, 0);
+    const totalPresent = filtered.reduce((sum, s) => sum + (s.attendance?.records || []).filter(r => r.date.startsWith(prefix) && (r.status === 'present' || r.status === 'late' || r.status === 'leave')).length, 0);
     const totalAbsent = filtered.reduce((sum, s) => sum + (s.attendance?.records || []).filter(r => r.date.startsWith(prefix) && r.status === 'absent').length, 0);
     const avgPct = filtered.length > 0
         ? Math.round(filtered.reduce((sum, s) => {
             const recs = (s.attendance?.records || []).filter(r => r.date.startsWith(prefix));
-            return sum + (recs.length > 0 ? (recs.filter(r => r.status === 'present').length / recs.length) * 100 : 0);
+            const active = recs.filter(r => r.status !== 'holiday');
+            const pres = recs.filter(r => r.status === 'present' || r.status === 'late' || r.status === 'leave').length;
+            return sum + (active.length > 0 ? (pres / active.length) * 100 : 0);
         }, 0) / filtered.length)
         : 0;
+
 
     return `
 ${schoolHeader(schoolName, 'Monthly Attendance Report', `Class: ${className} | Month: ${monthLabel} | Filter: ${genderFilter === 'all' ? 'All Students' : genderFilter === 'boys' ? 'Boys' : 'Girls'}`)}
@@ -272,20 +286,26 @@ function buildStudentMonthlyHTML(student, year, month, schoolName) {
     const monthRecs = (student.attendance?.records || [])
         .filter(r => r.date.startsWith(prefix))
         .sort((a, b) => a.date.localeCompare(b.date));
-    const present = monthRecs.filter(r => r.status === 'present').length;
+    const activeRecs = monthRecs.filter(r => r.status !== 'holiday');
+    const present = monthRecs.filter(r => r.status === 'present' || r.status === 'late' || r.status === 'leave').length;
     const absent = monthRecs.filter(r => r.status === 'absent').length;
-    const pct = monthRecs.length > 0 ? parseFloat(((present / monthRecs.length) * 100).toFixed(1)) : 0;
+    const pct = activeRecs.length > 0 ? parseFloat(((present / activeRecs.length) * 100).toFixed(1)) : 0;
 
-    const recRows = monthRecs.map((r, i) =>
-        `<tr><td>${i + 1}</td><td>${r.date}</td><td>${new Date(r.date).toLocaleDateString('default', { weekday: 'long' })}</td><td><span class="badge ${r.status}">${r.status === 'present' ? '✓ Present' : '✗ Absent'}</span></td></tr>`
-    ).join('');
+    const recRows = monthRecs.map((r, i) => {
+        const statusLabel = r.status === 'present' ? '✓ Present'
+                          : r.status === 'absent' ? '✗ Absent'
+                          : r.status === 'leave' ? '📋 Leave'
+                          : r.status === 'late' ? '⏰ Late'
+                          : r.status === 'holiday' ? '🌴 Holiday' : '—';
+        return `<tr><td>${i + 1}</td><td>${r.date}</td><td>${new Date(r.date).toLocaleDateString('default', { weekday: 'long' })}</td><td><span class="badge ${r.status}">${statusLabel}</span></td></tr>`;
+    }).join('');
 
     return `
 ${schoolHeader(schoolName, 'Student Monthly Attendance Report', `${student.name} (${student.id}) | Month: ${monthLabel}`)}
 <div class="meta-grid">
   <div class="meta-card green"><div class="val">${present}</div><div class="lbl">Days Present</div></div>
   <div class="meta-card red"><div class="val">${absent}</div><div class="lbl">Days Absent</div></div>
-  <div class="meta-card"><div class="val">${monthRecs.length}</div><div class="lbl">Days Recorded</div></div>
+  <div class="meta-card"><div class="val">${activeRecs.length}</div><div class="lbl">Days Recorded</div></div>
   <div class="meta-card ${pct >= 75 ? 'green' : 'red'}"><div class="val">${pct}%</div><div class="lbl">Month Attendance</div></div>
 </div>
 <table>
@@ -449,7 +469,7 @@ ${allFiltered.length === 0 ? `<p style="color:#16a34a;font-weight:600;font-size:
 /* ══════════════════════════════════════════ */
 
 const AttendanceTab = ({
-    students, selectedClass, setSelectedClass, sectionClasses,
+    students = [], selectedClass, setSelectedClass, sectionClasses = [],
     attDateFilter, setAttDateFilter,
     markAttendance, removeAttendanceRecord, exportAttendanceExcel,
     fetchData, showSaveMessage, openConfirm,
@@ -580,7 +600,7 @@ const AttendanceTab = ({
             if (toSave.length > 0) await saveAttendanceRecords(toSave);
 
             setHistoryEdits({});
-            setHistoryDate(null);
+            setHistoryDate('');
             showSaveMessage(`Attendance history updated for ${historyDate}!`);
         } catch (err) {
             console.error(err);
@@ -634,32 +654,45 @@ const AttendanceTab = ({
             status: status
         }));
         
-        await saveAttendanceRecords(records);
-        
-        // --- WhatsApp Bulk Absence Alert ---
-        if (status === 'absent' && schoolSettings?.auto_attendance_alert !== false) {
-            let sent = 0;
-            for (const s of classStudents) {
-                const phone = s.admissions?.[0]?.whatsapp || s.admissions?.[0]?.contact || '';
-                if (phone) {
-                    const msg = WhatsAppTemplates.dailyAbsenceSummary(s.name, filterDate, schoolName);
-                    sendWhatsAppMessage(phone, msg, schoolSettings);
-                    sent++;
+        try {
+            await saveAttendanceRecords(records);
+            
+            // --- WhatsApp Bulk Absence Alert ---
+            if (status === 'absent' && schoolSettings?.auto_attendance_alert !== false) {
+                let sent = 0;
+                for (const s of classStudents) {
+                    const phone = s.admissions?.[0]?.whatsapp || s.admissions?.[0]?.contact || '';
+                    if (phone) {
+                        try {
+                            const msg = WhatsAppTemplates.dailyAbsenceSummary(s.name, filterDate, schoolName);
+                            await sendWhatsAppMessage(phone, msg, schoolSettings);
+                            sent++;
+                        } catch (waErr) {
+                            console.error("Failed to send WhatsApp alert for " + s.name, waErr);
+                        }
+                    }
+                }
+                if (sent > 0) showSaveMessage(`Bulk WhatsApp absent alerts sent to ${sent} parents!`);
+            }
+
+            // --- Push Notification Bulk Absence Alert (parallel, free) ---
+            if (status === 'absent' && schoolSettings?.auto_push_attendance_alert) {
+                for (const s of classStudents) {
+                    try {
+                        const tmpl = PushTemplates.attendanceAbsent(s.name, filterDate);
+                        await sendPushNotification(s.id, tmpl.title, tmpl.body, schoolSettings.school_id, { tag: tmpl.tag });
+                    } catch (pushErr) {
+                        console.error("Failed to send push notification for " + s.name, pushErr);
+                    }
                 }
             }
-            if (sent > 0) showSaveMessage(`Bulk WhatsApp absent alerts sent to ${sent} parents!`);
-        }
 
-        // --- Push Notification Bulk Absence Alert (parallel, free) ---
-        if (status === 'absent' && schoolSettings?.auto_push_attendance_alert) {
-            for (const s of classStudents) {
-                const tmpl = PushTemplates.attendanceAbsent(s.name, filterDate);
-                sendPushNotification(s.id, tmpl.title, tmpl.body, schoolSettings.school_id, { tag: tmpl.tag });
-            }
+            const statusLabel = status === 'present' ? '✓ All Present' : status === 'absent' ? '✗ All Absent' : '🌴 All Holiday';
+            showSaveMessage(`${statusLabel} marked for ${classStudents.length} students on ${filterDate}!`);
+        } catch (err) {
+            console.error("Failed to mark all students:", err);
+            alert("Error: Failed to save attendance records.");
         }
-
-        const statusLabel = status === 'present' ? '✓ All Present' : status === 'absent' ? '✗ All Absent' : '🌴 All Holiday';
-        showSaveMessage(`${statusLabel} marked for ${classStudents.length} students on ${filterDate}!`);
     };
 
     // ── Unmark all visible students for the selected date ──
@@ -667,9 +700,13 @@ const AttendanceTab = ({
         if (classStudents.length === 0) return;
         
         const studentIds = classStudents.map(s => s.id);
-        await deleteAttendanceRecords(studentIds, filterDate);
-        
-        showSaveMessage(`↩ All ${classStudents.length} students unmarked for ${filterDate}!`);
+        try {
+            await deleteAttendanceRecords(studentIds, filterDate);
+            showSaveMessage(`↩ All ${classStudents.length} students unmarked for ${filterDate}!`);
+        } catch (err) {
+            console.error("Failed to unmark all students:", err);
+            alert("Error: Failed to delete attendance records.");
+        }
     };
 
     const filteredStudentsForSearch = allClassStudents.filter(s =>
@@ -1160,6 +1197,8 @@ const AttendanceTab = ({
                                                     style={{ padding: '0.4rem 0.65rem', borderRadius: '6px', background: todayRecord?.status === 'leave' ? '#7c3aed' : '#f5f3ff', color: todayRecord?.status === 'leave' ? 'white' : '#7c3aed', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem' }}>📋 L</button>
                                                 <button onClick={() => markAttendance(student.id, 'late', filterDate)} title="Mark Late"
                                                     style={{ padding: '0.4rem 0.65rem', borderRadius: '6px', background: todayRecord?.status === 'late' ? '#d97706' : '#fffbeb', color: todayRecord?.status === 'late' ? 'white' : '#d97706', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem' }}>⏰ Lt</button>
+                                                <button onClick={() => markAttendance(student.id, 'holiday', filterDate)} title="Mark Holiday"
+                                                    style={{ padding: '0.4rem 0.65rem', borderRadius: '6px', background: todayRecord?.status === 'holiday' ? '#0284c7' : '#e0f2fe', color: todayRecord?.status === 'holiday' ? 'white' : '#0284c7', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem' }}>🌴 H</button>
                                             </div>
                                         </td>
                                         <td style={{ padding: '0.85rem 1rem', minWidth: '130px' }}>
@@ -1219,7 +1258,7 @@ const AttendanceTab = ({
                                 );
                             })}
                             {classStudents.length === 0 && (
-                                <tr><td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>No students found for selected filter.</td></tr>
+                                <tr><td colSpan={6} style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>No students found for selected filter.</td></tr>
                             )}
                         </tbody>
                     </table>

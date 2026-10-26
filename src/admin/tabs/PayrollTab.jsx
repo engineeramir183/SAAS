@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { useSchoolData } from '../../context/SchoolDataContext';
 
+const escapeHTML = (str) => String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+
 function printPayslip(member, rec, schoolName, sym) {
     if (!rec) { alert('No payroll record found.'); return; }
     const html = `<!DOCTYPE html>
@@ -174,15 +176,15 @@ function printPayslip(member, rec, schoolName, sym) {
         <div class="slip">
             <div class="top-accent"></div>
             <div class="header">
-                <div class="school">${schoolName}</div>
-                <div class="title">Official Salary Payslip — ${rec.month}</div>
+                <div class="school">${escapeHTML(schoolName)}</div>
+                <div class="title">Official Salary Payslip — ${escapeHTML(rec.month)}</div>
             </div>
             
             <div class="details-grid">
-                <div><div class="label">Employee Name</div><div class="value">${member.name}</div></div>
-                <div><div class="label">Designation</div><div class="value">${member.role || 'Staff'}</div></div>
-                <div><div class="label">Department</div><div class="value">${member.department || 'General'}</div></div>
-                <div><div class="label">Payment Status</div><div class="value" style="color: #16a34a; text-transform: uppercase; font-size: 12px; font-weight: 800;">PAID on ${rec.paid_on || '—'}</div></div>
+                <div><div class="label">Employee Name</div><div class="value">${escapeHTML(member.name)}</div></div>
+                <div><div class="label">Designation</div><div class="value">${escapeHTML(member.role || 'Staff')}</div></div>
+                <div><div class="label">Department</div><div class="value">${escapeHTML(member.department || 'General')}</div></div>
+                <div><div class="label">Payment Status</div><div class="value" style="color: #16a34a; text-transform: uppercase; font-size: 12px; font-weight: 800;">PAID on ${escapeHTML(rec.paid_on || '—')}</div></div>
             </div>
 
             <table class="calc-table">
@@ -206,12 +208,18 @@ function printPayslip(member, rec, schoolName, sym) {
     </body>
     </html>`;
     const w = window.open('', '_blank');
+    if (!w) {
+        alert('Popup blocked! Please allow popups for this site to print payslips.');
+        return;
+    }
     w.document.write(html);
     w.document.close();
 }
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => {
-    const d = new Date(); d.setMonth(d.getMonth() - i);
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - i);
     return d.toLocaleString('default', { month: 'long', year: 'numeric' });
 });
 
@@ -228,7 +236,7 @@ export default function PayrollTab({ schoolData, showSaveMessage, currencySymbol
     const [saving, setSaving] = useState(null);
     const [view, setView] = useState('payroll');
 
-    useEffect(() => { fetchPayrollRecords(month); }, [month]);
+    useEffect(() => { fetchPayrollRecords(month); }, [month, fetchPayrollRecords]);
 
     const recByFaculty = useMemo(() => {
         const m = {};
@@ -255,28 +263,57 @@ export default function PayrollTab({ schoolData, showSaveMessage, currencySymbol
         const allow = Number(getEdit(member.id, 'allowance', 0));
         const ded = Number(getEdit(member.id, 'deduction', 0));
         const net = base + allow - ded;
-        setSaving(member.id);
-        const { error } = await savePayrollRecord({
-            faculty_id: member.id, month,
-            base_salary: base, allowance: allow, deduction: ded,
-            net_paid: net, paid_on: new Date().toISOString().split('T')[0], status: 'paid'
-        });
-        setSaving(null);
-        if (!error) {
-            showSaveMessage(`✅ Paid ${sym} ${net.toLocaleString()} to ${member.name}`);
-            setEdits(p => { const c = { ...p }; delete c[member.id]; return c; });
-        } else alert('Error: ' + error.message);
+        try {
+            setSaving(member.id);
+            const { error } = await savePayrollRecord({
+                faculty_id: member.id, month,
+                base_salary: base, allowance: allow, deduction: ded,
+                net_paid: net, paid_on: new Date().toISOString().split('T')[0], status: 'paid'
+            });
+            if (!error) {
+                showSaveMessage(`✅ Paid ${sym} ${net.toLocaleString()} to ${member.name}`);
+                setEdits(p => { const c = { ...p }; delete c[member.id]; return c; });
+            } else alert('Error: ' + error.message);
+        } catch (err) {
+            console.error(err);
+            alert('Failed to save payroll record.');
+        } finally {
+            setSaving(null);
+        }
     };
 
     const handlePayAll = async () => {
         const unpaid = faculty.filter(f => !recByFaculty[f.id]);
         if (!unpaid.length) { showSaveMessage('Everyone is paid!'); return; }
         if (!confirm(`Pay all ${unpaid.length} unpaid staff using base salaries?`)) return;
+        
+        let processedCount = 0;
+        let errors = [];
+        
         for (const f of unpaid) {
             const base = Number(f.base_salary || 0);
-            await savePayrollRecord({ faculty_id: f.id, month, base_salary: base, allowance: 0, deduction: 0, net_paid: base, paid_on: new Date().toISOString().split('T')[0], status: 'paid' });
+            try {
+                const { error } = await savePayrollRecord({ 
+                    faculty_id: f.id, month, 
+                    base_salary: base, allowance: 0, deduction: 0, 
+                    net_paid: base, paid_on: new Date().toISOString().split('T')[0], 
+                    status: 'paid' 
+                });
+                if (error) {
+                    errors.push(`${f.name}: ${error.message}`);
+                } else {
+                    processedCount++;
+                }
+            } catch (err) {
+                errors.push(`${f.name}: ${err.message || err}`);
+            }
         }
-        showSaveMessage(`✅ Processed ${unpaid.length} payrolls`);
+        
+        if (errors.length > 0) {
+            alert(`Processed ${processedCount} payments. Failed: \n` + errors.join('\n'));
+        } else {
+            showSaveMessage(`✅ Processed ${unpaid.length} payrolls`);
+        }
     };
 
     const filtered = faculty.filter(f => {

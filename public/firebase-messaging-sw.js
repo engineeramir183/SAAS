@@ -16,25 +16,61 @@ const firebaseConfig = {
     appId:             params.get('appId'),
 };
 
+let messaging;
+
+function bindMessagingHandlers() {
+    if (!messaging) return;
+
+    // Handle background push notifications (when browser is closed/minimized)
+    messaging.onBackgroundMessage((payload) => {
+        console.log('[SW] Background message received:', payload);
+
+        const notificationTitle = payload.notification?.title || 'KHR Educo';
+        const notificationOptions = {
+            body: payload.notification?.body || '',
+            icon: payload.notification?.icon || '/logo.png',
+            badge: '/logo.png',
+            tag: payload.data?.tag || 'khr-educo-notification',
+            data: payload.data || {},
+            requireInteraction: payload.data?.urgent === 'true',
+            actions: [
+                { action: 'view', title: 'View Portal' },
+                { action: 'dismiss', title: 'Dismiss' }
+            ]
+        };
+
+        return self.registration.showNotification(notificationTitle, notificationOptions);
+    });
+}
+
 // Only initialize if we got valid parameters, otherwise try to fall back or wait
 if (firebaseConfig.apiKey && firebaseConfig.apiKey !== 'undefined' && firebaseConfig.apiKey !== 'placeholder') {
     try {
-        firebase.initializeApp(firebaseConfig);
+        const app = firebase.initializeApp(firebaseConfig);
+        messaging = firebase.messaging(app);
     } catch (e) {
         console.error('[SW] Firebase init error:', e);
     }
 } else {
     // Initialize with a placeholder to prevent immediate crashes
     try {
-        firebase.initializeApp({
+        const app = firebase.initializeApp({
             apiKey: 'placeholder',
             projectId: 'placeholder',
             messagingSenderId: 'placeholder',
             appId: 'placeholder'
         });
+        messaging = firebase.messaging(app);
     } catch (e) {
         // Already initialized
+        if (firebase.apps.length > 0) {
+            messaging = firebase.messaging();
+        }
     }
+}
+
+if (messaging) {
+    bindMessagingHandlers();
 }
 
 self.addEventListener('message', (event) => {
@@ -46,13 +82,19 @@ self.addEventListener('message', (event) => {
                 const currentApp = firebase.app();
                 if (currentApp.options.apiKey === 'placeholder') {
                     currentApp.delete().then(() => {
-                        firebase.initializeApp(newConfig);
+                        const app = firebase.initializeApp(newConfig);
+                        messaging = firebase.messaging(app);
+                        bindMessagingHandlers();
+                        console.log('[SW] Re-initialized Firebase messaging with real config');
                     }).catch(err => {
                         console.error('[SW] Error deleting placeholder app:', err);
                     });
                 }
             } else {
-                firebase.initializeApp(newConfig);
+                const app = firebase.initializeApp(newConfig);
+                messaging = firebase.messaging(app);
+                bindMessagingHandlers();
+                console.log('[SW] Initialized Firebase messaging with real config');
             }
         } catch (e) {
             console.error('[SW] Firebase dynamic message init error:', e);
@@ -60,28 +102,6 @@ self.addEventListener('message', (event) => {
     }
 });
 
-const messaging = firebase.messaging();
-
-// Handle background push notifications (when browser is closed/minimized)
-messaging.onBackgroundMessage((payload) => {
-    console.log('[SW] Background message received:', payload);
-
-    const notificationTitle = payload.notification?.title || 'KHR Educo';
-    const notificationOptions = {
-        body: payload.notification?.body || '',
-        icon: payload.notification?.icon || '/logo.png',
-        badge: '/logo.png',
-        tag: payload.data?.tag || 'khr-educo-notification',
-        data: payload.data || {},
-        requireInteraction: payload.data?.urgent === 'true',
-        actions: [
-            { action: 'view', title: 'View Portal' },
-            { action: 'dismiss', title: 'Dismiss' }
-        ]
-    };
-
-    return self.registration.showNotification(notificationTitle, notificationOptions);
-});
 
 // Handle notification click
 self.addEventListener('notificationclick', (event) => {

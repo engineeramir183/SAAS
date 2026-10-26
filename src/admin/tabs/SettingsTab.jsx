@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Save, Building2, Target, Eye, MapPin, Phone, Mail, Globe, Image as ImageIcon, Upload, MessageCircle, Bell } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 
@@ -34,44 +34,85 @@ const SettingsTab = ({ schoolData, schoolSettings, currentSchoolId, updateSchool
         auto_push_diary_alert:      schoolSettings?.auto_push_diary_alert      ?? false,
     });
 
+    useEffect(() => {
+        if (schoolData || schoolSettings) {
+            setForm(prev => ({
+                ...prev,
+                name:     schoolData?.name              || prev.name,
+                tagline:  schoolData?.tagline           || prev.tagline,
+                mission:  schoolData?.about?.mission    || prev.mission,
+                vision:   schoolData?.about?.vision     || prev.vision,
+                address:  schoolData?.contact?.address  || prev.address,
+                phone:    schoolData?.contact?.phone    || prev.phone,
+                email:    schoolData?.contact?.email    || prev.email,
+                logo_url: schoolSettings?.logo_url      || schoolData?.logo_url || prev.logo_url,
+                bank_name: schoolSettings?.bank_name || prev.bank_name,
+                bank_account: schoolSettings?.bank_account || prev.bank_account,
+                easypaisa_number: schoolSettings?.easypaisa_number || prev.easypaisa_number,
+                jazzcash_number: schoolSettings?.jazzcash_number || prev.jazzcash_number,
+                payment_instructions: schoolSettings?.payment_instructions || prev.payment_instructions,
+                whatsapp_api_key: schoolSettings?.whatsapp_api_key || prev.whatsapp_api_key,
+                whatsapp_phone_id: schoolSettings?.whatsapp_phone_id || prev.whatsapp_phone_id,
+                auto_attendance_alert: schoolSettings?.auto_attendance_alert ?? prev.auto_attendance_alert,
+                auto_fee_alert: schoolSettings?.auto_fee_alert ?? prev.auto_fee_alert,
+                auto_admission_alert: schoolSettings?.auto_admission_alert ?? prev.auto_admission_alert,
+                auto_push_attendance_alert: schoolSettings?.auto_push_attendance_alert ?? prev.auto_push_attendance_alert,
+                auto_push_fee_alert:        schoolSettings?.auto_push_fee_alert        ?? prev.auto_push_fee_alert,
+                auto_push_diary_alert:      schoolSettings?.auto_push_diary_alert      ?? prev.auto_push_diary_alert,
+            }));
+        }
+    }, [schoolData, schoolSettings]);
+
     const handleSave = async () => {
-        setLoading(true);
+        try {
+            setLoading(true);
 
-        // 1. Prepare data for 'school_info' table (public info)
-        const infoData = {
-            name: form.name,
-            tagline: form.tagline,
-            mission: form.mission,
-            vision: form.vision,
-            address: form.address,
-            phone: form.phone,
-            email: form.email
-        };
-        const { error: infoError } = await updateSchoolInfo(infoData);
-        
-        // 2. Prepare data for 'schools' table (private configuration/branding)
-        const settingsData = { 
-            logo_url: form.logo_url,
-            bank_name: form.bank_name,
-            bank_account: form.bank_account,
-            easypaisa_number: form.easypaisa_number,
-            jazzcash_number: form.jazzcash_number,
-            payment_instructions: form.payment_instructions,
-            whatsapp_api_key: form.whatsapp_api_key,
-            whatsapp_phone_id: form.whatsapp_phone_id,
-            auto_attendance_alert: form.auto_attendance_alert,
-            auto_fee_alert: form.auto_fee_alert,
-            auto_admission_alert: form.auto_admission_alert,
-            auto_push_attendance_alert: form.auto_push_attendance_alert,
-            auto_push_fee_alert:        form.auto_push_fee_alert,
-            auto_push_diary_alert:      form.auto_push_diary_alert,
-        };
-        const { error: settingsError } = await updateSchoolSettings(settingsData);
+            // 1. Prepare data for 'school_info' table (public info)
+            const infoData = {
+                name: form.name,
+                tagline: form.tagline,
+                mission: form.mission,
+                vision: form.vision,
+                address: form.address,
+                phone: form.phone,
+                email: form.email
+            };
+            const { error: infoError } = await updateSchoolInfo(infoData);
+            if (infoError) {
+                alert('Error updating info: ' + infoError.message);
+                return;
+            }
+            
+            // 2. Prepare data for 'schools' table (private configuration/branding)
+            const settingsData = { 
+                logo_url: form.logo_url,
+                bank_name: form.bank_name,
+                bank_account: form.bank_account,
+                easypaisa_number: form.easypaisa_number,
+                jazzcash_number: form.jazzcash_number,
+                payment_instructions: form.payment_instructions,
+                whatsapp_api_key: form.whatsapp_api_key,
+                whatsapp_phone_id: form.whatsapp_phone_id,
+                auto_attendance_alert: form.auto_attendance_alert,
+                auto_fee_alert: form.auto_fee_alert,
+                auto_admission_alert: form.auto_admission_alert,
+                auto_push_attendance_alert: form.auto_push_attendance_alert,
+                auto_push_fee_alert:        form.auto_push_fee_alert,
+                auto_push_diary_alert:      form.auto_push_diary_alert,
+            };
+            const { error: settingsError } = await updateSchoolSettings(settingsData);
+            if (settingsError) {
+                alert('Error updating settings: ' + settingsError.message);
+                return;
+            }
 
-        setLoading(false);
-        if (infoError) alert('Error updating info: ' + infoError.message);
-        else if (settingsError) alert('Error updating settings: ' + settingsError.message);
-        else showSaveMessage('✅ School details and branding updated successfully!');
+            showSaveMessage('✅ School details and branding updated successfully!');
+        } catch (err) {
+            console.error("Failed to save settings:", err);
+            alert("Error: Failed to save settings.");
+        } finally {
+            setLoading(false);
+        }
     };
 
 

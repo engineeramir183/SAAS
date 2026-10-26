@@ -6,11 +6,32 @@ import {
 } from 'lucide-react';
 import { useSchoolData } from '../context/SchoolDataContext';
 import NotificationPermissionBanner from '../components/NotificationPermissionBanner';
+import { clearAuthSession } from '../utils/authSession';
+
+const DataRow = ({ label, value }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
+        <span style={{ fontSize: '0.95rem', fontWeight: 600, color: '#1e293b' }}>{value || '—'}</span>
+    </div>
+);
 
 const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStudent }) => {
     const { schoolData, schoolSettings, currentSchoolId, TERMS, fetchDiaryEntries, diaryEntries, acknowledgeDiaryEntry, loading } = useSchoolData();
     const [activeTab, setActiveTab] = useState('overview');
     const [selectedPrevTerm, setSelectedPrevTerm] = useState(0);
+
+    const classTerms = (TERMS && !Array.isArray(TERMS) ? (TERMS[student?.grade] || []) : (TERMS || []));
+    const [selectedTerm, setSelectedTerm] = useState(classTerms[0] || '');
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [diaryLoading, setDiaryLoading] = useState(false);
+    const [ackLoading, setAckLoading] = useState({});
+
+    // Synchronize default term when classTerms updates
+    useEffect(() => {
+        if (classTerms.length > 0 && !selectedTerm) {
+            setSelectedTerm(classTerms[0]);
+        }
+    }, [classTerms, selectedTerm]);
 
     // Load diary when student navigates to the diary tab
     useEffect(() => {
@@ -21,9 +42,13 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                 studentId: student.id,
                 // Last 30 days
                 dateFrom: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-            }).finally(() => setDiaryLoading(false));
+            })
+            .catch(err => {
+                console.error("Error loading diary entries:", err);
+            })
+            .finally(() => setDiaryLoading(false));
         }
-    }, [activeTab, student?.grade]);
+    }, [activeTab, student?.grade, fetchDiaryEntries]);
 
     if (loading) {
         return (
@@ -57,13 +82,8 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
 
     if (!student) return null;
 
-    const classTerms = (TERMS && !Array.isArray(TERMS) ? (TERMS[student?.grade] || []) : (TERMS || []));
-    const [selectedTerm, setSelectedTerm] = useState(classTerms[0] || '');
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [diaryLoading, setDiaryLoading] = useState(false);
-    const [ackLoading, setAckLoading] = useState({});
-
     const handleLogout = () => {
+        clearAuthSession();
         setIsLoggedIn(false);
         setLoggedInStudent(null);
         setCurrentPage('home');
@@ -123,6 +143,9 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
 
     // Attendance ring helpers
     const attendancePercent = liveStudent.attendance?.percentage || 0;
+    const totalAtt = liveStudent.attendance?.total || 0;
+    const presentPercent = totalAtt > 0 ? (((liveStudent.attendance?.present || 0) / totalAtt) * 100).toFixed(1) : '0.0';
+    const absentPercent = totalAtt > 0 ? (((liveStudent.attendance?.absent || 0) / totalAtt) * 100).toFixed(1) : '0.0';
     const radius = 54;
     const circumference = 2 * Math.PI * radius;
     const offset = circumference - (attendancePercent / 100) * circumference;
@@ -312,7 +335,7 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                                     <div className="flex-between">
                                         <div>
                                             <div style={{ fontSize: '2.5rem', fontWeight: 800, lineHeight: 1 }}>
-                                                {liveStudent.attendance.percentage}%
+                                                {liveStudent.attendance?.percentage || 0}%
                                             </div>
                                             <div style={{ opacity: 0.9, marginTop: '0.3rem', fontSize: '0.9rem' }}>Attendance Rate</div>
                                         </div>
@@ -368,7 +391,7 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                                         {currentTermResults.map((result, idx) => {
                                             const trend = getTrend(result.subject);
                                             return (
-                                                <div key={idx} style={{
+                                                <div key={result.subject} style={{
                                                     display: 'flex', alignItems: 'center', gap: '1rem',
                                                     padding: '0.65rem 0',
                                                     borderBottom: idx < currentTermResults.length - 1 ? '1px solid #f1f5f9' : 'none'
@@ -533,10 +556,10 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                                 gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
                                 gap: '1.25rem'
                             }}>
-                                {currentTermResults.length > 0 ? currentTermResults.map((result, idx) => {
+                                {currentTermResults.length > 0 ? currentTermResults.map((result) => {
                                     const trend = getTrend(result.subject);
                                     return (
-                                        <div key={idx} style={{
+                                        <div key={result.subject} style={{
                                             ...cardStyle,
                                             position: 'relative',
                                             overflow: 'hidden'
@@ -660,22 +683,22 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                     {[
                                         {
-                                            label: 'Days Present', value: liveStudent.attendance.present,
+                                            label: 'Days Present', value: liveStudent.attendance?.present || 0,
                                             color: '#10b981', bg: '#ecfdf5', icon: CheckCircle,
                                             desc: 'Days you attended classes'
                                         },
                                         {
-                                            label: 'Days Absent', value: liveStudent.attendance.absent,
+                                            label: 'Days Absent', value: liveStudent.attendance?.absent || 0,
                                             color: '#ef4444', bg: '#fef2f2', icon: XCircle,
                                             desc: 'Days you were absent'
                                         },
                                         {
-                                            label: 'Total School Days', value: liveStudent.attendance.total,
+                                            label: 'Total School Days', value: liveStudent.attendance?.total || 0,
                                             color: '#3b82f6', bg: '#eff6ff', icon: Calendar,
                                             desc: 'Total working days this year'
                                         }
-                                    ].map((stat, idx) => (
-                                        <div key={idx} style={{
+                                    ].map((stat) => (
+                                        <div key={stat.label} style={{
                                             ...cardStyle,
                                             display: 'flex', alignItems: 'center', gap: '1rem',
                                             background: stat.bg,
@@ -709,22 +732,22 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                                     display: 'flex', background: '#f1f5f9'
                                 }}>
                                     <div style={{
-                                        width: `${(liveStudent.attendance.present / liveStudent.attendance.total * 100).toFixed(1)}%`,
+                                        width: `${presentPercent}%`,
                                         background: 'linear-gradient(90deg, #10b981, #34d399)',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                         color: 'white', fontSize: '0.75rem', fontWeight: 700,
                                         transition: 'width 1s ease-out'
                                     }}>
-                                        Present {(liveStudent.attendance.present / liveStudent.attendance.total * 100).toFixed(1)}%
+                                        Present {presentPercent}%
                                     </div>
                                     <div style={{
-                                        width: `${(liveStudent.attendance.absent / liveStudent.attendance.total * 100).toFixed(1)}%`,
+                                        width: `${absentPercent}%`,
                                         background: 'linear-gradient(90deg, #ef4444, #f87171)',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                         color: 'white', fontSize: '0.75rem', fontWeight: 700,
                                         transition: 'width 1s ease-out'
                                     }}>
-                                        {liveStudent.attendance.absent > 0 ? 'Absent' : ''}
+                                        {(liveStudent.attendance?.absent || 0) > 0 ? 'Absent' : ''}
                                     </div>
                                 </div>
                             </div>
@@ -784,9 +807,11 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                                     {/* Results Table */}
                                     {(() => {
                                         const termResults = selectedPrevTerm === -1
-                                            ? liveStudent.results
-                                            : liveStudent.previousResults[selectedPrevTerm].results;
-                                        const termAvg = (termResults.reduce((s, r) => s + r.percentage, 0) / termResults.length).toFixed(1);
+                                            ? (liveStudent.results || [])
+                                            : (liveStudent.previousResults?.[selectedPrevTerm]?.results || []);
+                                        const termAvg = termResults.length > 0
+                                            ? (termResults.reduce((s, r) => s + r.percentage, 0) / termResults.length).toFixed(1)
+                                            : '0.0';
 
                                         return (
                                             <>
@@ -822,8 +847,8 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                                                     gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
                                                     gap: '1.25rem'
                                                 }}>
-                                                    {termResults.map((result, idx) => (
-                                                        <div key={idx} style={{
+                                                    {termResults.map((result) => (
+                                                        <div key={result.subject} style={{
                                                             ...cardStyle,
                                                             position: 'relative',
                                                             overflow: 'hidden'
@@ -1002,12 +1027,6 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                     {
                         activeTab === 'profile' && (() => {
                             const adm = liveStudent.admissions?.[0] || {};
-                            const DataRow = ({ label, value }) => (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
-                                    <span style={{ fontSize: '0.95rem', fontWeight: 600, color: '#1e293b' }}>{value || '—'}</span>
-                                </div>
-                            );
 
                             return (
                                 <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -1119,14 +1138,20 @@ const StudentPortal = ({ student, setIsLoggedIn, setCurrentPage, setLoggedInStud
                                         };
                                         const cfg = typeColors[entry.type] || typeColors.Notice;
                                         const acks = Array.isArray(entry.acknowledgments) ? entry.acknowledgments : [];
-                                        const isAcknowledged = acks.includes(student.id);
+                                        const studentId = liveStudent?.id || student.id;
+                                        const isAcknowledged = acks.includes(studentId);
                                         const isAcking = ackLoading[entry.id];
 
                                         const handleAck = async () => {
                                             if (isAcknowledged || isAcking) return;
                                             setAckLoading(prev => ({ ...prev, [entry.id]: true }));
-                                            await acknowledgeDiaryEntry(entry.id, student.id);
-                                            setAckLoading(prev => ({ ...prev, [entry.id]: false }));
+                                            try {
+                                                await acknowledgeDiaryEntry(entry.id, studentId);
+                                            } catch (err) {
+                                                console.error("Failed to acknowledge diary entry:", err);
+                                            } finally {
+                                                setAckLoading(prev => ({ ...prev, [entry.id]: false }));
+                                            }
                                         };
 
                                         return (

@@ -24,6 +24,26 @@ DROP TABLE IF EXISTS exam_results CASCADE;
 DROP TABLE IF EXISTS student_diaries CASCADE;
 
 -- 2. CORE TABLES
+CREATE TABLE schools (
+    school_id        TEXT PRIMARY KEY,
+    school_name      TEXT NOT NULL,
+    country          TEXT NOT NULL DEFAULT 'Pakistan',
+    currency_symbol  TEXT NOT NULL DEFAULT 'RS',
+    logo_url         TEXT,
+    receipt_header   TEXT,
+    contact_email    TEXT,
+    contact_phone    TEXT,
+    address          TEXT,
+    is_active        BOOLEAN NOT NULL DEFAULT true,
+    plan             TEXT NOT NULL DEFAULT 'basic',
+    whatsapp_api_key TEXT,
+    whatsapp_phone_id TEXT,
+    auto_attendance_alert BOOLEAN DEFAULT FALSE,
+    auto_fee_alert BOOLEAN DEFAULT FALSE,
+    auto_admission_alert BOOLEAN DEFAULT FALSE,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE school_info (
     id          TEXT PRIMARY KEY DEFAULT 'info',
     name        TEXT,
@@ -203,25 +223,6 @@ CREATE INDEX IF NOT EXISTS idx_diary_date          ON student_diaries(diary_date
 CREATE INDEX IF NOT EXISTS idx_diary_student       ON student_diaries(student_id);
 
 -- 3. SAAS INFRASTRUCTURE
-CREATE TABLE schools (
-    school_id        TEXT PRIMARY KEY,
-    school_name      TEXT NOT NULL,
-    country          TEXT NOT NULL DEFAULT 'Pakistan',
-    currency_symbol  TEXT NOT NULL DEFAULT 'RS',
-    logo_url         TEXT,
-    receipt_header   TEXT,
-    contact_email    TEXT,
-    contact_phone    TEXT,
-    address          TEXT,
-    is_active        BOOLEAN NOT NULL DEFAULT true,
-    plan             TEXT NOT NULL DEFAULT 'basic',
-    whatsapp_api_key TEXT,
-    whatsapp_phone_id TEXT,
-    auto_attendance_alert BOOLEAN DEFAULT FALSE,
-    auto_fee_alert BOOLEAN DEFAULT FALSE,
-    auto_admission_alert BOOLEAN DEFAULT FALSE,
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
 
 CREATE TABLE super_admins (
     id         SERIAL PRIMARY KEY,

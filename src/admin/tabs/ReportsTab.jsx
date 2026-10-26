@@ -47,98 +47,25 @@ const calcOverallPct = (results, weights) => {
     return totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;
 };
 
-function printReportCard(student, termLabel, subjects, weights, schoolName, schoolLogo, sectionName, isOnePageMode = true) {
-    const results = (student.results || []).filter(r => !termLabel || r.term === termLabel);
-    const printDate = new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
-    const adm = student.admissions?.[0] || {};
-    const fatherName = adm.fatherName || adm.father_name || student.fatherName || student.father_name || '—';
-    
-    // Calculate attendance — exclude holidays entirely
-    const attendanceRecords = (student.attendance?.records || []).filter(r => r.status !== 'holiday');
-    const totalDays = attendanceRecords.length;
-    const presentDays = attendanceRecords.filter(r => r.status === 'present' || r.status === 'late' || r.status === 'leave').length;
-    const absentDays = attendanceRecords.filter(r => r.status === 'absent').length;
-    const attPct = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+const escapeHTML = (str) => String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
 
-    // Helper for mockup grade colors
-    const getMockupGradeColor = (grade) => {
-        switch (grade) {
-            case 'A++':
-            case 'A+': return '#15803d'; // Green
-            case 'A': return '#1d4ed8';  // Blue
-            case 'B++':
-            case 'B+':
-            case 'B': return '#b45309';  // Gold/Amber
-            default: return '#b91c1c';  // Red (for C, D, E, U, etc.)
-        }
-    };
+const getMockupGradeColor = (grade) => {
+    switch (grade) {
+        case 'A++':
+        case 'A+': return '#15803d'; // Green
+        case 'A': return '#1d4ed8';  // Blue
+        case 'B++':
+        case 'B+':
+        case 'B': return '#b45309';  // Gold/Amber
+        default: return '#b91c1c';  // Red (for C, D, E, U, etc.)
+    }
+};
 
-    let totalObtained = 0;
-    let totalMax = 0;
-
-    // Dynamic layout parameters depending on isOnePageMode
-    const paddingTd = isOnePageMode ? '6px 12px' : '10px 16px';
-    const paddingTdCenter = isOnePageMode ? '6px' : '10px';
-    const fontSizeTd = isOnePageMode ? '12px' : '13px';
-
-    const subjectRows = subjects.map((sub, index) => {
-        const r = results.find(r => r.subject === sub);
-        const total = (weights && weights[sub]) ? Number(weights[sub]) : 100;
-        const obtained = r?.obtained;
-        const numOb = obtained === 'A' ? 0 : Number(obtained ?? '');
-        const pct = obtained !== undefined && obtained !== '' ? Math.round((numOb / total) * 100) : null;
-        
-        let gInfo = { grade: '—', color: '#64748b' };
-        if (pct !== null) {
-            const rawGrad = calcGrade(pct);
-            gInfo = {
-                grade: rawGrad.grade,
-                color: getMockupGradeColor(rawGrad.grade)
-            };
-        }
-        
-        if (obtained !== undefined && obtained !== '' && obtained !== 'A') {
-            totalObtained += numOb;
-            totalMax += total;
-        } else if (obtained === 'A') {
-            totalMax += total;
-        }
-
-        const obtainedText = obtained === 'A' ? 'ABS' : (obtained ?? '—');
-
-        return `<tr>
-            <td style="padding: ${paddingTd}; border-bottom: 1px solid #cbd5e1; font-weight: 800; color: #1e293b; font-size: ${fontSizeTd}; text-align: left;">${sub}</td>
-            <td style="padding: ${paddingTdCenter}; border-bottom: 1px solid #cbd5e1; text-align: center; font-weight: 700; color: #475569; font-size: ${fontSizeTd};">${total}</td>
-            <td style="padding: ${paddingTdCenter}; border-bottom: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: ${gInfo.color}; font-size: ${isOnePageMode ? '13px' : '14px'};">${obtainedText}</td>
-            <td style="padding: ${paddingTdCenter}; border-bottom: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: ${gInfo.color}; font-size: ${isOnePageMode ? '13px' : '14px'};">${gInfo.grade}</td>
-            <td style="padding: ${paddingTd}; border-bottom: 1px solid #cbd5e1; width: 220px;">
-                ${pct !== null ? `
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="background: #e2e8f0; border-radius: 10px; height: 6px; flex: 1; overflow: hidden; display: block;">
-                        <div style="background: ${gInfo.color}; border-radius: 10px; height: 100%; width: ${pct}%;"></div>
-                    </div>
-                    <span style="font-size: 11px; font-weight: 800; color: ${gInfo.color}; min-width: 32px; text-align: right;">${pct}%</span>
-                </div>
-                ` : '—'}
-            </td>
-        </tr>`;
-    }).join('');
-
-    const overall = totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;
-    const rawOverallGrade = calcGrade(overall).grade;
-    const overallGrade = rawOverallGrade;
-    const gradeColor = getMockupGradeColor(overallGrade);
-    const initialChar = student.name ? student.name.charAt(0).toUpperCase() : 'S';
-    const finalSchoolName = schoolName && schoolName !== 'School' ? schoolName : 'ACS School & College';
-
-    const html = `<!DOCTYPE html>
-<html><head><meta charset="UTF-8">
-<title>Report Card – ${student.name}</title>
-<style>
+const getReportCSS = (isOnePageMode) => `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Outfit:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800;900&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Outfit','Inter',sans-serif;background:#f1f5f9;padding:${isOnePageMode ? '12px' : '20px'};color:#1e293b;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .card{max-width:800px;margin:0 auto;background:white;border:2.5px solid #1e3a8a;padding:${isOnePageMode ? '16px' : '28px'};box-shadow:0 10px 30px rgba(0,0,0,0.05);page-break-inside:avoid}
+  .card{max-width:800px;margin:0 auto;background:white;border:2.5px solid #1e3a8a;padding:${isOnePageMode ? '16px' : '28px'};box-shadow:0 10px 30px rgba(0,0,0,0.05);page-break-inside:avoid;page-break-after:always;margin-bottom:20px}
   
   .header-box{border:2.5px solid #1e3a8a;border-radius:10px;padding:${isOnePageMode ? '8px 12px' : '16px 20px'};margin-bottom:${isOnePageMode ? '8px' : '16px'};display:flex;align-items:center;position:relative}
   .logo-wrap{width:${isOnePageMode ? '45px' : '65px'};height:${isOnePageMode ? '45px' : '65px'};display:flex;align-items:center;justify-content:center;overflow:hidden;margin-right:12px;flex-shrink:0}
@@ -166,7 +93,7 @@ function printReportCard(student, termLabel, subjects, weights, schoolName, scho
   thead th:first-child{text-align:left;padding-left:12px}
   thead th:last-child{text-align:left;padding-left:12px}
   
-  tr td{border-bottom:1px solid #cbd5e1;padding:${paddingTd};font-size:${fontSizeTd}}
+  tr td{border-bottom:1px solid #cbd5e1;padding:${isOnePageMode ? '6px 12px' : '10px 16px'};font-size:${isOnePageMode ? '12px' : '13px'}}
   tr:last-child td{border-bottom:none !important}
   
   .summary-box{background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:8px;display:flex;align-items:center;margin-bottom:${isOnePageMode ? '8px' : '16px'};overflow:hidden}
@@ -202,14 +129,84 @@ function printReportCard(student, termLabel, subjects, weights, schoolName, scho
     body{padding:0 !important;margin:0 !important;background:white !important}
     .card{border:2.5px solid #1e3a8a !important;box-shadow:none !important;max-width:100% !important;width:100% !important;margin:0 !important;padding:${isOnePageMode ? '12px 16px' : '20px 24px'} !important;page-break-after:always;box-sizing:border-box}
   }
-</style></head>
-<body>
+`;
+
+function buildReportCardContentHTML(student, termLabel, subjects, weights, schoolName, schoolLogo, sectionName, isOnePageMode = true) {
+    const results = (student.results || []).filter(r => !termLabel || r.term === termLabel);
+    const printDate = new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+    const adm = student.admissions?.[0] || {};
+    const fatherName = adm.fatherName || adm.father_name || student.fatherName || student.father_name || '—';
+    
+    const attendanceRecords = (student.attendance?.records || []).filter(r => r.status !== 'holiday');
+    const totalDays = attendanceRecords.length;
+    const presentDays = attendanceRecords.filter(r => r.status === 'present' || r.status === 'late' || r.status === 'leave').length;
+    const absentDays = attendanceRecords.filter(r => r.status === 'absent').length;
+    const attPct = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+
+    let totalObtained = 0;
+    let totalMax = 0;
+
+    const paddingTd = isOnePageMode ? '6px 12px' : '10px 16px';
+    const paddingTdCenter = isOnePageMode ? '6px' : '10px';
+    const fontSizeTd = isOnePageMode ? '12px' : '13px';
+
+    const subjectRows = subjects.map((sub) => {
+        const r = results.find(r => r.subject === sub);
+        const total = (weights && weights[sub]) ? Number(weights[sub]) : 100;
+        const obtained = r?.obtained;
+        const numOb = obtained === 'A' ? 0 : Number(obtained ?? '');
+        const pct = (obtained !== undefined && obtained !== '') ? Math.round((numOb / (total || 1)) * 100) : null;
+        
+        let gInfo = { grade: '—', color: '#64748b' };
+        if (pct !== null) {
+            const rawGrad = calcGrade(pct);
+            gInfo = {
+                grade: rawGrad.grade,
+                color: getMockupGradeColor(rawGrad.grade)
+            };
+        }
+        
+        if (obtained !== undefined && obtained !== '' && obtained !== 'A') {
+            totalObtained += numOb;
+            totalMax += total;
+        } else if (obtained === 'A') {
+            totalMax += total;
+        }
+
+        const obtainedText = obtained === 'A' ? 'ABS' : (obtained ?? '—');
+
+        return `<tr>
+            <td style="padding: ${paddingTd}; border-bottom: 1px solid #cbd5e1; font-weight: 800; color: #1e293b; font-size: ${fontSizeTd}; text-align: left;">${escapeHTML(sub)}</td>
+            <td style="padding: ${paddingTdCenter}; border-bottom: 1px solid #cbd5e1; text-align: center; font-weight: 700; color: #475569; font-size: ${fontSizeTd};">${total}</td>
+            <td style="padding: ${paddingTdCenter}; border-bottom: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: ${gInfo.color}; font-size: ${isOnePageMode ? '13px' : '14px'};">${escapeHTML(obtainedText)}</td>
+            <td style="padding: ${paddingTdCenter}; border-bottom: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: ${gInfo.color}; font-size: ${isOnePageMode ? '13px' : '14px'};">${escapeHTML(gInfo.grade)}</td>
+            <td style="padding: ${paddingTd}; border-bottom: 1px solid #cbd5e1; width: 220px;">
+                ${pct !== null ? `
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="background: #e2e8f0; border-radius: 10px; height: 6px; flex: 1; overflow: hidden; display: block;">
+                        <div style="background: ${gInfo.color}; border-radius: 10px; height: 100%; width: ${pct}%;"></div>
+                    </div>
+                    <span style="font-size: 11px; font-weight: 800; color: ${gInfo.color}; min-width: 32px; text-align: right;">${pct}%</span>
+                </div>
+                ` : '—'}
+            </td>
+        </tr>`;
+    }).join('');
+
+    const overall = totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;
+    const rawOverallGrade = calcGrade(overall).grade;
+    const overallGrade = rawOverallGrade;
+    const gradeColor = getMockupGradeColor(overallGrade);
+    const initialChar = student.name ? student.name.charAt(0).toUpperCase() : 'S';
+    const finalSchoolName = schoolName && schoolName !== 'School' ? schoolName : 'ACS School & College';
+
+    return `
 <div class="card">
   <div class="header-box">
     <div class="logo-wrap"><img src="${schoolLogo || '/logo.png'}" alt="Logo"/></div>
     <div class="header-info">
-      <div class="school-name">${finalSchoolName}</div>
-      <div class="school-address">${sectionName ? sectionName + ' — ' : ''}ACS Higher Secondary School, Jhang Road Painsra, Pakistan</div>
+      <div class="school-name">${escapeHTML(finalSchoolName)}</div>
+      <div class="school-address">${sectionName ? escapeHTML(sectionName) + ' — ' : ''}ACS Higher Secondary School, Jhang Road Painsra, Pakistan</div>
       <div class="school-contacts">0300 1333275 • Infoacspainsra@gmail.com</div>
     </div>
   </div>
@@ -219,20 +216,20 @@ function printReportCard(student, termLabel, subjects, weights, schoolName, scho
   </div>
  
   <div class="profile-box">
-    <div class="initials-square">${initialChar}</div>
+    <div class="initials-square">${escapeHTML(initialChar)}</div>
     <div class="profile-grid">
-      <div class="profile-item"><div class="lbl">STUDENT NAME</div><div class="val">${student.name}</div></div>
-      <div class="profile-item"><div class="lbl">STUDENT ID</div><div class="val">${student.id || '—'}</div></div>
-      <div class="profile-item"><div class="lbl">CLASS</div><div class="val">${student.grade}</div></div>
-      <div class="profile-item"><div class="lbl">FATHER'S NAME</div><div class="val">${fatherName}</div></div>
-      <div class="profile-item"><div class="lbl">GENDER</div><div class="val">${adm.gender || '—'}</div></div>
-      <div class="profile-item"><div class="lbl">DATE GENERATED</div><div class="val">${printDate}</div></div>
+      <div class="profile-item"><div class="lbl">STUDENT NAME</div><div class="val">${escapeHTML(student.name)}</div></div>
+      <div class="profile-item"><div class="lbl">STUDENT ID</div><div class="val">${escapeHTML(student.id || '—')}</div></div>
+      <div class="profile-item"><div class="lbl">CLASS</div><div class="val">${escapeHTML(student.grade)}</div></div>
+      <div class="profile-item"><div class="lbl">FATHER'S NAME</div><div class="val">${escapeHTML(fatherName)}</div></div>
+      <div class="profile-item"><div class="lbl">GENDER</div><div class="val">${escapeHTML(adm.gender || '—')}</div></div>
+      <div class="profile-item"><div class="lbl">DATE GENERATED</div><div class="val">${escapeHTML(printDate)}</div></div>
     </div>
   </div>
 
   <div class="section-title">
     <span class="vertical-indicator"></span>
-    Examination Results - ${termLabel || 'Grand Test'}
+    Examination Results - ${escapeHTML(termLabel || 'Grand Test')}
   </div>
   
   <table>
@@ -258,7 +255,7 @@ function printReportCard(student, termLabel, subjects, weights, schoolName, scho
       <div style="font-size: 10px; font-weight: 700; color: #64748b; margin-top: 1px;">${overall.toFixed(1)}%</div>
     </div>
     <div class="summary-col">
-      <div class="grade-circle">${overallGrade}</div>
+      <div class="grade-circle" style="background: ${gradeColor};">${overallGrade}</div>
     </div>
     <div class="summary-col" style="color: #1e3a8a;">${overall >= 40 ? 'PASSED' : 'FAILED'}</div>
   </div>
@@ -285,7 +282,7 @@ function printReportCard(student, termLabel, subjects, weights, schoolName, scho
   
   <div style="margin-bottom: ${isOnePageMode ? '12px' : '20px'};">
     <div class="remarks-line">
-      ${(student.termRemarks && student.termRemarks[termLabel]) || getGradeRemark(overallGrade) || '—'}
+      ${escapeHTML((student.termRemarks && student.termRemarks[termLabel]) || getGradeRemark(overallGrade) || '—')}
     </div>
     <div class="remarks-ruled"></div>
     ${!isOnePageMode ? `<div class="remarks-ruled"></div>` : ''}
@@ -308,23 +305,55 @@ function printReportCard(student, termLabel, subjects, weights, schoolName, scho
 
   <div class="footer-row">
     <span>Generated by ACS School & College Portal</span>
-    <span>${printDate}</span>
+    <span>${escapeHTML(printDate)}</span>
   </div>
 </div>
+`;
+}
+
+function printReportCard(student, termLabel, subjects, weights, schoolName, schoolLogo, sectionName, isOnePageMode = true) {
+    const cardHTML = buildReportCardContentHTML(student, termLabel, subjects, weights, schoolName, schoolLogo, sectionName, isOnePageMode);
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>Report Card – ${student.name}</title>
+<style>${getReportCSS(isOnePageMode)}</style>
+</head>
+<body>
+${cardHTML}
 <script>window.onload = () => setTimeout(() => window.print(), 300);</script>
 </body></html>`;
 
     const win = window.open('', '_blank');
+    if (!win) {
+        alert('Popup blocked! Please allow popups for this site to print report cards.');
+        return;
+    }
     win.document.write(html);
     win.document.close();
 }
 
-// ─── Print ALL report cards for a class (batch) ───────────────────────────────
 function printClassReportCards(classStudents, termLabel, subjects, weights, schoolName, schoolLogo, sectionName, isOnePageMode = true) {
     if (!classStudents.length) { alert('No students in this class!'); return; }
-    classStudents.forEach((s, i) => {
-        setTimeout(() => printReportCard(s, termLabel, subjects, weights, schoolName, schoolLogo, sectionName, isOnePageMode), i * 300);
-    });
+    
+    const cardsHTML = classStudents.map(s => buildReportCardContentHTML(s, termLabel, subjects, weights, schoolName, schoolLogo, sectionName, isOnePageMode)).join('');
+    
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>Report Cards – Batch Print</title>
+<style>${getReportCSS(isOnePageMode)}</style>
+</head>
+<body>
+${cardsHTML}
+<script>window.onload = () => setTimeout(() => window.print(), 300);</script>
+</body></html>`;
+
+    const win = window.open('', '_blank');
+    if (!win) {
+        alert('Popup blocked! Please allow popups for this site to print report cards.');
+        return;
+    }
+    win.document.write(html);
+    win.document.close();
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -356,7 +385,7 @@ const ReportsTab = ({
         if (selectedClass && !checkedClasses.includes(selectedClass)) {
             setCheckedClasses([selectedClass]);
         }
-    }, [selectedClass]);
+    }, [selectedClass, checkedClasses]);
 
     const toggleSectionExpand = (secId) => {
         setExpandedSections(prev => ({ ...prev, [secId]: !prev[secId] }));
@@ -426,8 +455,8 @@ const ReportsTab = ({
         return students
             .filter(s => checkedClasses.includes(s.grade))
             .filter(s => genderFilter === 'all' || s.admissions?.[0]?.gender === (genderFilter === 'boys' ? 'Male' : 'Female'))
-            .filter(s => !searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.id.toLowerCase().includes(searchQuery.toLowerCase()))
-            .slice().sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+            .filter(s => !searchQuery || String(s.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || String(s.id || '').toLowerCase().includes(searchQuery.toLowerCase()))
+            .slice().sort((a, b) => String(a.id || '').localeCompare(String(b.id || ''), undefined, { numeric: true }));
     }, [students, checkedClasses, genderFilter, searchQuery]);
 
     // Analytics for all checked classes (aggregated)

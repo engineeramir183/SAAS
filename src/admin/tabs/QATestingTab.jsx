@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
     CheckCircle, XCircle, Play, Smartphone, Database, Lock, 
     RefreshCw, ShieldAlert, Award, FileText, ChevronRight, 
@@ -116,7 +116,15 @@ const QATestingTab = ({ students, schoolData, SECTIONS }) => {
     const totalTests = testSections.reduce((sum, s) => sum + s.cases.length, 0);
     const completedTests = testSections.reduce((sum, s) => sum + s.cases.filter(c => c.status === 'passed').length, 0);
     const pendingTests = totalTests - completedTests;
-    const progressPercent = Math.round((completedTests / totalTests) * 100);
+    const progressPercent = totalTests > 0 ? Math.round((completedTests / totalTests) * 100) : 0;
+
+    const activeTimersRef = useRef([]);
+
+    useEffect(() => {
+        return () => {
+            activeTimersRef.current.forEach(timerId => clearTimeout(timerId));
+        };
+    }, []);
 
     // Toggle test case status (passed | pending)
     const toggleCaseStatus = (secId, caseId) => {
@@ -159,7 +167,7 @@ const QATestingTab = ({ students, schoolData, SECTIONS }) => {
     const triggerQrScan = () => {
         setQrStatus('scanning');
         // Play scan beep sound using browser's AudioContext (extremely modern and lightweight!)
-        setTimeout(() => {
+        const timerId = setTimeout(() => {
             try {
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const oscillator = audioCtx.createOscillator();
@@ -183,8 +191,10 @@ const QATestingTab = ({ students, schoolData, SECTIONS }) => {
                     cases: s.cases.map(c => c.id === 'TC-6.2' ? { ...c, status: 'passed' } : c)
                 };
             }));
-            setTimeout(() => setQrStatus('idle'), 2500);
+            const timerIdInner = setTimeout(() => setQrStatus('idle'), 2500);
+            activeTimersRef.current.push(timerIdInner);
         }, 1500);
+        activeTimersRef.current.push(timerId);
     };
 
     // ── SIMULATION LOGIC: SQL BACKUP RUNNER ──
@@ -202,7 +212,7 @@ const QATestingTab = ({ students, schoolData, SECTIONS }) => {
         ];
         
         logs.forEach((log, index) => {
-            setTimeout(() => {
+            const timerId = setTimeout(() => {
                 setBackupLog(prev => [...prev, log]);
                 if (index === logs.length - 1) {
                     setBackupRunning(false);
@@ -216,6 +226,7 @@ const QATestingTab = ({ students, schoolData, SECTIONS }) => {
                     }));
                 }
             }, (index + 1) * 400);
+            activeTimersRef.current.push(timerId);
         });
     };
 
@@ -255,6 +266,10 @@ const QATestingTab = ({ students, schoolData, SECTIONS }) => {
     // Print active checklist report
     const printChecklistReport = () => {
         const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            alert('Popup blocked! Please allow popups for this site to print QA reports.');
+            return;
+        }
         const rows = testSections.map(s => {
             return `
                 <tr style="background-color: #f1f5f9; font-weight: 800;">

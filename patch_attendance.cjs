@@ -11,8 +11,8 @@ content = content.replace(/const presentForPct = present \+ leave \+ late;/g, `c
 content = content.replace(/present, absent, leave, late, /g, `present, absent, leave, late, holiday, `);
 
 // 2. Add to table display buttons
-content = content.replace(/<button onClick=\{\(\) => markAttendance\(student\.id, 'late'\)\}.*?<\/button>/g, match => `${match}
-                                                <button onClick={() => markAttendance(student.id, 'holiday')} title="Mark Holiday"
+content = content.replace(/<button onClick=\{\(\) => markAttendance\(student\.id, 'late'[^)]*\)\}.*?<\/button>/g, match => `${match}
+                                                <button onClick={() => markAttendance(student.id, 'holiday', filterDate)} title="Mark Holiday"
                                                     style={{ padding: '0.4rem 0.65rem', borderRadius: '6px', background: todayRecord?.status === 'holiday' ? '#0284c7' : '#e0f2fe', color: todayRecord?.status === 'holiday' ? 'white' : '#0284c7', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem' }}>🌴 H</button>`);
 
 // 3. Add to edit history

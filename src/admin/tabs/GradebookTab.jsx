@@ -3,7 +3,7 @@ import { Save, Download, Upload, Users, PlusCircle, X, Edit3, Check } from 'luci
 import { calcGrade, gradeColor, calcOverallPct, getTermResults, filterByGender } from '../utils/gradeUtils';
 
 const GradebookTab = ({
-    students, selectedClass, setSelectedClass, sectionClasses,
+    students = [], selectedClass, setSelectedClass, sectionClasses = [],
     TERMS, SUBJECTS, WEIGHTS,
     gbTerm, setGbTerm, gbGenderTab, setGbGenderTab,
     gbEdits, setGbEdits, gbSaving, showGbStats, setShowGbStats,
@@ -104,11 +104,17 @@ const GradebookTab = ({
                                 <input className="form-input" placeholder="Add subject…" value={newSubjectInput}
                                     onChange={e => setNewSubjectInput(e.target.value)}
                                     onKeyDown={e => {
-                                        if (e.key === 'Enter' && newSubjectInput.trim()) {
+                                        if (e.key === 'Enter') {
+                                            const val = newSubjectInput.trim();
+                                            if (!val) return;
+                                            if (classSubjects.includes(val)) {
+                                                alert(`Subject "${val}" already exists!`);
+                                                return;
+                                            }
                                             if (addSubjectClasses.length > 0 && updateSubjectsForClasses) {
-                                                updateSubjectsForClasses(newSubjectInput.trim(), [selectedClass, ...addSubjectClasses]);
+                                                updateSubjectsForClasses(val, [selectedClass, ...addSubjectClasses]);
                                             } else {
-                                                updateClassSubjects([...classSubjects, newSubjectInput.trim()]);
+                                                updateClassSubjects([...classSubjects, val]);
                                             }
                                             setNewSubjectInput(''); setAddSubjectClasses([]);
                                         }
@@ -120,11 +126,16 @@ const GradebookTab = ({
                                 </button>
                                 <button className="btn btn-primary" style={{ padding: '0.35rem 0.75rem' }}
                                     onClick={() => {
-                                        if (!newSubjectInput.trim()) return;
+                                        const val = newSubjectInput.trim();
+                                        if (!val) return;
+                                        if (classSubjects.includes(val)) {
+                                            alert(`Subject "${val}" already exists!`);
+                                            return;
+                                        }
                                         if (addSubjectClasses.length > 0 && updateSubjectsForClasses) {
-                                            updateSubjectsForClasses(newSubjectInput.trim(), [selectedClass, ...addSubjectClasses]);
+                                            updateSubjectsForClasses(val, [selectedClass, ...addSubjectClasses]);
                                         } else {
-                                            updateClassSubjects([...classSubjects, newSubjectInput.trim()]);
+                                            updateClassSubjects([...classSubjects, val]);
                                         }
                                         setNewSubjectInput(''); setAddSubjectClasses([]);
                                     }}>
@@ -351,7 +362,7 @@ const GradebookTab = ({
                             <button onClick={downloadGradebookTemplate} className="btn" style={{ background: '#10b981', color: 'white', borderColor: '#10b981', padding: '0.5rem 1rem' }}>
                                 <Download size={16} /> Template
                             </button>
-                            <button onClick={() => gbImportFileRef.current.click()} className="btn" style={{ background: '#3b82f6', color: 'white', borderColor: '#3b82f6', padding: '0.5rem 1rem' }}>
+                            <button onClick={() => gbImportFileRef?.current?.click()} className="btn" style={{ background: '#3b82f6', color: 'white', borderColor: '#3b82f6', padding: '0.5rem 1rem' }}>
                                 <Upload size={16} /> Import
                             </button>
                             <button onClick={exportGradebookExcel} className="btn" style={{ background: '#217346', color: 'white', borderColor: '#217346', padding: '0.5rem 1rem' }}>
@@ -435,11 +446,13 @@ const GradebookTab = ({
                                                     if (val === '') return null;
                                                     const isAbsent = typeof val === 'string' && val.trim().toUpperCase() === 'A';
                                                     const numVal = isAbsent ? 0 : Number(val);
-                                                    return { subject: sub, obtained: numVal, percentage: isAbsent ? 0 : Math.round((numVal / getSubjectTotal(sub)) * 100) };
+                                                     const subTotal = getSubjectTotal(sub);
+                                                     const pct = (subTotal > 0 && !isAbsent) ? Math.round((numVal / subTotal) * 100) : 0;
+                                                     return { subject: sub, obtained: numVal, percentage: pct };
                                                 }).filter(Boolean);
                                                 const rowAvg = subResults.length ? calcOverallPct(subResults, getSubjectTotal) : null;
                                                 const rowTotalObtained = subResults.reduce((sum, r) => sum + r.obtained, 0);
-                                                const rowMaxMarks = subResults.reduce((sum, r) => sum + getSubjectTotal(r.subject), 0);
+                                                const rowMaxMarks = subResults.reduce((sum, r) => sum + (getSubjectTotal?.(r.subject) || 0), 0);
                                                 const rowGrade = rowAvg !== null ? calcGrade(rowAvg) : '—';
                                                 const rowGc = rowAvg !== null ? gradeColor(rowAvg) : { bg: '#f8fafc', text: '#94a3b8' };
                                                 return (

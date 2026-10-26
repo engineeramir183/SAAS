@@ -25,27 +25,33 @@ DECLARE
 BEGIN
     FOR s IN SELECT id, school_id, results FROM students WHERE results IS NOT NULL AND jsonb_array_length(results) > 0 LOOP
         FOR r IN SELECT jsonb_array_elements(s.results) LOOP
-            -- Handle possible 'obtained' as string "A" for absent
-            INSERT INTO exam_results (
-                school_id,
-                student_id,
-                term,
-                subject,
-                marks_obtained,
-                is_absent,
-                remarks
-            ) VALUES (
-                s.school_id,
-                s.id,
-                r->>'term',
-                r->>'subject',
-                (CASE WHEN r->>'obtained' = 'A' THEN 0 ELSE (NULLIF(r->>'obtained', '')::NUMERIC) END),
-                (CASE WHEN r->>'obtained' = 'A' THEN true ELSE false END),
-                r->>'remarks'
-            ) ON CONFLICT (student_id, term, subject) DO UPDATE SET
-                marks_obtained = EXCLUDED.marks_obtained,
-                is_absent = EXCLUDED.is_absent,
-                remarks = EXCLUDED.remarks;
+            BEGIN
+                -- Handle possible 'obtained' as string "A" for absent
+                INSERT INTO exam_results (
+                    school_id,
+                    student_id,
+                    term,
+                    subject,
+                    marks_obtained,
+                    is_absent,
+                    remarks
+                ) VALUES (
+                    s.school_id,
+                    s.id,
+                    r->>'term',
+                    r->>'subject',
+                    (CASE WHEN r->>'obtained' = 'A' THEN 0 ELSE (NULLIF(r->>'obtained', '')::NUMERIC) END),
+                    (CASE WHEN r->>'obtained' = 'A' THEN true ELSE false END),
+                    r->>'remarks'
+                ) ON CONFLICT (student_id, term, subject) DO UPDATE SET
+                    marks_obtained = EXCLUDED.marks_obtained,
+                    is_absent = EXCLUDED.is_absent,
+                    remarks = EXCLUDED.remarks;
+            EXCEPTION WHEN OTHERS THEN
+                -- Log warning and continue
+                RAISE NOTICE 'Skipping invalid exam result for student %: %', s.id, r;
+            END;
         END LOOP;
     END LOOP;
 END $$;
+

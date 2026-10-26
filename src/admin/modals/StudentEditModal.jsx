@@ -1,5 +1,12 @@
 import React, { useRef, useState } from 'react';
 import { Save, User, Users, Award, Camera, ArrowRightLeft, AlertTriangle } from 'lucide-react';
+import {
+    filterName, validateName,
+    formatCNIC, validateCNIC,
+    formatPhone, validatePhone,
+    filterTextOnly, validateTextOnly,
+    filterAddress, checkDuplicateCNIC
+} from '../../utils/validation';
 
 /**
  * StudentEditModal
@@ -22,6 +29,16 @@ const StudentEditModal = ({
 }) => {
     const photoRef = useRef(null);
     const [classChangeWarning, setClassChangeWarning] = useState(null);
+
+    // ── Validation error state ──
+    const [errors, setErrors] = useState({});
+    const setError = (key, msg) => setErrors(prev => ({ ...prev, [key]: msg }));
+    const clearError = (key) => setErrors(prev => { const n = { ...prev }; delete n[key]; return n; });
+    const FieldError = ({ field }) => {
+        const msg = errors[field];
+        if (!msg) return null;
+        return <div style={{ color: '#dc2626', fontSize: '0.75rem', fontWeight: 600, marginTop: '0.25rem' }}>{msg}</div>;
+    };
 
     if (!editingStudentId || !editStudentData) return null;
 
@@ -102,6 +119,52 @@ const StudentEditModal = ({
     };
 
     const handleSave = async () => {
+        // ── Run all validations before saving ──
+        const validationErrors = {};
+
+        const nameErr = validateName(editStudentData.name, "Student's name");
+        if (nameErr) validationErrors.edit_name = nameErr;
+
+        const bForm = editStudentData.admissions?.[0]?.bForm || '';
+        if (bForm.trim()) {
+            const bErr = validateCNIC(bForm, 'B-Form');
+            if (bErr) validationErrors.edit_bForm = bErr;
+            else {
+                const dupErr = checkDuplicateCNIC(bForm, students, editingStudentId);
+                if (dupErr) validationErrors.edit_bForm = dupErr;
+            }
+        }
+
+        const fatherNameVal = editStudentData.admissions?.[0]?.fatherName || '';
+        if (fatherNameVal.trim()) {
+            const fnErr = validateName(fatherNameVal, "Father's name");
+            if (fnErr) validationErrors.edit_fatherName = fnErr;
+        }
+
+        const fatherCnic = editStudentData.admissions?.[0]?.fatherCnic || '';
+        if (fatherCnic.trim()) {
+            const fcErr = validateCNIC(fatherCnic, "Father's CNIC");
+            if (fcErr) validationErrors.edit_fatherCnic = fcErr;
+        }
+
+        const contact = editStudentData.admissions?.[0]?.contact || '';
+        if (contact.trim()) {
+            const cErr = validatePhone(contact, 'Contact number');
+            if (cErr) validationErrors.edit_contact = cErr;
+        }
+
+        const whatsapp = editStudentData.admissions?.[0]?.whatsapp || '';
+        if (whatsapp.trim()) {
+            const wErr = validatePhone(whatsapp, 'WhatsApp number');
+            if (wErr) validationErrors.edit_whatsapp = wErr;
+        }
+
+        if (Object.keys(validationErrors).length > 0) {
+            setErrors(validationErrors);
+            alert('Please fix the highlighted validation errors before saving.');
+            return;
+        }
+
         // Validate serial uniqueness (only if it changed)
         const newSerial = editStudentData.serialNumber || editStudentData.serial_number;
         const originalSerial = originalStudent?.serialNumber;
@@ -238,13 +301,34 @@ const StudentEditModal = ({
                             <div>
                                 <label className="form-label">Student's Name (Capital Letters)</label>
                                 <input className="form-input" value={editStudentData.name || ''}
-                                    onChange={e => setEditStudentData(p => ({ ...p, name: e.target.value.toUpperCase() }))} />
+                                    onChange={e => {
+                                        const filtered = filterName(e.target.value).toUpperCase();
+                                        setEditStudentData(p => ({ ...p, name: filtered }));
+                                        const err = validateName(filtered, "Student's name");
+                                        err ? setError('edit_name', err) : clearError('edit_name');
+                                    }}
+                                    style={errors.edit_name ? { borderColor: '#dc2626' } : {}}
+                                />
+                                <FieldError field="edit_name" />
                             </div>
                             <div>
                                 <label className="form-label">B-Form Number</label>
                                 <input className="form-input" placeholder="35202-0000000-0"
                                     value={editStudentData.admissions?.[0]?.bForm || ''}
-                                    onChange={e => setEditStudentData(p => adm(p, 'bForm', e.target.value))} />
+                                    onChange={e => {
+                                        const formatted = formatCNIC(e.target.value);
+                                        setEditStudentData(p => adm(p, 'bForm', formatted));
+                                        const err = validateCNIC(formatted, 'B-Form');
+                                        err ? setError('edit_bForm', err) : clearError('edit_bForm');
+                                        if (!err && formatted.length === 15) {
+                                            const dup = checkDuplicateCNIC(formatted, students, editingStudentId);
+                                            dup ? setError('edit_bForm', dup) : clearError('edit_bForm');
+                                        }
+                                    }}
+                                    maxLength={15}
+                                    style={errors.edit_bForm ? { borderColor: '#dc2626' } : {}}
+                                />
+                                <FieldError field="edit_bForm" />
                             </div>
                             <div>
                                 <label className="form-label">Date of Birth</label>
@@ -256,7 +340,15 @@ const StudentEditModal = ({
                                 <label className="form-label">Nationality</label>
                                 <input className="form-input" placeholder="e.g. Pakistani"
                                     value={editStudentData.admissions?.[0]?.nationality || ''}
-                                    onChange={e => setEditStudentData(p => adm(p, 'nationality', e.target.value))} />
+                                    onChange={e => {
+                                        const filtered = filterTextOnly(e.target.value);
+                                        setEditStudentData(p => adm(p, 'nationality', filtered));
+                                        const err = validateTextOnly(filtered, 'Nationality');
+                                        err ? setError('edit_nationality', err) : clearError('edit_nationality');
+                                    }}
+                                    style={errors.edit_nationality ? { borderColor: '#dc2626' } : {}}
+                                />
+                                <FieldError field="edit_nationality" />
                             </div>
                             <div>
                                 <label className="form-label">Gender</label>
@@ -274,7 +366,15 @@ const StudentEditModal = ({
                                 <label className="form-label">Religion</label>
                                 <input className="form-input" placeholder="e.g. Islam"
                                     value={editStudentData.admissions?.[0]?.religion || ''}
-                                    onChange={e => setEditStudentData(p => adm(p, 'religion', e.target.value))} />
+                                    onChange={e => {
+                                        const filtered = filterTextOnly(e.target.value);
+                                        setEditStudentData(p => adm(p, 'religion', filtered));
+                                        const err = validateTextOnly(filtered, 'Religion');
+                                        err ? setError('edit_religion', err) : clearError('edit_religion');
+                                    }}
+                                    style={errors.edit_religion ? { borderColor: '#dc2626' } : {}}
+                                />
+                                <FieldError field="edit_religion" />
                             </div>
                         </div>
                     </div>
@@ -334,31 +434,66 @@ const StudentEditModal = ({
                                 <label className="form-label">Father's Name (Capital Letters)</label>
                                 <input className="form-input"
                                     value={editStudentData.admissions?.[0]?.fatherName || ''}
-                                    onChange={e => setEditStudentData(p => adm(p, 'fatherName', e.target.value.toUpperCase()))} />
+                                    onChange={e => {
+                                        const filtered = filterName(e.target.value).toUpperCase();
+                                        setEditStudentData(p => adm(p, 'fatherName', filtered));
+                                        const err = validateName(filtered, "Father's name");
+                                        err ? setError('edit_fatherName', err) : clearError('edit_fatherName');
+                                    }}
+                                    style={errors.edit_fatherName ? { borderColor: '#dc2626' } : {}}
+                                />
+                                <FieldError field="edit_fatherName" />
                             </div>
                             <div>
                                 <label className="form-label">Father's CNIC</label>
                                 <input className="form-input" placeholder="35202-0000000-0"
                                     value={editStudentData.admissions?.[0]?.fatherCnic || ''}
-                                    onChange={e => setEditStudentData(p => adm(p, 'fatherCnic', e.target.value))} />
+                                    onChange={e => {
+                                        const formatted = formatCNIC(e.target.value);
+                                        setEditStudentData(p => adm(p, 'fatherCnic', formatted));
+                                        const err = validateCNIC(formatted, "Father's CNIC");
+                                        err ? setError('edit_fatherCnic', err) : clearError('edit_fatherCnic');
+                                    }}
+                                    maxLength={15}
+                                    style={errors.edit_fatherCnic ? { borderColor: '#dc2626' } : {}}
+                                />
+                                <FieldError field="edit_fatherCnic" />
                             </div>
                             <div>
                                 <label className="form-label">Contact Number</label>
-                                <input className="form-input"
+                                <input className="form-input" placeholder="03XX-XXXXXXX"
                                     value={editStudentData.admissions?.[0]?.contact || ''}
-                                    onChange={e => setEditStudentData(p => adm(p, 'contact', e.target.value))} />
+                                    onChange={e => {
+                                        const formatted = formatPhone(e.target.value);
+                                        setEditStudentData(p => adm(p, 'contact', formatted));
+                                        const err = validatePhone(formatted, 'Contact number');
+                                        err ? setError('edit_contact', err) : clearError('edit_contact');
+                                    }}
+                                    maxLength={12}
+                                    style={errors.edit_contact ? { borderColor: '#dc2626' } : {}}
+                                />
+                                <FieldError field="edit_contact" />
                             </div>
                             <div>
                                 <label className="form-label">WhatsApp Number</label>
-                                <input className="form-input"
+                                <input className="form-input" placeholder="03XX-XXXXXXX"
                                     value={editStudentData.admissions?.[0]?.whatsapp || ''}
-                                    onChange={e => setEditStudentData(p => adm(p, 'whatsapp', e.target.value))} />
+                                    onChange={e => {
+                                        const formatted = formatPhone(e.target.value);
+                                        setEditStudentData(p => adm(p, 'whatsapp', formatted));
+                                        const err = validatePhone(formatted, 'WhatsApp number');
+                                        err ? setError('edit_whatsapp', err) : clearError('edit_whatsapp');
+                                    }}
+                                    maxLength={12}
+                                    style={errors.edit_whatsapp ? { borderColor: '#dc2626' } : {}}
+                                />
+                                <FieldError field="edit_whatsapp" />
                             </div>
                             <div className="col-span-2">
                                 <label className="form-label">Home Address</label>
                                 <textarea className="form-input" style={{ height: '80px' }}
                                     value={editStudentData.admissions?.[0]?.address || ''}
-                                    onChange={e => setEditStudentData(p => adm(p, 'address', e.target.value))} />
+                                    onChange={e => setEditStudentData(p => adm(p, 'address', filterAddress(e.target.value)))} />
                             </div>
                         </div>
                     </div>

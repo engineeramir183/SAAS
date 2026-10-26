@@ -118,7 +118,7 @@ const FeeSettingsTab = ({
         const exp = {};
         (sections || []).forEach(s => { exp[s.id] = true; });
         setExpandedSec(exp);
-    }, [savedFeeSettings]);
+    }, [savedFeeSettings, CLASS_FEE_DEFAULTS, sections]);
 
     /* ── Sorted section list ─────────────────────────────────────────────── */
     const sectionList = useMemo(() =>
@@ -183,27 +183,44 @@ const FeeSettingsTab = ({
 
     /* ── Save all ─────────────────────────────────────────────────────────── */
     const handleSave = async () => {
-        setSaving(true);
-        // 1. Save fee settings metadata
-        const settingsPayload = { schoolMode, globalDef, sectionModes, sectionDefs, classDefs };
-        if (saveFeeSettings) await saveFeeSettings(settingsPayload);
+        try {
+            setSaving(true);
+            // 1. Save fee settings metadata
+            const settingsPayload = { schoolMode, globalDef, sectionModes, sectionDefs, classDefs };
+            if (saveFeeSettings) await saveFeeSettings(settingsPayload);
 
-        // 2. Sync CLASS_FEE_DEFAULTS with resolved per-class values
-        //    So FeeTab, PayFeesTab, and vouchers all use same source of truth
-        const resolvedDefaults = {};
-        allClasses.forEach(cls => {
-            resolvedDefaults[cls] = {
-                tuitionFee:   classDefs[cls]?.tuitionFee   ?? globalDef.tuitionFee,
-                admissionFee: classDefs[cls]?.admissionFee ?? globalDef.admissionFee,
-                paperFund:    classDefs[cls]?.paperFund    ?? globalDef.paperFund,
-                finePerAbsent:classDefs[cls]?.finePerAbsent?? globalDef.finePerAbsent,
-            };
-        });
-        await updateClassFeeDefaults(resolvedDefaults);
+            // 2. Sync CLASS_FEE_DEFAULTS with resolved per-class values
+            const resolvedDefaults = {};
+            allClasses.forEach(cls => {
+                const secId = (sections || []).find(s => (s.classes || []).includes(cls))?.id;
+                const secMode = secId ? (sectionModes[secId] || 'auto') : 'auto';
+                
+                let resolved;
+                if (schoolMode === 'auto') {
+                    resolved = { ...globalDef };
+                } else if (secMode === 'auto' && secId) {
+                    resolved = sectionDefs[secId] || { ...globalDef };
+                } else {
+                    resolved = classDefs[cls] || { ...globalDef };
+                }
+                
+                resolvedDefaults[cls] = {
+                    tuitionFee:   resolved.tuitionFee   ?? globalDef.tuitionFee,
+                    admissionFee: resolved.admissionFee ?? globalDef.admissionFee,
+                    paperFund:    resolved.paperFund    ?? globalDef.paperFund,
+                    finePerAbsent:resolved.finePerAbsent?? globalDef.finePerAbsent,
+                };
+            });
+            await updateClassFeeDefaults(resolvedDefaults);
 
-        setSaving(false);
-        setDirty(false);
-        if (showSaveMessage) showSaveMessage('Fee settings saved successfully!');
+            setDirty(false);
+            if (showSaveMessage) showSaveMessage('Fee settings saved successfully!');
+        } catch (err) {
+            console.error("Failed to save fee settings:", err);
+            alert("Error: Failed to save fee settings.");
+        } finally {
+            setSaving(false);
+        }
     };
 
     /* ─────────────────────────────────────────────────────────────────────
@@ -310,7 +327,7 @@ const FeeSettingsTab = ({
                                 <div style={{ padding: '.9rem 1.1rem', borderBottom: secMode === 'manual' && expandedSec[sec.id] ? '1px solid #e2e8f0' : 'none', background: '#f8fafc', display: 'flex', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap' }}>
                                     <button
                                         onClick={() => setExpandedSec(p => ({ ...p, [sec.id]: !p[sec.id] }))}
-                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', display: 'flex', alignItems: 'center', gap: '.35rem', fontWeight: 800, fontSize: '.95rem', color: '#1e293b', padding: 0 }}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '.35rem', fontWeight: 800, fontSize: '.95rem', color: '#1e293b', padding: 0 }}
                                     >
                                         {expandedSec[sec.id] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                                         📚 {sec.name}

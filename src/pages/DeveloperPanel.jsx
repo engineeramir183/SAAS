@@ -6,6 +6,7 @@ import {
     XCircle, X, School, Search
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import { clearAuthSession } from '../utils/authSession';
 import { useSchoolData } from '../context/SchoolDataContext';
 
 const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
@@ -29,15 +30,34 @@ const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
         vision: schoolData.about?.vision || ''
     });
 
-    // Faculty & Facilities use context data directly
     const [editingFacultyId, setEditingFacultyId] = useState(null);
-    const faculty = schoolData.faculty || [];
+    const [facultyList, setFacultyList] = useState(schoolData.faculty || []);
     const facilities = schoolData.facilities || [];
+
+    // Sync state when context data loads asynchronously
+    useEffect(() => {
+        if (schoolData) {
+            setSchoolInfo({
+                name: schoolData.name || 'School Name',
+                tagline: schoolData.tagline || 'Ready to Lead. Ready to Inspire.',
+                description: schoolData.description || 'A world-class education that empowers students to reach their full potential.',
+                phone: schoolData.contact?.phone || '0300 1333275',
+                email: schoolData.contact?.email || 'Infoacspainsra@gmail.com',
+                address: schoolData.contact?.address || 'School Address',
+                mission: schoolData.about?.mission || '',
+                vision: schoolData.about?.vision || ''
+            });
+            if (schoolData.faculty) {
+                setFacultyList(schoolData.faculty);
+            }
+        }
+    }, [schoolData]);
 
     // Students overview (from context)
     const students = schoolData.students || [];
 
     const handleLogout = () => {
+        clearAuthSession();
         setIsDeveloper(false);
         setCurrentPage('home');
     };
@@ -84,7 +104,7 @@ const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
         : 0;
     const avgGrade = totalStudents > 0
         ? (students.reduce((sum, s) => {
-            const studentAvg = s.results.reduce((rs, r) => rs + r.percentage, 0) / s.results.length;
+            const studentAvg = s.results && s.results.length > 0 ? s.results.reduce((rs, r) => rs + r.percentage, 0) / s.results.length : 0;
             return sum + studentAvg;
         }, 0) / totalStudents).toFixed(1)
         : 0;
@@ -308,7 +328,7 @@ const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
                                                         const q = dashboardSearch.toLowerCase();
                                                         return s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q) || s.grade.toLowerCase().includes(q);
                                                     }).map((s) => {
-                                                        const sAvg = (s.results.reduce((sum, r) => sum + r.percentage, 0) / s.results.length).toFixed(1);
+                                                        const sAvg = s.results && s.results.length > 0 ? (s.results.reduce((sum, r) => sum + r.percentage, 0) / s.results.length).toFixed(1) : '0.0';
                                                         return (
                                                             <tr key={s.id} style={{ borderTop: '1px solid #f1f5f9' }}>
                                                                 <td style={{ padding: '0.8rem 1rem', fontWeight: 600, color: '#1e293b' }}>{s.name}</td>
@@ -506,20 +526,20 @@ const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
                             {activeSection === 'faculty' && (
                                 <div className="animate-fade-in">
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                                        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#1e293b' }}>👨‍🏫 Faculty Members ({faculty.length})</h2>
+                                        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#1e293b' }}>👨‍🏫 Faculty Members ({facultyList.length})</h2>
                                         <button
                                             onClick={() => {
-                                                const newId = Math.max(...faculty.map(f => f.id)) + 1;
-                                                setContextFaculty([...faculty, {
+                                                const newId = facultyList.length > 0 ? Math.max(...facultyList.map(f => f.id)) + 1 : 1;
+                                                const newMember = {
                                                     id: newId,
                                                     name: 'New Faculty Member',
                                                     role: 'Teacher',
                                                     department: 'General',
                                                     image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop',
                                                     bio: 'New faculty member bio'
-                                                }]);
+                                                };
+                                                setFacultyList([...facultyList, newMember]);
                                                 setEditingFacultyId(newId);
-                                                showSave('New faculty member added!');
                                             }}
                                             style={{
                                                 display: 'flex', alignItems: 'center', gap: '0.4rem',
@@ -534,7 +554,7 @@ const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
                                     </div>
 
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                        {faculty.map((member) => (
+                                        {facultyList.map((member) => (
                                             <div key={member.id} style={cardStyle}>
                                                 {editingFacultyId === member.id ? (
                                                     // Editing mode
@@ -543,7 +563,15 @@ const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
                                                             <h3 style={{ fontWeight: 700, color: '#1e293b' }}>Editing Faculty</h3>
                                                             <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                                 <button
-                                                                    onClick={() => { setEditingFacultyId(null); showSave('Faculty member saved!'); }}
+                                                                    onClick={async () => {
+                                                                        const { error } = await setContextFaculty(facultyList);
+                                                                        if (error) {
+                                                                            alert('Failed to save changes: ' + error.message);
+                                                                        } else {
+                                                                            setEditingFacultyId(null);
+                                                                            showSave('Faculty member saved!');
+                                                                        }
+                                                                    }}
                                                                     style={{
                                                                         display: 'flex', alignItems: 'center', gap: '0.3rem',
                                                                         padding: '0.5rem 1rem', borderRadius: '8px',
@@ -551,11 +579,14 @@ const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
                                                                         fontWeight: 600, fontSize: '0.85rem',
                                                                         border: 'none', cursor: 'pointer'
                                                                     }}
-                                                                >
+                                                                 >
                                                                     <Save size={14} /> Save
                                                                 </button>
                                                                 <button
-                                                                    onClick={() => setEditingFacultyId(null)}
+                                                                    onClick={() => {
+                                                                        setFacultyList(schoolData.faculty || []);
+                                                                        setEditingFacultyId(null);
+                                                                    }}
                                                                     style={{
                                                                         display: 'flex', alignItems: 'center', gap: '0.3rem',
                                                                         padding: '0.5rem 1rem', borderRadius: '8px',
@@ -574,7 +605,7 @@ const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
                                                                 <input
                                                                     type="text"
                                                                     value={member.name}
-                                                                    onChange={(e) => setContextFaculty(faculty.map(f => f.id === member.id ? { ...f, name: e.target.value } : f))}
+                                                                    onChange={(e) => setFacultyList(prev => prev.map(f => f.id === member.id ? { ...f, name: e.target.value } : f))}
                                                                     style={{ ...inputStyle, background: 'white', borderColor: '#3b82f6' }}
                                                                 />
                                                             </div>
@@ -583,7 +614,7 @@ const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
                                                                 <input
                                                                     type="text"
                                                                     value={member.role}
-                                                                    onChange={(e) => setContextFaculty(faculty.map(f => f.id === member.id ? { ...f, role: e.target.value } : f))}
+                                                                    onChange={(e) => setFacultyList(prev => prev.map(f => f.id === member.id ? { ...f, role: e.target.value } : f))}
                                                                     style={{ ...inputStyle, background: 'white', borderColor: '#3b82f6' }}
                                                                 />
                                                             </div>
@@ -592,7 +623,7 @@ const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
                                                                 <input
                                                                     type="text"
                                                                     value={member.department}
-                                                                    onChange={(e) => setContextFaculty(faculty.map(f => f.id === member.id ? { ...f, department: e.target.value } : f))}
+                                                                    onChange={(e) => setFacultyList(prev => prev.map(f => f.id === member.id ? { ...f, department: e.target.value } : f))}
                                                                     style={{ ...inputStyle, background: 'white', borderColor: '#3b82f6' }}
                                                                 />
                                                             </div>
@@ -601,7 +632,7 @@ const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
                                                                 <input
                                                                     type="text"
                                                                     value={member.image}
-                                                                    onChange={(e) => setContextFaculty(faculty.map(f => f.id === member.id ? { ...f, image: e.target.value } : f))}
+                                                                    onChange={(e) => setFacultyList(prev => prev.map(f => f.id === member.id ? { ...f, image: e.target.value } : f))}
                                                                     style={{ ...inputStyle, background: 'white', borderColor: '#3b82f6' }}
                                                                 />
                                                             </div>
@@ -610,7 +641,7 @@ const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
                                                                 <input
                                                                     type="text"
                                                                     value={member.bio}
-                                                                    onChange={(e) => setContextFaculty(faculty.map(f => f.id === member.id ? { ...f, bio: e.target.value } : f))}
+                                                                    onChange={(e) => setFacultyList(prev => prev.map(f => f.id === member.id ? { ...f, bio: e.target.value } : f))}
                                                                     style={{ ...inputStyle, background: 'white', borderColor: '#3b82f6' }}
                                                                 />
                                                             </div>
@@ -640,9 +671,16 @@ const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
                                                                 <Edit3 size={16} />
                                                             </button>
                                                             <button
-                                                                onClick={() => {
-                                                                    setContextFaculty(faculty.filter(f => f.id !== member.id));
-                                                                    showSave('Faculty member removed');
+                                                                onClick={async () => {
+                                                                    if (!window.confirm('Are you sure you want to remove this faculty member?')) return;
+                                                                    const updatedList = facultyList.filter(f => f.id !== member.id);
+                                                                    setFacultyList(updatedList);
+                                                                    const { error } = await setContextFaculty(updatedList);
+                                                                    if (error) {
+                                                                        alert('Failed to remove faculty member: ' + error.message);
+                                                                    } else {
+                                                                        showSave('Faculty member removed');
+                                                                    }
                                                                 }}
                                                                 style={{
                                                                     padding: '0.5rem', borderRadius: '8px',
@@ -667,16 +705,21 @@ const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                                         <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#1e293b' }}>🏢 Facilities ({facilities.length})</h2>
                                         <button
-                                            onClick={() => {
-                                                const newId = Math.max(...facilities.map(f => f.id)) + 1;
-                                                setContextFacilities([...facilities, {
+                                            onClick={async () => {
+                                                const newId = facilities.length > 0 ? Math.max(...facilities.map(f => f.id)) + 1 : 1;
+                                                const updated = [...facilities, {
                                                     id: newId,
                                                     name: 'New Facility',
                                                     description: 'Description here',
                                                     image: 'https://images.unsplash.com/photo-1562774053-701939374585?w=800&h=600&fit=crop',
                                                     category: 'General'
-                                                }]);
-                                                showSave('New facility added!');
+                                                }];
+                                                const { error } = await setContextFacilities(updated);
+                                                if (error) {
+                                                    alert('Failed to add facility: ' + error.message);
+                                                } else {
+                                                    showSave('New facility added!');
+                                                }
                                             }}
                                             style={{
                                                 display: 'flex', alignItems: 'center', gap: '0.4rem',
@@ -713,9 +756,14 @@ const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
                                                             </span>
                                                         </div>
                                                         <button
-                                                            onClick={() => {
-                                                                setContextFacilities(facilities.filter(f => f.id !== facility.id));
-                                                                showSave('Facility removed');
+                                                            onClick={async () => {
+                                                                if (!window.confirm('Are you sure you want to remove this facility?')) return;
+                                                                const { error } = await setContextFacilities(facilities.filter(f => f.id !== facility.id));
+                                                                if (error) {
+                                                                    alert('Failed to remove facility: ' + error.message);
+                                                                } else {
+                                                                    showSave('Facility removed');
+                                                                }
                                                             }}
                                                             style={{
                                                                 padding: '0.4rem', borderRadius: '8px',
@@ -743,7 +791,7 @@ const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
 
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                         {students.map((s) => {
-                                            const sAvg = (s.results.reduce((sum, r) => sum + r.percentage, 0) / s.results.length).toFixed(1);
+                                            const sAvg = s.results && s.results.length > 0 ? (s.results.reduce((sum, r) => sum + r.percentage, 0) / s.results.length).toFixed(1) : '0.0';
                                             return (
                                                 <div key={s.id} style={cardStyle}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
@@ -768,7 +816,7 @@ const DeveloperPanel = ({ setIsDeveloper, setCurrentPage }) => {
                                                                 <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Grade Avg</div>
                                                             </div>
                                                             <div style={{ textAlign: 'center' }}>
-                                                                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: s.attendance.percentage >= 95 ? '#10b981' : '#3b82f6' }}>{s.attendance.percentage}%</div>
+                                                                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: (s.attendance?.percentage || 0) >= 95 ? '#10b981' : '#3b82f6' }}>{s.attendance?.percentage || 0}%</div>
                                                                 <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Attendance</div>
                                                             </div>
                                                             <div style={{ textAlign: 'center' }}>
