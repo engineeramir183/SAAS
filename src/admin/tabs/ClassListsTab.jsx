@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronRight, Upload, Download, PlusCircle, Users, Edit3, Trash2, GripVertical, ChevronUp, ChevronDown, X, Hash, Check, Settings } from 'lucide-react';
+import { ChevronRight, Upload, Download, PlusCircle, Users, Edit3, Trash2, GripVertical, ChevronUp, ChevronDown, X, Hash, Check, Settings, Layers } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 const ClassListsTab = ({
     students = [], setStudents = () => {},
@@ -592,6 +592,13 @@ const ClassListsTab = ({
 
                         {/* Section tabs */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingBottom: '1rem', borderBottom: '1px solid #e2e8f0', marginBottom: '1.5rem' }}>
+                            {(!SECTIONS || SECTIONS.length === 0) && (
+                                <div style={{ textAlign: "center", padding: "2.5rem 1rem", background: "#f8fafc", border: "2px dashed #cbd5e1", borderRadius: "12px", color: "#64748b" }}>
+                                    <Layers size={36} style={{ margin: "0 auto 0.75rem", opacity: 0.4, color: "#3b82f6" }} />
+                                    <div style={{ fontWeight: 700, fontSize: "1rem", color: "#1e293b", marginBottom: "0.25rem" }}>No Sections Created Yet</div>
+                                    <p style={{ fontSize: "0.85rem", margin: 0 }}>Add your first section (e.g. "Primary Section", "Boys Wing", or "Section A") using the input above.</p>
+                                </div>
+                            )}
                             {(SECTIONS || []).map((sec, idx) => (
                                 <div key={sec.id} onClick={() => setSelectedSectionId(sec.id)}
                                     style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '10px', background: selectedSectionId === sec.id ? 'linear-gradient(135deg, var(--color-primary), #3b82f6)' : '#f8fafc', border: selectedSectionId === sec.id ? 'none' : '1px solid #e2e8f0', cursor: 'pointer', transition: 'all 0.2s ease' }}>

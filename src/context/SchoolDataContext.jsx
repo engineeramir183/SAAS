@@ -365,21 +365,11 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 setTerms(DEFAULT_TERMS);
             }
 
-            let loadedSections = metaMap['SECTIONS'] || [];
-            if (!Array.isArray(loadedSections) || loadedSections.length === 0) {
-                loadedSections = [
-                    { id: "sec-a", name: "Section A", classes: currentClasses },
-                    { id: "sec-b", name: "Section B", classes: currentClasses }
-                ];
-            } else {
-                // Ensure all classes in currentClasses exist in at least one section so they are visible
-                const assigned = new Set(loadedSections.flatMap(s => s.classes || []));
-                const missing = currentClasses.filter(c => !assigned.has(c));
-                if (missing.length > 0 && loadedSections.length > 0) {
-                    loadedSections = loadedSections.map((s, idx) =>
-                        idx === 0 ? { ...s, classes: [...(s.classes || []), ...missing] } : s
-                    );
-                }
+            // Respect sections saved in database without forcing default Section A & B
+            // If the user deletes all sections or leaves it empty, keep it empty.
+            let loadedSections = metaMap['SECTIONS'];
+            if (!Array.isArray(loadedSections)) {
+                loadedSections = [];
             }
             setSections(loadedSections);
             setWeights(metaMap['WEIGHTS'] || DEFAULT_WEIGHTS);
@@ -526,10 +516,8 @@ export const SchoolDataProvider = ({ children, schoolId = 'acs-001' }) => {
                 defaultSubjects[c] = ["Mathematics", "Physics", "Chemistry", "English", "Urdu", "Computer Science", "Biology", "Islamic Studies", "Pakistan Studies"];
                 defaultTerms[c] = ["First Term 2026", "Mid Term 2026", "Final Term 2026"];
             });
-            const defaultSections = [
-                { id: "sec-a", name: "Section A", classes: LOCAL_CLASSES },
-                { id: "sec-b", name: "Section B", classes: LOCAL_CLASSES }
-            ];
+            // Default sections start empty - user defines sections explicitly
+            const defaultSections = [];
 
             await Promise.all([
                 _upsertMeta('CLASSES', LOCAL_CLASSES),
