@@ -40,10 +40,12 @@ export const formatCNIC = (value) => {
     return `${digits.slice(0, 5)}-${digits.slice(5, 12)}-${digits.slice(12)}`;
 };
 
-/** Returns an error string if the CNIC is invalid, or '' if valid (empty is allowed). */
-export const validateCNIC = (value, label = 'CNIC') => {
+/** Returns an error string if the CNIC is invalid, or '' if valid. Set isRequired=true to disallow empty values. */
+export const validateCNIC = (value, label = 'CNIC', isRequired = false) => {
     const trimmed = (value || '').trim();
-    if (!trimmed) return ''; // allow empty — not every form makes it required
+    if (!trimmed) {
+        return isRequired ? `${label} is required (13 digits: XXXXX-XXXXXXX-X).` : '';
+    }
     const digits = trimmed.replace(/[^0-9]/g, '');
     if (digits.length !== 13)
         return `${label} must be exactly 13 digits (format: XXXXX-XXXXXXX-X).`;

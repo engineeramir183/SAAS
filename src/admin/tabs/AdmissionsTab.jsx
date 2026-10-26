@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, Trash2, Camera, User, Users, Award, CheckCircle, Printer, ChevronDown, X, ClipboardList, Clipboard, CheckCircle2, FileText } from 'lucide-react';
+import { Save, Trash2, Camera, User, Users, Award, CheckCircle, Printer, ChevronDown, X, ClipboardList, Clipboard, CheckCircle2, FileText, Loader2 } from 'lucide-react';
 import { useSchoolData } from '../../context/SchoolDataContext';
 import {
     filterName, validateName,
@@ -623,17 +623,30 @@ const AdmissionsTab = ({
                                 <Printer size={16} /> Print Forms <ChevronDown size={14} />
                             </button>
                             <button
+                                type="button"
                                 onClick={printAdmissionForm}
                                 disabled={isSavingAdmission}
                                 className="btn btn-primary"
                                 style={{
                                     background: isSavingAdmission ? '#65a30d' : '#4d7c0f',
                                     borderColor: '#4d7c0f',
-                                    opacity: isSavingAdmission ? 0.75 : 1,
-                                    cursor: isSavingAdmission ? 'not-allowed' : 'pointer'
+                                    opacity: isSavingAdmission ? 0.8 : 1,
+                                    cursor: isSavingAdmission ? 'not-allowed' : 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    transition: 'all 0.2s ease-in-out'
                                 }}
                             >
-                                <Save size={18} /> {isSavingAdmission ? 'Saving Student...' : 'Save & Print Form'}
+                                {isSavingAdmission ? (
+                                    <>
+                                        <Loader2 size={18} className="animate-spin" /> Saving & Admitting Student...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save size={18} /> Save & Print Form
+                                    </>
+                                )}
                             </button>
                         </div>
                     </div>
@@ -695,18 +708,24 @@ const AdmissionsTab = ({
                                     <FieldError field="studentName" />
                                 </div>
                                 <div>
-                                    <label className="form-label">National ID / B-Form Number</label>
+                                    <label className="form-label">
+                                        National ID / B-Form Number <span style={{ color: "#dc2626", fontWeight: 800 }}>* (Required / Unique Key)</span>
+                                    </label>
                                     <input type="text" className="form-input" placeholder="e.g. 35202-0000000-0" value={admissionData.bForm}
                                         onChange={e => {
                                             const formatted = formatCNIC(e.target.value);
-                                            update('bForm', formatted);
-                                            const err = validateCNIC(formatted, 'B-Form');
-                                            err ? setError('bForm', err) : clearError('bForm');
-                                            // Check duplicate
-                                            if (!err && formatted.length === 15) {
+                                            update("bForm", formatted);
+                                            const err = validateCNIC(formatted, "Student B-Form / CNIC", true);
+                                            if (err) {
+                                                setError("bForm", err);
+                                            } else {
                                                 const dup = checkDuplicateCNIC(formatted, students);
-                                                dup ? setError('bForm', dup) : clearError('bForm');
+                                                dup ? setError("bForm", dup) : clearError("bForm");
                                             }
+                                        }}
+                                        onBlur={e => {
+                                            const err = validateCNIC(e.target.value, "Student B-Form / CNIC", true);
+                                            if (err) setError("bForm", err);
                                         }}
                                         maxLength={15}
                                         style={errors.bForm ? { borderColor: '#dc2626' } : {}}

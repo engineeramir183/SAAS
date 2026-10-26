@@ -1032,17 +1032,16 @@ const AdminPortal = ({ setIsAdmin, setCurrentPage }) => {
             return;
         }
 
-        if (d.bForm && d.bForm.trim()) {
-            const bErr = validateCNIC(d.bForm, 'B-Form / CNIC');
-            if (bErr) {
-                alert(bErr);
-                return;
-            }
-            const dupErr = checkDuplicateCNIC(d.bForm, students);
-            if (dupErr) {
-                alert(dupErr);
-                return;
-            }
+        // B-Form / CNIC is strictly COMPULSORY and unique key
+        const bErr = validateCNIC(d.bForm, 'Student B-Form / CNIC', true);
+        if (bErr) {
+            alert(bErr);
+            return;
+        }
+        const dupErr = checkDuplicateCNIC(d.bForm, students);
+        if (dupErr) {
+            alert(dupErr);
+            return;
         }
 
         if (d.fatherName && d.fatherName.trim()) {
